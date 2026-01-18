@@ -12,7 +12,6 @@ import {
   Users,
   Building2,
   TrendingUp,
-  Briefcase,
   type LucideIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';

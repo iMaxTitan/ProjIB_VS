@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { AnnualPlan, QuarterlyPlan, WeeklyPlan, PlanStatus } from '@/types/planning';
 import { UserInfo } from '@/types/azure';
@@ -8,7 +8,7 @@ export const usePlans = (user: UserInfo) => {
   const [annualPlans, setAnnualPlans] = useState<AnnualPlan[]>([]);
   const [quarterlyPlans, setQuarterlyPlans] = useState<QuarterlyPlan[]>([]);
   const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlan[]>([]);
-  
+
   // Состояния для UI
   const [activeView, setActiveView] = useState<'yearly' | 'quarterly' | 'weekly'>('yearly');
   const [selectedAnnualPlan, setSelectedAnnualPlan] = useState<string | null>(null);
@@ -19,76 +19,127 @@ export const usePlans = (user: UserInfo) => {
   const [showPermissionError, setShowPermissionError] = useState<boolean>(false);
   const [permissionErrorMessage, setPermissionErrorMessage] = useState<string>('');
 
-  // Загрузка годовых планов
-  const fetchAnnualPlans = useCallback(async () => {
+  // Загрузка всех записей с пагинацией (Supabase ограничивает до 1000 за запрос)
+  const fetchAllWithPagination = async (table: string, orderBy: string, ascending: boolean = true) => {
+    const pageSize = 1000;
+    let allData: any[] = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .order(orderBy, { ascending })
+        .range(from, to);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        allData = [...allData, ...data];
+        hasMore = data.length === pageSize;
+        page++;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    return allData;
+  };
+
+  // Параллельная загрузка всех планов
+  const fetchAllPlans = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      const { data, error } = await supabase
-        .from('v_annual_plans')
-        .select('*')
-        .order('year', { ascending: false });
-      
-      if (error) throw error;
-      
-      setAnnualPlans(data || []);
+
+      // Запускаем загрузку параллельно с пагинацией для больших таблиц
+      const [annualData, quarterlyData, weeklyData] = await Promise.all([
+        supabase
+          .from('v_annual_plans')
+          .select('*')
+          .order('year', { ascending: false })
+          .then(r => { if (r.error) throw r.error; return r.data || []; }),
+        supabase
+          .from('v_quarterly_plans')
+          .select('*')
+          .order('quarter', { ascending: true })
+          .then(r => { if (r.error) throw r.error; return r.data || []; }),
+        // Недельные планы - с пагинацией (их много)
+        fetchAllWithPagination('v_weekly_plans', 'weekly_date', true)
+      ]);
+
+      setAnnualPlans(annualData);
+      setQuarterlyPlans(quarterlyData);
+      setWeeklyPlans(weeklyData);
     } catch (error: any) {
-      console.error('Ошибка при загрузке годовых планов:', error);
+      console.error('Ошибка при загрузке планов:', error);
       setError(error.message);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // --- Принудительное обновление: отключаем кеш Supabase для fetchQuarterlyPlans ---
+  // Загрузка годовых планов (отдельно, если нужно)
+  const fetchAnnualPlans = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('v_annual_plans')
+        .select('*')
+        .order('year', { ascending: false });
+
+      if (error) throw error;
+      setAnnualPlans(data || []);
+    } catch (error: any) {
+      console.error('Ошибка при загрузке годовых планов:', error);
+      setError(error.message);
+    }
+  }, []);
+
+  // Загрузка квартальных планов
   const fetchQuarterlyPlans = useCallback(async (annualPlanId?: string) => {
     try {
-      setLoading(true);
-      setError(null);
-      // Используем postgrest с no-cache (Supabase JS v2+)
       let query = supabase
         .from('v_quarterly_plans')
-        .select('*', { head: false }) // head: false отключает кеширование
-        .neq('status', 'completed');
+        .select('*');
+
       if (annualPlanId) {
         query = query.eq('annual_plan_id', annualPlanId);
       }
-      // Добавляем уникальный параметр для обхода кеша (workaround)
-      query = query.order('quarter', { ascending: true });
-      // Принудительно обновляем (Supabase иногда кеширует, поэтому добавим random param)
-      const { data, error } = await query;
+
+      const { data, error } = await query.order('quarter', { ascending: true });
       if (error) throw error;
       setQuarterlyPlans(data || []);
     } catch (error: any) {
       console.error('Ошибка при загрузке квартальных планов:', error);
       setError(error.message);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
-  // Загрузка недельных планов - универсальная функция
-  // Если указан quarterlyPlanId, загружает недельные планы для этого квартального плана
+  // Загрузка недельных планов
   const fetchWeeklyPlans = useCallback(async (quarterlyPlanId?: string) => {
     try {
-      setLoading(true);
-      setError(null);
-      
-      let query = supabase
-        .from('v_weekly_plans')
-        .select('*');
-      
-      // Если указан ID квартального плана, фильтруем по нему
+      let data: any[];
+
       if (quarterlyPlanId) {
-        query = query.eq('quarterly_id', quarterlyPlanId);
+        // Если фильтр по квартальному плану - обычный запрос (их будет < 1000)
+        const result = await supabase
+          .from('v_weekly_plans')
+          .select('*')
+          .eq('quarterly_id', quarterlyPlanId)
+          .order('weekly_date', { ascending: true });
+        if (result.error) throw result.error;
+        data = result.data || [];
+      } else {
+        // Без фильтра - загружаем все с пагинацией
+        data = await fetchAllWithPagination('v_weekly_plans', 'weekly_date', true);
       }
-      // ВАЖНО: НЕ фильтруем по статусу здесь!
-      const { data, error } = await query.order('weekly_date', { ascending: true });
-      
-      if (error) throw error;
-      setWeeklyPlans(data || []);
-      // Если указан ID квартального плана, устанавливаем его как выбранный
+
+      setWeeklyPlans(data);
+
       if (quarterlyPlanId) {
         setSelectedQuarterlyPlan(quarterlyPlanId);
       } else {
@@ -97,8 +148,6 @@ export const usePlans = (user: UserInfo) => {
     } catch (error: any) {
       console.error('Ошибка при загрузке недельных планов:', error);
       setError(error.message);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -117,32 +166,20 @@ export const usePlans = (user: UserInfo) => {
 
   // Обновление данных после успешного действия
   const handlePlanSuccess = useCallback(() => {
-    if (activeView === 'yearly') {
-      fetchAnnualPlans();
-    } else if (activeView === 'quarterly') {
-      fetchQuarterlyPlans(selectedAnnualPlan ?? undefined);
-    } else if (activeView === 'weekly') {
-      fetchWeeklyPlans(selectedQuarterlyPlan ?? undefined);
-    }
-  }, [activeView, selectedAnnualPlan, selectedQuarterlyPlan, fetchAnnualPlans, fetchQuarterlyPlans, fetchWeeklyPlans]);
+    fetchAllPlans();
+  }, [fetchAllPlans]);
 
-  // Пример обработчика смены фильтра статуса (можно вызвать из UI)
+  // Пример обработчика смены фильтра статуса
   const handleStatusFilterChange = useCallback((newStatus: PlanStatus | null) => {
     setStatusFilter(newStatus);
-    // fetchWeeklyPlans больше не вызывается — фильтрация только на клиенте!
   }, []);
-
-  // Загрузка годовых планов при монтировании компонента
-  useEffect(() => {
-    fetchAnnualPlans();
-  }, [fetchAnnualPlans]);
 
   return {
     // Данные
     annualPlans,
     quarterlyPlans,
     weeklyPlans,
-    
+
     // Состояние UI
     activeView,
     setActiveView,
@@ -158,8 +195,9 @@ export const usePlans = (user: UserInfo) => {
     setShowPermissionError,
     permissionErrorMessage,
     setPermissionErrorMessage,
-    
+
     // Методы
+    fetchAllPlans,
     fetchAnnualPlans,
     fetchQuarterlyPlans,
     fetchWeeklyPlans,

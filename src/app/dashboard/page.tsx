@@ -21,6 +21,7 @@ export default function Dashboard() {
     weekly: { active: 0, submitted: 0, draft: 0, returned: 0, approved: 0, completed: 0, failed: 0 }
   });
 
+
   useEffect(() => {
     async function fetchUserData() {
       try {
@@ -44,7 +45,6 @@ export default function Dashboard() {
   // Обработчик навигации по вкладкам
   const handleNavigation = (path: string) => {
     setCurrentPath(path);
-    // URL не меняем - всё работает внутри одного дашборда
   };
 
   // Обработчик клика по плитке
@@ -53,7 +53,6 @@ export default function Dashboard() {
     setCurrentPath('/dashboard/plans');
     // Не обновляем URL, так как это просто фильтрация
   };
-
 
   const fetchPlanCounts = () => {
     if (!user) return;
@@ -87,7 +86,11 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       <DashboardHeader user={user} />
-      <HorizontalNav role={user.role as UserRole} currentPath={currentPath} onNavigate={handleNavigation} />
+      <HorizontalNav
+        role={user.role as UserRole}
+        currentPath={currentPath}
+        onNavigate={handleNavigation}
+      />
       <PlansProvider>
         <DashboardTiles
           currentPath={currentPath}

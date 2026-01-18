@@ -46,18 +46,14 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
     weeklyPlans,
     loading,
     error,
-    fetchAnnualPlans,
-    fetchQuarterlyPlans,
-    fetchWeeklyPlans,
+    fetchAllPlans,
     handlePlanSuccess
   } = usePlans(user);
 
   // Загрузка данных при монтировании
   useEffect(() => {
-    fetchAnnualPlans();
-    fetchQuarterlyPlans();
-    fetchWeeklyPlans();
-  }, []);
+    fetchAllPlans();
+  }, [fetchAllPlans]);
 
   // Получить уникальные годы из планов (отсортированные по убыванию)
   const availableYears = Array.from(new Set(annualPlans.map(p => p.year))).sort((a, b) => b - a);
@@ -234,11 +230,8 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
   // Обработчик успешного сохранения
   const handleSuccess = useCallback(() => {
     handlePlanSuccess();
-    fetchAnnualPlans();
-    fetchQuarterlyPlans();
-    fetchWeeklyPlans();
     fetchPlanCounts?.();
-  }, [handlePlanSuccess, fetchAnnualPlans, fetchQuarterlyPlans, fetchWeeklyPlans, fetchPlanCounts]);
+  }, [handlePlanSuccess, fetchPlanCounts]);
 
   // Проверка прав на создание
   const canCreate = canCreateAnnualPlans(user);
@@ -327,142 +320,152 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
         className="border-r bg-white flex flex-col shadow-sm relative"
         style={{ width: panelWidth }}
       >
-        {/* Вкладки годов - notebook style */}
-        <div className="px-2 pt-2 bg-gradient-to-b from-amber-50/30 to-transparent">
-          <div className="flex flex-wrap gap-0.5 items-end">
+        {/* Строка 1: Годы | Кварталы */}
+        <div className="px-2 pt-2">
+          <div className="flex gap-1 items-center flex-wrap">
+            {/* Годы - всегда видны, свёрнуты если ничего не выбрано или выбран другой год */}
             {availableYears.map(year => {
               const yearPlan = annualPlans.find(p => p.year === year);
               const isSelected = selectedYear === year;
+              // Свёрнутый вид: если год не выбран вообще ИЛИ выбран другой год
+              const isCollapsed = !selectedYear || (selectedYear !== null && !isSelected);
               return (
                 <button
-                  key={year}
+                  key={`y-${year}`}
                   onClick={() => {
-                    if (selectedYear === year) {
-                      setSelectedQuarter(null);
-                      setSelectedWeekNumber(null);
-                    } else {
-                      setSelectedYear(year);
-                    }
+                    setSelectedYear(year);
+                    setSelectedQuarter(null);
+                    setSelectedWeekNumber(null);
                   }}
                   onDoubleClick={() => yearPlan && handleSelectPlan('annual', yearPlan)}
                   className={cn(
-                    "px-4 py-2 text-sm font-medium rounded-t-lg transition-all border-t border-l border-r relative",
+                    "font-medium transition-all",
                     isSelected
-                      ? "bg-white border-amber-300 text-amber-700 shadow-sm z-10 -mb-px"
-                      : "bg-amber-50/70 border-amber-200/50 text-gray-500 hover:bg-amber-100/70 hover:text-amber-600"
+                      ? "px-3 py-1.5 text-sm rounded-t-lg border-t border-l border-r bg-amber-200 border-amber-400 text-amber-800 shadow-sm -mb-px"
+                      : "px-1.5 py-0.5 text-[10px] rounded bg-amber-100/50 text-amber-400 hover:bg-amber-200/70 hover:text-amber-600"
                   )}
                 >
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1">
                     {year}
-                    <span className={cn(
-                      "w-2 h-2 rounded-full",
-                      getTimeIndicatorColor(year, currentYear, 'year')
-                    )} />
+                    {isSelected && (
+                      <span className={cn("w-1.5 h-1.5 rounded-full", getTimeIndicatorColor(year, currentYear, 'year'))} />
+                    )}
                   </span>
                 </button>
               );
             })}
-            {canCreate && (
+            {canCreate && !selectedYear && (
               <button
                 onClick={() => handleCreatePlan('annual')}
-                className="px-2 py-2 text-gray-400 hover:text-amber-600 rounded-t-lg transition-colors"
+                className="px-1.5 py-1.5 text-gray-400 hover:text-amber-600 transition-colors"
                 title="Создать годовой план"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            )}
+
+            {/* Разделитель если выбран год и есть кварталы */}
+            {selectedYear && uniqueQuarters.length > 0 && (
+              <span className="text-gray-300 mx-1">|</span>
+            )}
+
+            {/* Кварталы - показываем только если выбран год, свёрнуты если квартал не выбран */}
+            {selectedYear && uniqueQuarters.map(quarter => {
+              const isSelected = selectedQuarter === quarter;
+              // Свёрнутый вид: если квартал не выбран вообще ИЛИ выбран другой квартал
+              const isCollapsed = !selectedQuarter || (selectedQuarter !== null && !isSelected);
+              return (
+                <button
+                  key={`q-${quarter}`}
+                  onClick={() => {
+                    setSelectedQuarter(quarter);
+                    setSelectedWeekNumber(null);
+                  }}
+                  className={cn(
+                    "font-medium transition-all",
+                    isSelected
+                      ? "px-3 py-1.5 text-sm rounded-t-lg border-t border-l border-r bg-purple-200 border-purple-400 text-purple-800 shadow-sm -mb-px"
+                      : "px-1.5 py-0.5 text-[10px] rounded bg-purple-100/50 text-purple-400 hover:bg-purple-200/70 hover:text-purple-600"
+                  )}
+                >
+                  <span className="flex items-center gap-1">
+                    Q{quarter}
+                    {isSelected && (
+                      <span className={cn("w-1.5 h-1.5 rounded-full", getTimeIndicatorColor(quarter, currentQuarter, 'quarter', selectedYear))} />
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+            {canCreate && selectedAnnualPlan && !selectedQuarter && (
+              <button
+                onClick={() => handleCreatePlan('quarterly', selectedAnnualPlan.annual_id)}
+                className="px-1.5 py-1.5 text-gray-400 hover:text-purple-600 transition-colors"
+                title="Создать квартальный план"
+              >
+                <Plus className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
-          <div className="border-b border-amber-300" />
-        </div>
 
-        {/* Вкладки кварталов - notebook style */}
-        {selectedYear && uniqueQuarters.length > 0 && (
-          <div className="px-2 pt-1.5 bg-gradient-to-b from-purple-50/30 to-transparent">
-            <div className="flex flex-wrap gap-0.5 items-end">
-              {uniqueQuarters.map(quarter => {
-                const isSelected = selectedQuarter === quarter;
-                return (
-                  <button
-                    key={quarter}
-                    onClick={() => setSelectedQuarter(selectedQuarter === quarter ? null : quarter)}
-                    className={cn(
-                      "px-4 py-2 text-sm font-medium rounded-t-lg transition-all border-t border-l border-r relative",
-                      isSelected
-                        ? "bg-white border-purple-300 text-purple-700 shadow-sm z-10 -mb-px"
-                        : "bg-purple-50/70 border-purple-200/50 text-gray-500 hover:bg-purple-100/70 hover:text-purple-600"
-                    )}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      Q{quarter}
-                      <span className={cn(
-                        "w-2 h-2 rounded-full",
-                        getTimeIndicatorColor(quarter, currentQuarter, 'quarter', selectedYear)
-                      )} />
-                    </span>
-                  </button>
-                );
-              })}
-              {canCreate && selectedAnnualPlan && (
-                <button
-                  onClick={() => handleCreatePlan('quarterly', selectedAnnualPlan.annual_id)}
-                  className="px-2 py-2 text-gray-400 hover:text-purple-600 rounded-t-lg transition-colors"
-                  title="Создать квартальный план"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-            <div className="border-b border-purple-300" />
-          </div>
-        )}
-
-        {/* Вкладки недель - notebook style */}
-        {selectedQuarter && uniqueWeekNumbers.length > 0 && (
-          <div className="px-2 pt-1.5 bg-gradient-to-b from-indigo-50/30 to-transparent">
-            <div className="flex flex-wrap gap-0.5 items-end">
+          {/* Строка 2: Недели - показываем только если выбран квартал */}
+          {selectedQuarter && uniqueWeekNumbers.length > 0 && (
+            <div className="flex gap-1 items-center flex-wrap mt-1">
               {uniqueWeekNumbers.map(weekNum => {
                 const weekPlans = weeksForQuarter.filter(w => getWeekNumber(new Date(w.weekly_date)) === weekNum);
                 const plansCount = weekPlans.length;
                 const isSelected = selectedWeekNumber === weekNum;
+                // Свёрнутый вид: если неделя не выбрана вообще ИЛИ выбрана другая неделя
+                const isCollapsed = !selectedWeekNumber || (selectedWeekNumber !== null && !isSelected);
 
                 return (
                   <button
-                    key={weekNum}
-                    onClick={() => setSelectedWeekNumber(selectedWeekNumber === weekNum ? null : weekNum)}
+                    key={`w-${weekNum}`}
+                    onClick={() => setSelectedWeekNumber(weekNum)}
                     className={cn(
-                      "px-4 py-2 text-sm font-medium rounded-t-lg transition-all border-t border-l border-r relative",
+                      "font-medium transition-all",
                       isSelected
-                        ? "bg-white border-indigo-300 text-indigo-700 shadow-sm z-10 -mb-px"
-                        : "bg-indigo-50/70 border-indigo-200/50 text-gray-500 hover:bg-indigo-100/70 hover:text-indigo-600"
+                        ? "px-3 py-1.5 text-sm rounded-t-lg border-t border-l border-r bg-indigo-200 border-indigo-400 text-indigo-800 shadow-sm -mb-px"
+                        : "px-1.5 py-0.5 text-[10px] rounded bg-indigo-100/50 text-indigo-400 hover:bg-indigo-200/70 hover:text-indigo-600"
                     )}
                   >
-                    <span className="flex items-center gap-1.5">
+                    <span className="flex items-center gap-1">
                       {weekNum}
-                      {plansCount > 1 && <span className="text-xs opacity-60">({plansCount})</span>}
-                      <span className={cn(
-                        "w-2 h-2 rounded-full",
-                        getTimeIndicatorColor(weekNum, currentWeekNum, 'week', selectedYear || currentYear)
-                      )} />
+                      {isSelected && plansCount > 1 && <span className="text-[10px] opacity-60">({plansCount})</span>}
+                      {isSelected && (
+                        <span className={cn("w-1.5 h-1.5 rounded-full", getTimeIndicatorColor(weekNum, currentWeekNum, 'week', selectedYear || currentYear))} />
+                      )}
                     </span>
                   </button>
                 );
               })}
-              {canCreate && selectedQuarterlyPlan && (
+              {canCreate && selectedQuarterlyPlan && !selectedWeekNumber && (
                 <button
                   onClick={() => handleCreatePlan('weekly', selectedQuarterlyPlan.quarterly_id)}
-                  className="px-2 py-2 text-gray-400 hover:text-indigo-600 rounded-t-lg transition-colors"
+                  className="px-1.5 py-1.5 text-gray-400 hover:text-indigo-600 transition-colors"
                   title="Создать недельный план"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
-            <div className="border-b border-indigo-300" />
-          </div>
-        )}
+          )}
+
+          <div className={cn(
+            "border-b mt-1",
+            selectedWeekNumber ? "border-indigo-300" :
+            selectedQuarter ? "border-purple-300" :
+            selectedYear ? "border-amber-300" : "border-gray-300"
+          )} />
+        </div>
 
         {/* Фильтр по статусу */}
-        <div className="px-3 py-2 border-b bg-gray-50/50">
+        <div className={cn(
+          "px-3 py-2 border-b",
+          selectedWeekNumber ? "bg-indigo-100/80" :
+          selectedQuarter ? "bg-purple-100/80" :
+          selectedYear ? "bg-amber-100/80" : "bg-gray-100/80"
+        )}>
           <div className="flex flex-wrap gap-1">
             <button
               onClick={() => setStatusFilter(null)}
@@ -493,7 +496,12 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
         </div>
 
         {/* Список планов */}
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className={cn(
+          "flex-1 overflow-y-auto p-2",
+          selectedWeekNumber ? "bg-indigo-50/70" :
+          selectedQuarter ? "bg-purple-50/70" :
+          selectedYear ? "bg-amber-50/70" : "bg-gray-50/70"
+        )}>
           {loading ? (
             <div className="flex justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
@@ -542,8 +550,8 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
                         className={cn(
                           "p-2 rounded-lg cursor-pointer transition-all border",
                           isSelected
-                            ? "bg-indigo-50 border-indigo-200"
-                            : "bg-white border-gray-100 hover:bg-gray-50 hover:border-gray-200"
+                            ? "bg-white border-white shadow-sm"
+                            : "bg-indigo-100/50 border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300"
                         )}
                       >
                         <div className="flex items-center gap-2 mb-1">
@@ -590,8 +598,8 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
                         className={cn(
                           "p-2 rounded-lg cursor-pointer transition-all border",
                           isSelected
-                            ? "bg-purple-50 border-purple-200"
-                            : "bg-white border-gray-100 hover:bg-gray-50 hover:border-gray-200"
+                            ? "bg-white border-white shadow-sm"
+                            : "bg-purple-100/50 border-purple-200 hover:bg-purple-100 hover:border-purple-300"
                         )}
                       >
                         <div className="flex items-center gap-2 mb-1">
@@ -648,8 +656,8 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
                         className={cn(
                           "p-2 rounded-lg cursor-pointer transition-all border",
                           isSelected
-                            ? "bg-amber-50 border-amber-200"
-                            : "bg-white border-gray-100 hover:bg-gray-50 hover:border-gray-200"
+                            ? "bg-white border-white shadow-sm"
+                            : "bg-amber-100/50 border-amber-200 hover:bg-amber-100 hover:border-amber-300"
                         )}
                       >
                         <div className="flex items-center gap-2 mb-1">
@@ -699,7 +707,12 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
       </div>
 
       {/* Правая панель - детали плана */}
-      <div className="flex-1 overflow-y-auto bg-background">
+      <div className={cn(
+        "flex-1 overflow-y-auto",
+        selectedType === 'weekly' ? "bg-indigo-50/70" :
+        selectedType === 'quarterly' ? "bg-purple-50/70" :
+        selectedType === 'annual' ? "bg-amber-50/70" : "bg-background"
+      )}>
         {selectedPlan && selectedType ? (
           <PlanDetails
             type={selectedType}
@@ -779,6 +792,15 @@ function PlanDetails({ type, plan, user, onEdit, onClose, quarterlyPlans, weekly
     }
   };
 
+  // Helper для расчёта номера недели
+  const getWeekNumber = (date: Date): number => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  };
+
   const canEdit = user.role === 'chief' || user.role === 'head';
 
   if (type === 'annual') {
@@ -789,7 +811,7 @@ function PlanDetails({ type, plan, user, onEdit, onClose, quarterlyPlans, weekly
     return (
       <div className="p-4 overflow-y-auto max-h-full">
         {/* Компактная карточка */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden max-w-2xl">
+        <div className="bg-amber-100/50 rounded-xl border border-amber-200 shadow-sm overflow-hidden max-w-2xl">
           {/* Заголовок */}
           <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 text-white">
             <div className="flex items-center justify-between">
@@ -861,24 +883,91 @@ function PlanDetails({ type, plan, user, onEdit, onClose, quarterlyPlans, weekly
               </div>
             </div>
 
-            {/* Квартальные планы */}
-            {relatedQuarterly.length > 0 && (
-              <div className="pt-2 border-t">
-                <h3 className="text-[10px] font-medium text-gray-400 uppercase mb-2">Кварталы</h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {relatedQuarterly.map(q => (
-                    <div key={q.quarterly_id} className={cn(
-                      "px-2 py-1 rounded-md text-xs font-medium text-white",
-                      q.status === 'completed' ? 'bg-green-500' :
-                      q.status === 'active' ? 'bg-blue-500' :
-                      q.status === 'draft' ? 'bg-gray-400' : 'bg-indigo-500'
-                    )}>
-                      Q{q.quarter}
+            {/* Квартальные планы с прогрессом */}
+            {relatedQuarterly.length > 0 && (() => {
+              // Прогресс квартала = выполненные недели / всего недель (по статусу)
+              const quartersWithProgress = relatedQuarterly.map(q => {
+                const qWeeks = weeklyPlans.filter(w => w.quarterly_id === q.quarterly_id);
+                const qCompletedWeeks = qWeeks.filter(w => w.status === 'completed').length;
+                const qProgressPercent = qWeeks.length > 0 ? Math.round((qCompletedWeeks / qWeeks.length) * 100) : 0;
+                return { ...q, qWeeks, qCompletedWeeks, qProgressPercent };
+              });
+
+              // Общий прогресс года = выполненные кварталы / всего кварталов (по статусу)
+              const yearProgressPercent = relatedQuarterly.length > 0
+                ? Math.round((completedQuarters / relatedQuarterly.length) * 100)
+                : 0;
+
+              return (
+              <div className="pt-3 border-t">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-[10px] font-medium text-gray-400 uppercase">Кварталы</h3>
+                  <span className="text-[10px] text-gray-500">
+                    {completedQuarters}/{relatedQuarterly.length} выполнено
+                  </span>
+                </div>
+
+                {/* Общий прогресс года */}
+                <div className="mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full transition-all",
+                          yearProgressPercent === 100 ? "bg-green-500" : "bg-amber-500"
+                        )}
+                        style={{ width: `${Math.min(yearProgressPercent, 100)}%` }}
+                      />
                     </div>
-                  ))}
+                    <span className="text-[10px] font-medium text-gray-600 w-8">{yearProgressPercent}%</span>
+                  </div>
+                </div>
+
+                {/* Список кварталов с описанием */}
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {quartersWithProgress.map(q => {
+                    const { qWeeks, qCompletedWeeks, qProgressPercent } = q;
+
+                    return (
+                      <div key={q.quarterly_id} className="bg-white/60 rounded-lg p-2 border border-amber-200/50">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={cn(
+                            "w-6 h-6 rounded flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0",
+                            q.status === 'completed' ? 'bg-green-500' :
+                            q.status === 'active' ? 'bg-blue-500' :
+                            q.status === 'draft' ? 'bg-gray-400' : 'bg-purple-500'
+                          )}>
+                            Q{q.quarter}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-700 truncate" title={q.goal}>
+                              {q.goal || q.expected_result || 'Без описания'}
+                            </p>
+                          </div>
+                          <span className="text-[10px] flex-shrink-0 text-gray-500">
+                            {qCompletedWeeks}/{qWeeks.length} нед.
+                          </span>
+                        </div>
+                        {/* Прогресс-бар квартала по статусу недель */}
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className={cn(
+                                "h-full transition-all",
+                                qProgressPercent === 100 ? "bg-green-500" : "bg-purple-400"
+                              )}
+                              style={{ width: `${qProgressPercent}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] w-8 text-gray-500">{qProgressPercent}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            )}
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -894,7 +983,7 @@ function PlanDetails({ type, plan, user, onEdit, onClose, quarterlyPlans, weekly
     return (
       <div className="p-4 overflow-y-auto max-h-full">
         {/* Компактная карточка */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden max-w-2xl">
+        <div className="bg-purple-100/50 rounded-xl border border-purple-200 shadow-sm overflow-hidden max-w-2xl">
           {/* Заголовок */}
           <div className="bg-gradient-to-r from-purple-500 to-violet-500 px-4 py-3 text-white">
             <div className="flex items-center justify-between">
@@ -971,11 +1060,40 @@ function PlanDetails({ type, plan, user, onEdit, onClose, quarterlyPlans, weekly
               </div>
             </div>
 
-            {/* Недельные планы - компактный список */}
-            {relatedWeekly.length > 0 && (
-              <div className="pt-2 border-t">
-                <h3 className="text-[10px] font-medium text-gray-400 uppercase mb-2">Недельные планы</h3>
-                <div className="space-y-1 max-h-40 overflow-y-auto">
+            {/* Недельные планы с прогрессом */}
+            {relatedWeekly.length > 0 && (() => {
+              // Прогресс квартала = выполненные недели / всего недель (по статусу)
+              const progressPercent = relatedWeekly.length > 0
+                ? Math.round((completedWeeks / relatedWeekly.length) * 100)
+                : 0;
+
+              return (
+              <div className="pt-3 border-t">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-[10px] font-medium text-gray-400 uppercase">Недельные планы</h3>
+                  <span className="text-[10px] text-gray-500">
+                    {completedWeeks}/{relatedWeekly.length} выполнено
+                  </span>
+                </div>
+
+                {/* Общий прогресс квартала по статусу недель */}
+                <div className="mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full transition-all",
+                          progressPercent === 100 ? "bg-green-500" : "bg-purple-500"
+                        )}
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-medium text-gray-600 w-8">{progressPercent}%</span>
+                  </div>
+                </div>
+
+                {/* Список недель с описанием */}
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {relatedWeekly.map(w => {
                     const wDate = new Date(w.weekly_date);
                     const day = wDate.getDay();
@@ -985,24 +1103,38 @@ function PlanDetails({ type, plan, user, onEdit, onClose, quarterlyPlans, weekly
                     const friday = new Date(monday);
                     friday.setDate(monday.getDate() + 4);
                     const dateRange = `${monday.getDate()}.${monday.getMonth() + 1} — ${friday.getDate()}.${friday.getMonth() + 1}`;
+                    const isCompleted = w.status === 'completed';
+
+                    const weekNum = getWeekNumber(wDate);
 
                     return (
-                      <div key={w.weekly_id} className="flex items-center gap-2 text-xs py-1 px-2 rounded hover:bg-gray-50">
+                      <div key={w.weekly_id} className={cn(
+                        "rounded-lg p-2 border flex items-center gap-2",
+                        isCompleted ? "bg-green-50/50 border-green-200/50" : "bg-white/60 border-purple-200/50"
+                      )}>
                         <div className={cn(
-                          "w-2 h-2 rounded-full flex-shrink-0",
-                          w.status === 'completed' ? 'bg-green-500' :
+                          "w-6 h-6 rounded flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0",
+                          isCompleted ? 'bg-green-500' :
                           w.status === 'active' ? 'bg-blue-500' :
-                          w.status === 'draft' ? 'bg-gray-300' : 'bg-indigo-500'
-                        )} />
-                        <span className="text-gray-500 w-20 flex-shrink-0">{dateRange}</span>
-                        <span className="text-gray-700 truncate flex-1">{w.expected_result}</span>
-                        <span className="text-gray-400 flex-shrink-0">{w.planned_hours}ч</span>
+                          w.status === 'draft' ? 'bg-gray-400' : 'bg-indigo-500'
+                        )}>
+                          {isCompleted ? '✓' : weekNum}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] text-gray-500 mb-0.5">
+                            Неделя {weekNum} <span className="text-gray-400">({dateRange})</span>
+                          </p>
+                          <p className="text-xs text-gray-700 truncate" title={w.expected_result}>
+                            {w.expected_result || 'Без описания'}
+                          </p>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
-            )}
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -1032,6 +1164,27 @@ interface AssigneeWithDetails {
   role?: string;
 }
 
+// Тип для задачи
+interface WeeklyTask {
+  weekly_tasks_id: string;
+  weekly_plan_id: string;
+  user_id: string;
+  description: string;
+  spent_hours: number;
+  completed_at: string | null;
+  attachment_url?: string;
+}
+
+// Тип для агрегации по сотруднику
+interface EmployeeTaskStats {
+  user_id: string;
+  full_name: string;
+  photo_base64?: string;
+  totalTasks: number;
+  completedTasks: number;
+  spentHours: number;
+}
+
 // Компактная карточка недельного плана
 function WeeklyPlanDetails({
   plan,
@@ -1051,11 +1204,16 @@ function WeeklyPlanDetails({
   quarterlyPlans: QuarterlyPlan[];
 }) {
   const [assignees, setAssignees] = useState<AssigneeWithDetails[]>([]);
+  const [tasks, setTasks] = useState<WeeklyTask[]>([]);
+  const [employeeStats, setEmployeeStats] = useState<EmployeeTaskStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null);
   const weekDate = new Date(plan.weekly_date);
 
   const linkedQuarterly = quarterlyPlans.find(q => q.quarterly_id === plan.quarterly_id);
 
+  // Загрузка исполнителей
   useEffect(() => {
     const fetchAssignees = async () => {
       setLoading(true);
@@ -1089,6 +1247,73 @@ function WeeklyPlanDetails({
     fetchAssignees();
   }, [plan.weekly_id]);
 
+  // Загрузка задач и агрегация по сотрудникам
+  useEffect(() => {
+    const fetchTasks = async () => {
+      setTasksLoading(true);
+      try {
+        // Загружаем задачи
+        const { data: tasksData, error: tasksError } = await supabase
+          .from('weekly_tasks')
+          .select('*')
+          .eq('weekly_plan_id', plan.weekly_id);
+
+        if (tasksError) throw tasksError;
+        setTasks(tasksData || []);
+
+        if (tasksData && tasksData.length > 0) {
+          // Получаем уникальные user_id из задач
+          const userIds = [...new Set(tasksData.map(t => t.user_id))];
+
+          // Загружаем информацию о пользователях
+          const { data: usersData, error: usersError } = await supabase
+            .from('v_user_details')
+            .select('user_id, full_name, photo_base64')
+            .in('user_id', userIds);
+
+          if (usersError) throw usersError;
+
+          // Создаем map для быстрого поиска
+          const usersMap = new Map(usersData?.map(u => [u.user_id, u]) || []);
+
+          // Агрегируем по сотрудникам
+          const statsMap = new Map<string, EmployeeTaskStats>();
+
+          for (const task of tasksData) {
+            const existing = statsMap.get(task.user_id);
+            const userInfo = usersMap.get(task.user_id);
+
+            if (existing) {
+              existing.totalTasks++;
+              if (task.completed_at) existing.completedTasks++;
+              existing.spentHours += Number(task.spent_hours) || 0;
+            } else {
+              statsMap.set(task.user_id, {
+                user_id: task.user_id,
+                full_name: userInfo?.full_name || 'Неизвестный',
+                photo_base64: userInfo?.photo_base64,
+                totalTasks: 1,
+                completedTasks: task.completed_at ? 1 : 0,
+                spentHours: Number(task.spent_hours) || 0
+              });
+            }
+          }
+
+          // Сортируем по количеству часов (больше — выше)
+          setEmployeeStats(Array.from(statsMap.values()).sort((a, b) => b.spentHours - a.spentHours));
+        } else {
+          setEmployeeStats([]);
+        }
+      } catch (err) {
+        console.error('Ошибка загрузки задач:', err);
+      } finally {
+        setTasksLoading(false);
+      }
+    };
+
+    fetchTasks();
+  }, [plan.weekly_id]);
+
   const getInitials = (name: string) => {
     return name.split(' ').map(w => w[0]?.toUpperCase() || '').join('').slice(0, 2);
   };
@@ -1107,7 +1332,7 @@ function WeeklyPlanDetails({
   return (
     <div className="p-4 overflow-y-auto max-h-full">
       {/* Компактная карточка */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden max-w-2xl">
+      <div className="bg-indigo-100/50 rounded-xl border border-indigo-200 shadow-sm overflow-hidden max-w-2xl">
         {/* Заголовок */}
         <div className="bg-gradient-to-r from-indigo-500 to-blue-500 px-4 py-3 text-white">
           <div className="flex items-center justify-between">
@@ -1145,48 +1370,53 @@ function WeeklyPlanDetails({
             <p className="text-sm text-gray-700">{plan.expected_result}</p>
           </div>
 
-          {/* Статистика в одну строку */}
-          <div className="flex gap-4 pt-2 border-t">
-            <div className="flex items-center gap-1.5">
-              <div className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center">
-                <Clock className="h-3.5 w-3.5 text-indigo-600" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-800">{plan.planned_hours}</p>
-                <p className="text-[10px] text-gray-400">часов</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center">
-                <Users className="h-3.5 w-3.5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-800">{assignees.length || plan.assignees_count || 0}</p>
-                <p className="text-[10px] text-gray-400">человек</p>
-              </div>
-            </div>
-          </div>
+          {/* Статистика: часы план/факт + люди */}
+          {(() => {
+            const totalSpentHours = tasks.reduce((sum, t) => sum + (Number(t.spent_hours) || 0), 0);
+            const plannedHours = Number(plan.planned_hours) || 0;
+            const hoursPercent = plannedHours > 0 ? Math.round((totalSpentHours / plannedHours) * 100) : 0;
+            const isOvertime = hoursPercent > 100;
 
-          {/* Исполнители - компактно */}
-          {!loading && assignees.length > 0 && (
-            <div className="pt-2 border-t">
-              <h3 className="text-[10px] font-medium text-gray-400 uppercase mb-2">Исполнители</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {assignees.map((assignee, idx) => (
-                  <div key={assignee.user_id} className="flex items-center gap-1.5 bg-gray-50 rounded-full px-2 py-1">
-                    {assignee.photo_base64 ? (
-                      <img src={assignee.photo_base64} alt="" className="w-5 h-5 rounded-full object-cover" />
-                    ) : (
-                      <div className={cn("w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-medium", avatarColors[idx % avatarColors.length])}>
-                        {getInitials(assignee.full_name)}
-                      </div>
-                    )}
-                    <span className="text-xs text-gray-700">{assignee.full_name.split(' ')[0]}</span>
+            return (
+              <div className="flex gap-4 pt-2 border-t">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center">
+                    <Clock className="h-3.5 w-3.5 text-indigo-600" />
                   </div>
-                ))}
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{plannedHours}</p>
+                    <p className="text-[10px] text-gray-400">план</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className={cn(
+                    "w-7 h-7 rounded-lg flex items-center justify-center",
+                    isOvertime ? "bg-red-100" : "bg-green-100"
+                  )}>
+                    <Clock className={cn("h-3.5 w-3.5", isOvertime ? "text-red-600" : "text-green-600")} />
+                  </div>
+                  <div>
+                    <p className={cn(
+                      "text-sm font-semibold",
+                      isOvertime ? "text-red-600" : "text-gray-800"
+                    )}>
+                      {tasksLoading ? '...' : totalSpentHours.toFixed(1)}
+                    </p>
+                    <p className="text-[10px] text-gray-400">факт</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center">
+                    <Users className="h-3.5 w-3.5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{assignees.length || plan.assignees_count || 0}</p>
+                    <p className="text-[10px] text-gray-400">человек</p>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Компании - компактно */}
           {plan.company_names && plan.company_names.length > 0 && (
@@ -1198,6 +1428,158 @@ function WeeklyPlanDetails({
                     {name}
                   </span>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Отчет по задачам - всегда показываем */}
+          {!tasksLoading && (
+            <div className="pt-3 border-t">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-[10px] font-medium text-gray-400 uppercase">Выполнение</h3>
+                <span className="text-[10px] text-gray-500">
+                  {tasks.filter(t => t.completed_at).length}/{tasks.length} задач
+                </span>
+              </div>
+
+              {/* Общий прогресс */}
+              {(() => {
+                const totalCompleted = tasks.filter(t => t.completed_at).length;
+                const totalTasks = tasks.length;
+                const progressPercent = totalTasks > 0 ? Math.round((totalCompleted / totalTasks) * 100) : 0;
+
+                return (
+                  <div className="mb-3">
+                    {/* Прогресс бар по задачам */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className={cn(
+                            "h-full transition-all",
+                            progressPercent === 100 ? "bg-green-500" : "bg-indigo-500"
+                          )}
+                          style={{ width: `${Math.min(progressPercent, 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-medium text-gray-600 w-8">{progressPercent}%</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Разбивка по сотрудникам */}
+              {employeeStats.length > 0 ? (
+                <div className="space-y-1">
+                  {employeeStats.map((emp, idx) => {
+                    const empProgressPercent = emp.totalTasks > 0
+                      ? Math.round((emp.completedTasks / emp.totalTasks) * 100)
+                      : 0;
+                    const isExpanded = expandedEmployee === emp.user_id;
+                    const empTasks = tasks.filter(t => t.user_id === emp.user_id);
+
+                    return (
+                      <div key={emp.user_id}>
+                        {/* Строка сотрудника - кликабельная */}
+                        <div
+                          className={cn(
+                            "flex items-center gap-2 p-1.5 rounded-lg cursor-pointer transition-colors",
+                            isExpanded ? "bg-indigo-50" : "hover:bg-gray-50"
+                          )}
+                          onClick={() => setExpandedEmployee(isExpanded ? null : emp.user_id)}
+                        >
+                          {/* Стрелка */}
+                          <span className={cn(
+                            "text-[10px] text-gray-400 transition-transform w-3",
+                            isExpanded && "rotate-90"
+                          )}>
+                            ▶
+                          </span>
+
+                          {/* Аватар */}
+                          {emp.photo_base64 ? (
+                            <img src={emp.photo_base64} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                          ) : (
+                            <div className={cn(
+                              "w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-medium flex-shrink-0",
+                              avatarColors[idx % avatarColors.length]
+                            )}>
+                              {getInitials(emp.full_name)}
+                            </div>
+                          )}
+
+                          {/* Имя и прогресс */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-xs text-gray-700 truncate">{emp.full_name.split(' ')[0]}</span>
+                              <span className="text-[10px] text-gray-500 flex-shrink-0 ml-2">
+                                {emp.completedTasks}/{emp.totalTasks}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className={cn(
+                                    "h-full transition-all",
+                                    empProgressPercent === 100 ? "bg-green-500" : "bg-indigo-400"
+                                  )}
+                                  style={{ width: `${empProgressPercent}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-gray-500 w-10 text-right flex-shrink-0">
+                                {emp.spentHours.toFixed(1)}ч
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Список задач сотрудника */}
+                        {isExpanded && empTasks.length > 0 && (
+                          <div className="ml-9 mt-1 mb-2 space-y-1 border-l-2 border-indigo-200 pl-2">
+                            {empTasks.map(task => (
+                              <div
+                                key={task.weekly_tasks_id}
+                                className="flex items-start gap-2 text-xs py-1"
+                              >
+                                <span className={cn(
+                                  "mt-0.5 flex-shrink-0",
+                                  task.completed_at ? "text-green-500" : "text-gray-300"
+                                )}>
+                                  {task.completed_at ? "✓" : "○"}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-gray-700 leading-tight">{task.description}</p>
+                                  <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400">
+                                    <span>{Number(task.spent_hours).toFixed(2)}ч</span>
+                                    {task.completed_at && (
+                                      <span>
+                                        {new Date(task.completed_at).toLocaleDateString('ru-RU', {
+                                          day: '2-digit',
+                                          month: '2-digit'
+                                        })}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-xs text-gray-400 italic">Задачи не добавлены</div>
+              )}
+            </div>
+          )}
+
+          {/* Загрузка задач */}
+          {tasksLoading && (
+            <div className="pt-3 border-t">
+              <div className="flex items-center gap-2 text-gray-400 text-xs">
+                <div className="animate-spin rounded-full h-3 w-3 border-b border-gray-400"></div>
+                Загрузка...
               </div>
             </div>
           )}

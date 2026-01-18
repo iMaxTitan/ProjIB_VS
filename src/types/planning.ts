@@ -78,6 +78,7 @@ export interface WeeklyPlan {
   created_at?: string;
   updated_at?: string;
   planned_hours: number; // Новое поле для плановых часов
+  total_spent_hours?: number; // Затраченные часы (из view)
   company_names?: string[]; // Массив названий компаний
 }
 
