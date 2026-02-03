@@ -4,15 +4,13 @@ import { usePathname } from 'next/navigation';
 import { UserInfo } from '@/types/azure';
 import {
   ActivityContent,
-  PlansContent,
   ReportsContent,
   DepartmentContent,
   EmployeesContent,
   CompaniesContent,
-  DefaultContent,
-  CoefficientsContent
+  DefaultContent
 } from './content';
-import WeeklyPlansTasksBoard from './Tasks/WeeklyPlansTasksBoard';
+import TasksPageNew from '@/app/dashboard/tasks/page-new';
 import KPIContent from './content/KPIContent';
 import PlansPageNew from '@/components/plans/PlansPageNew';
 
@@ -40,7 +38,7 @@ export default function DashboardContent({ user, currentPath, fetchPlanCounts }:
       case 'plans':
         return <PlansPageNew user={user} fetchPlanCounts={fetchPlanCounts} />;
       case 'tasks':
-        return <WeeklyPlansTasksBoard />;
+        return <TasksPageNew />;
       case 'reports':
         return <ReportsContent user={user} />;
       case 'department':
@@ -49,8 +47,6 @@ export default function DashboardContent({ user, currentPath, fetchPlanCounts }:
         return <EmployeesContent user={user} />;
       case 'companies':
         return <CompaniesContent user={user} />;
-      case 'coefficients':
-        return <CoefficientsContent user={user} />;
       case 'kpi':
         return <KPIContent />;
       default:
@@ -59,10 +55,10 @@ export default function DashboardContent({ user, currentPath, fetchPlanCounts }:
   };
 
   const currentSection = activePath.split('/').pop();
-  const isPlansPage = currentSection === 'plans';
+  const isFullHeightPage = currentSection === 'plans' || currentSection === 'tasks';
 
   return (
-    <div className={isPlansPage ? "h-full" : "px-6 pb-6"}>
+    <div className={isFullHeightPage ? "h-full" : "px-6 pb-6"}>
       {renderContent()}
     </div>
   );
