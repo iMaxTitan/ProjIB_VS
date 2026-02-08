@@ -1,4 +1,5 @@
 import { getUserInfo } from '@/lib/auth/index';
+import { logger } from '@/lib/logger';
 
 /**
  * Предоставляет статические методы для аутентификации
@@ -36,11 +37,12 @@ export class GraphAuthService {
         return userInfo.accessToken;
       }
       
-      console.warn('Не удалось получить accessToken: пользователь не авторизован или отсутствует токен.');
+      logger.warn('Не удалось получить accessToken: пользователь не авторизован или отсутствует токен.');
       return null;
-    } catch (error) {
-      console.error('Ошибка при получении токена доступа для Graph API:', error);
+    } catch (error: unknown) {
+      logger.error('Ошибка при получении токена доступа для Graph API:', error);
       return null;
     }
   }
 }
+

@@ -334,7 +334,7 @@ export function BottomDrawer({
           "overflow-hidden flex flex-col",
           isDragging
             ? "transition-none"
-            : "transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
+            : "transition-transform duration-300 ease-drawer",
           // Стили в зависимости от режима
           isNakedMode
             ? "bg-transparent"

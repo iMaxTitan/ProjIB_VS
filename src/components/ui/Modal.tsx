@@ -1,4 +1,5 @@
-import React from 'react';
+﻿import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 interface ModalProps {
   isOpen: boolean;
@@ -6,10 +7,13 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   maxWidth?: string;
+  headerVariant?: 'simple' | 'gradient-indigo';
+  headerActions?: React.ReactNode;
+  showCloseButton?: boolean;
 }
 
 /**
- * Базовый компонент модального окна
+ * Улучшенный компонент модального окна с accessibility
  */
 export function Modal({
   isOpen,
@@ -17,29 +21,178 @@ export function Modal({
   title,
   children,
   maxWidth = 'max-w-2xl',
+  headerVariant = 'simple',
+  headerActions,
+  showCloseButton = true,
 }: ModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
+  const hasSetInitialFocus = useRef(false);
+  const onCloseRef = useRef(onClose);
+
+  // Keep onClose ref updated
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Reset initial focus flag when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      hasSetInitialFocus.current = false;
+    }
+  }, [isOpen]);
+
+  // Focus trap и keyboard handling
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Сохраняем предыдущий активный элемент
+    previousActiveElement.current = document.activeElement as HTMLElement;
+
+    // Блокируем скролл body
+    document.body.style.overflow = 'hidden';
+
+    // Фокус на модальное окно
+    const modalElement = modalRef.current;
+    if (modalElement) {
+      const focusableElements = modalElement.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0];
+
+      // Устанавливаем фокус на первый элемент только при первом открытии
+      if (!hasSetInitialFocus.current) {
+        const firstInput = modalElement.querySelector<HTMLElement>('input, select, textarea');
+        (firstInput || firstElement)?.focus();
+        hasSetInitialFocus.current = true;
+      }
+
+      // Обработчик Tab для focus trap
+      const handleTab = (e: KeyboardEvent) => {
+        if (e.key !== 'Tab') return;
+
+        const currentFocusable = modalElement.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const first = currentFocusable[0];
+        const last = currentFocusable[currentFocusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last?.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first?.focus();
+          }
+        }
+      };
+
+      // Обработчик ESC
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onCloseRef.current();
+        }
+      };
+
+      modalElement.addEventListener('keydown', handleTab);
+      document.addEventListener('keydown', handleEscape);
+
+      return () => {
+        modalElement.removeEventListener('keydown', handleTab);
+        document.removeEventListener('keydown', handleEscape);
+        document.body.style.overflow = 'unset';
+
+        // Возвращаем фокус на предыдущий элемент
+        previousActiveElement.current?.focus();
+      };
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className={`bg-white rounded-xl p-6 w-full ${maxWidth} max-h-[90vh] overflow-y-auto shadow-xl border border-gray-100 transform transition-all`}>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-800">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-            title="Закрыть"
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  const isGradient = headerVariant === 'gradient-indigo';
+
+  const modalContent = (
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-modal-backdrop animate-fade-in px-4 py-4"
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
+      <div
+        ref={modalRef}
+        className={`bg-white rounded-3xl w-full ${maxWidth} shadow-xl border border-gray-100 flex flex-col`}
+        role="document"
+      >
+        <div
+          className={
+            isGradient
+              ? 'bg-gradient-to-r from-indigo-400/80 to-blue-400/80 px-6 py-4 flex justify-between items-center shrink-0 rounded-t-3xl'
+              : 'px-6 py-5 flex justify-between items-center border-b border-gray-100 shrink-0'
+          }
+        >
+          <h2
+            id="modal-title"
+            className={
+              isGradient ? 'text-lg font-bold text-white tracking-tight' : 'text-lg font-bold text-gray-800'
+            }
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+            {title}
+          </h2>
+
+          <div className="flex items-center gap-1">
+            {headerActions}
+            {showCloseButton && (
+              <button
+                type="button"
+                onClick={onClose}
+                className={
+                  isGradient
+                    ? 'p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-all backdrop-blur-sm'
+                    : 'p-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 transition-all'
+                }
+                aria-label="Закрыть модальное окно"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  aria-hidden="true"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
-        {children}
+
+        <div className="p-6">{children}</div>
       </div>
     </div>
   );
+
+  // Use portal to render modal at document body level to avoid z-index/overflow issues
+  if (typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 }
 
 interface ErrorAlertProps {

@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { SupabaseUserInfo, UserRole } from '@/types/supabase';
 import { AzureUserInfo, UserInfo } from '@/types/azure';
+import logger from '@/lib/logger';
 
 /**
  * Объединяет данные пользователя из Azure AD и Supabase
@@ -45,7 +46,7 @@ export async function syncCurrentUser(azureUser: AzureUserInfo): Promise<Supabas
       .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 - not found
-      console.error('Error fetching user:', fetchError);
+      logger.error('Error fetching user:', fetchError);
       return null;
     }
 
@@ -71,13 +72,13 @@ export async function syncCurrentUser(azureUser: AzureUserInfo): Promise<Supabas
       .single();
 
     if (upsertError) {
-      console.error('Error syncing user:', upsertError);
+      logger.error('Error syncing user:', upsertError);
       return null;
     }
 
     return updatedUser;
-  } catch (error) {
-    console.error('Error in syncCurrentUser:', error);
+  } catch (error: unknown) {
+    logger.error('Error in syncCurrentUser:', error);
     return null;
   }
 }
@@ -96,13 +97,13 @@ export async function getCurrentUser(email: string): Promise<SupabaseUserInfo | 
       .single();
 
     if (error) {
-      console.error('Error fetching current user:', error);
+      logger.error('Error fetching current user:', error);
       return null;
     }
 
     return data;
-  } catch (error) {
-    console.error('Error in getCurrentUser:', error);
+  } catch (error: unknown) {
+    logger.error('Error in getCurrentUser:', error);
     return null;
   }
 }
@@ -121,13 +122,13 @@ export async function getUserByEmail(email: string): Promise<SupabaseUserInfo | 
       .single();
 
     if (error) {
-      console.error('Error fetching user by email:', error);
+      logger.error('Error fetching user by email:', error);
       return null;
     }
 
     return data;
-  } catch (error) {
-    console.error('Error in getUserByEmail:', error);
+  } catch (error: unknown) {
+    logger.error('Error in getUserByEmail:', error);
     return null;
   }
 } 

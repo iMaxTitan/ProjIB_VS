@@ -1,46 +1,30 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { redirect } from 'next/navigation';
-import { UserInfo } from '@/types/azure';
-import { getCurrentUser } from '@/lib/auth';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import HorizontalNav from '@/components/navigation/HorizontalNav';
 import DashboardContent from '@/components/dashboard/DashboardContent';
 import DashboardTiles from '@/components/dashboard/DashboardTiles';
 import { UserRole } from '@/types/supabase';
 import { PlansProvider } from '@/context/PlansContext';
+import logger from '@/lib/logger';
 
 export default function Dashboard() {
-  const [user, setUser] = useState<UserInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const { user, isLoading: loading } = useAuth();
   const [currentPath, setCurrentPath] = useState('/dashboard');
   const [planCounts, setPlanCounts] = useState({
     annual: { active: 0, submitted: 0, draft: 0, returned: 0, approved: 0, completed: 0, failed: 0 },
-    quarterly: { active: 0, submitted: 0, draft: 0, returned: 0, approved: 0, completed: 0, failed: 0 },
-    weekly: { active: 0, submitted: 0, draft: 0, returned: 0, approved: 0, completed: 0, failed: 0 }
+    quarterly: { active: 0, submitted: 0, draft: 0, returned: 0, approved: 0, completed: 0, failed: 0 }
   });
 
-
   useEffect(() => {
-    async function fetchUserData() {
-      try {
-        const userData = await getCurrentUser();
-        if (userData) {
-          setUser(userData);
-        } else {
-          redirect('/login');
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        redirect('/login');
-      } finally {
-        setLoading(false);
-      }
+    if (!loading && !user) {
+      router.replace('/login');
     }
-
-    fetchUserData();
-  }, []);
+  }, [loading, router, user]);
 
   // Обработчик навигации по вкладкам
   const handleNavigation = (path: string) => {
@@ -48,7 +32,7 @@ export default function Dashboard() {
   };
 
   // Обработчик клика по плитке
-  const handleTileClick = (type: 'yearly' | 'quarterly' | 'weekly') => {
+  const handleTileClick = (type: 'yearly' | 'quarterly') => {
     // Устанавливаем путь к планам
     setCurrentPath('/dashboard/plans');
     // Не обновляем URL, так как это просто фильтрация
@@ -60,11 +44,11 @@ export default function Dashboard() {
       .then(res => res.json())
       .then(data => {
         // Если структура совпадает с ожиданиями, просто сохраняем
-        if (data && data.annual && data.quarterly && data.weekly) {
+        if (data && data.annual && data.quarterly) {
           setPlanCounts(data);
         }
       })
-      .catch(console.error);
+      .catch((error) => logger.error(error));
   };
 
   if (loading) {
@@ -78,10 +62,7 @@ export default function Dashboard() {
     );
   }
 
-  if (!user) {
-    redirect('/login');
-    return null;
-  }
+  if (!user) return null;
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
@@ -110,3 +91,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

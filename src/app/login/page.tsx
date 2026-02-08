@@ -4,6 +4,9 @@ import { useAuth } from '@/lib/auth/index';
 import LoginPageContent from '@/components/auth/LoginPageContent';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import logger from '@/lib/logger';
+
+const DEBUG_LOGS = process.env.NODE_ENV !== 'production';
 
 export default function LoginPage() {
   const { 
@@ -26,15 +29,15 @@ export default function LoginPage() {
           // Простая проверка: начинается ли с '/' и не содержит '//' или ':'
           if (decodedUrl.startsWith('/') && !decodedUrl.includes('//') && !decodedUrl.includes(':')) {
             targetUrl = decodedUrl; // Используем декодированный и проверенный URL
-            console.log(`Login Page: Redirecting to valid returnUrl: ${targetUrl}`);
+            if (DEBUG_LOGS) logger.log(`Login Page: Redirecting to valid returnUrl: ${targetUrl}`);
           } else {
-             console.warn(`Login Page: Invalid returnUrl detected: ${decodedUrl}. Redirecting to /dashboard.`);
+             logger.warn(`Login Page: Invalid returnUrl detected: ${decodedUrl}. Redirecting to /dashboard.`);
           }
         } else {
-           console.log('Login Page: No returnUrl found. Redirecting to /dashboard.');
+           if (DEBUG_LOGS) logger.log('Login Page: No returnUrl found. Redirecting to /dashboard.');
         }
-      } catch (e) {
-        console.error('Login Page: Error processing returnUrl. Redirecting to /dashboard.', e);
+      } catch (e: unknown) {
+        logger.error('Login Page: Error processing returnUrl. Redirecting to /dashboard.', e);
       }
       // Перенаправляем на returnUrl или на дашборд по умолчанию
       router.push(targetUrl);
@@ -50,7 +53,7 @@ export default function LoginPage() {
   }
 
   if (!isAuthenticated) {
-    console.log('[LoginPage] authErrorType =', authErrorType);
+    if (DEBUG_LOGS) logger.log('[LoginPage] authErrorType =', authErrorType);
     let errorMessage: string | null = null;
     let showLoginButton = true;
 
@@ -79,3 +82,4 @@ export default function LoginPage() {
     </div>
   ); 
 }
+

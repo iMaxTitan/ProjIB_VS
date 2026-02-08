@@ -1,5 +1,6 @@
-import { MockDataRequestOptions } from '@/types/graph-types'; 
+import { MockDataRequestOptions } from '@/types/graph-types';
 import { GraphAuthService } from './auth-service';
+import { logger } from '@/lib/logger';
 
 interface MeetingRecording {
   id: string;
@@ -31,18 +32,18 @@ export class GraphMeetingsService {
   static async getMeetingRecordings(meetingId: string, options: MockDataRequestOptions = {}): Promise<MeetingRecording[]> {
     // Проверяем на использование тестовых данных
     if (options.useMockData === true) {
-      console.log(`[Mock] Получение записей для встречи: ${meetingId}`);
+      logger.info(`[Mock] Получение записей для встречи: ${meetingId}`);
       return this.getMockMeetingRecordings(meetingId);
     }
 
     try {
       const token = options.accessToken || await GraphAuthService.getAccessToken();
       if (!token) {
-        console.error('Отсутствует токен доступа при получении записей встречи.');
+        logger.error('Отсутствует токен доступа при получении записей встречи.');
         return [];
       }
 
-      console.log(`Получение записей для встречи: ${meetingId}`);
+      logger.info(`Получение записей для встречи: ${meetingId}`);
       const response = await fetch(
         `${GraphAuthService.apiBaseUrl}/me/onlineMeetings/${meetingId}/recordings`,
         {
@@ -56,14 +57,14 @@ export class GraphMeetingsService {
 
       if (!response.ok) {
         // Логируем ошибку, но возвращаем пустой массив, как ожидается
-        console.warn(`Ошибка API при получении записей встречи ${meetingId}: ${response.status} ${response.statusText}. Ответ: ${await response.text()}`);
+        logger.warn(`Ошибка API при получении записей встречи ${meetingId}: ${response.status} ${response.statusText}. Ответ: ${await response.text()}`);
         return [];
       }
 
       const recordingsData = await response.json();
       return recordingsData.value || []; // Graph API возвращает записи в поле value
-    } catch (error) {
-      console.error(`Критическая ошибка при получении записей встречи ${meetingId}:`, error);
+    } catch (error: unknown) {
+      logger.error(`Критическая ошибка при получении записей встречи ${meetingId}:`, error);
       return [];
     }
   }
@@ -124,12 +125,12 @@ export class GraphMeetingsService {
     try {
       const token = options.accessToken || await GraphAuthService.getAccessToken();
       if (!token) {
-        console.error('Отсутствует токен доступа при получении ID онлайн-встречи для события:', eventId);
+        logger.error('Отсутствует токен доступа при получении ID онлайн-встречи для события:', eventId);
         return null;
       }
 
       // --- Шаг 1: Получаем информацию о событии календаря ---
-      console.log(`Получение данных события ${eventId} для поиска onlineMeetingId`);
+      logger.info(`Получение данных события ${eventId} для поиска onlineMeetingId`);
       const eventResponse = await fetch(
         // Запрашиваем поля, необходимые для всех стратегий поиска
         `${GraphAuthService.apiBaseUrl}/me/events/${eventId}?$select=id,subject,onlineMeeting,onlineMeetingProvider,isOnlineMeeting`,
@@ -140,14 +141,14 @@ export class GraphMeetingsService {
       );
 
       if (!eventResponse.ok) {
-        console.error(`Ошибка API при получении события ${eventId}: ${eventResponse.status} ${eventResponse.statusText}. Ответ: ${await eventResponse.text()}`);
+        logger.error(`Ошибка API при получении события ${eventId}: ${eventResponse.status} ${eventResponse.statusText}. Ответ: ${await eventResponse.text()}`);
         return null;
       }
       const eventData = await eventResponse.json();
 
       // --- Шаг 2: Попытка извлечь ID из onlineMeeting.joinUrl ---
       if (eventData.onlineMeeting && eventData.onlineMeeting.joinUrl) {
-        console.log(`Попытка извлечь meetingId из joinUrl: ${eventData.onlineMeeting.joinUrl}`);
+        logger.info(`Попытка извлечь meetingId из joinUrl: ${eventData.onlineMeeting.joinUrl}`);
         try {
           // Пример URL: https://teams.microsoft.com/l/meetup-join/19%3ameeting_...%40thread.v2/0?context=%7b%22Tid%22%3a%22...%22%2c%22Oid%22%3a%22...%22%7d
           // Нужная часть - между 'meetup-join/' и '/0?context'
@@ -155,16 +156,16 @@ export class GraphMeetingsService {
           const meetingIdMatch = eventData.onlineMeeting.joinUrl.match(meetingRegex);
           if (meetingIdMatch && meetingIdMatch[1]) {
             const decodedMeetingId = decodeURIComponent(meetingIdMatch[1]); // Декодируем ID
-            console.log(`Найден meetingId (${decodedMeetingId}) в joinUrl события ${eventId}`);
+            logger.info(`Найден meetingId (${decodedMeetingId}) в joinUrl события ${eventId}`);
             return decodedMeetingId;
           } else {
-             console.warn(`Не удалось извлечь meetingId из joinUrl: ${eventData.onlineMeeting.joinUrl} для события ${eventId}`);
+             logger.warn(`Не удалось извлечь meetingId из joinUrl: ${eventData.onlineMeeting.joinUrl} для события ${eventId}`);
           }
-        } catch (parseError) {
-          console.warn(`Ошибка при разборе joinUrl для события ${eventId}:`, parseError);
+        } catch (parseError: unknown) {
+          logger.warn(`Ошибка при разборе joinUrl для события ${eventId}:`, parseError);
         }
       } else {
-         console.log(`Отсутствует onlineMeeting.joinUrl в данных события ${eventId}`);
+         logger.info(`Отсутствует onlineMeeting.joinUrl в данных события ${eventId}`);
       }
 
       // --- Шаг 3: Попытка найти встречу по joinWebUrl (если joinUrl не сработал) ---
@@ -172,7 +173,7 @@ export class GraphMeetingsService {
       const joinWebUrl = eventData.onlineMeeting?.joinWebUrl; // joinWebUrl — корректное поле для поиска
       
       if (joinWebUrl) {
-        console.log(`Попытка найти встречу по joinWebUrl: ${joinWebUrl}`);
+        logger.info(`Попытка найти встречу по joinWebUrl: ${joinWebUrl}`);
         try {
           // Graph API требует одинарные кавычки в фильтре и URL должен быть закодирован
           const encodedUrl = encodeURIComponent(joinWebUrl);
@@ -188,24 +189,24 @@ export class GraphMeetingsService {
           if (meetingResponse.ok) {
             const meetingsData = await meetingResponse.json();
             if (meetingsData.value && meetingsData.value.length > 0) {
-              console.log(`Найден meetingId (${meetingsData.value[0].id}) по joinWebUrl для события ${eventId}`);
+              logger.info(`Найден meetingId (${meetingsData.value[0].id}) по joinWebUrl для события ${eventId}`);
               return meetingsData.value[0].id;
             } else {
-              console.log(`Встреча с joinWebUrl ${joinWebUrl} не найдена.`);
+              logger.info(`Встреча с joinWebUrl ${joinWebUrl} не найдена.`);
             }
           } else {
-             console.warn(`Ошибка API при поиске встречи по joinWebUrl (${joinWebUrl}): ${meetingResponse.status} ${meetingResponse.statusText}. Ответ: ${await meetingResponse.text()}`);
+             logger.warn(`Ошибка API при поиске встречи по joinWebUrl (${joinWebUrl}): ${meetingResponse.status} ${meetingResponse.statusText}. Ответ: ${await meetingResponse.text()}`);
           }
-        } catch (filterError) {
-          console.error(`Ошибка при поиске встречи по joinWebUrl (${joinWebUrl}):`, filterError);
+        } catch (filterError: unknown) {
+          logger.error(`Ошибка при поиске встречи по joinWebUrl (${joinWebUrl}):`, filterError);
         }
       } else {
-        console.log(`Отсутствует onlineMeeting.joinWebUrl в данных события ${eventId} для поиска.`);
+        logger.info(`Отсутствует onlineMeeting.joinWebUrl в данных события ${eventId} для поиска.`);
       }
 
       // --- Шаг 4: Попытка найти встречу по совпадению темы (если другие способы не сработали) ---
       if (eventData.subject) {
-         console.log(`Попытка найти встречу по теме: "${eventData.subject}"`);
+         logger.info(`Попытка найти встречу по теме: "${eventData.subject}"`);
         try {
           // Фильтруем по теме. Тема должна точно совпадать.
            const encodedSubject = encodeURIComponent(eventData.subject.replace(/'/g, "''")); // Экранируем одинарные кавычки для OData
@@ -224,28 +225,29 @@ export class GraphMeetingsService {
                // Если найдено несколько встреч с одинаковой темой, берем первую.
                // Возможно, потребуется более сложная логика для выбора правильной встречи,
                // например, по времени начала/окончания, если эти данные доступны.
-              console.log(`Найден meetingId (${meetingsData.value[0].id}) по теме "${eventData.subject}" для события ${eventId}`);
+              logger.info(`Найден meetingId (${meetingsData.value[0].id}) по теме "${eventData.subject}" для события ${eventId}`);
               return meetingsData.value[0].id;
             } else {
-               console.log(`Встреча с темой "${eventData.subject}" не найдена.`);
+               logger.info(`Встреча с темой "${eventData.subject}" не найдена.`);
             }
           } else {
-             console.warn(`Ошибка API при поиске встречи по теме "${eventData.subject}": ${meetingResponse.status} ${meetingResponse.statusText}. Ответ: ${await meetingResponse.text()}`);
+             logger.warn(`Ошибка API при поиске встречи по теме "${eventData.subject}": ${meetingResponse.status} ${meetingResponse.statusText}. Ответ: ${await meetingResponse.text()}`);
           }
-        } catch (subjectError) {
-          console.error(`Ошибка при поиске встречи по теме "${eventData.subject}":`, subjectError);
+        } catch (subjectError: unknown) {
+          logger.error(`Ошибка при поиске встречи по теме "${eventData.subject}":`, subjectError);
         }
       } else {
-         console.log(`Отсутствует тема (subject) в данных события ${eventId} для поиска.`);
+         logger.info(`Отсутствует тема (subject) в данных события ${eventId} для поиска.`);
       }
 
-      console.warn(`Не удалось найти onlineMeetingId для события ${eventId} ни одним из способов.`);
+      logger.warn(`Не удалось найти onlineMeetingId для события ${eventId} ни одним из способов.`);
       return null;
-    } catch (error) {
-      console.error(`Критическая ошибка при получении ID онлайн-встречи для события ${eventId}:`, error);
+    } catch (error: unknown) {
+      logger.error(`Критическая ошибка при получении ID онлайн-встречи для события ${eventId}:`, error);
       return null;
     }
   }
 }
 
 // [Комментарий] Исключены невалидные поля joinUrl и onlineMeetingUrl из $select и логики поиска meetingId, т.к. эти свойства отсутствуют в MS Graph API для событий календаря. Используется только onlineMeeting.joinWebUrl.
+

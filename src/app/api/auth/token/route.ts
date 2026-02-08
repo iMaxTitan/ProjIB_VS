@@ -1,28 +1,36 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { fetchWithTimeout } from '@/lib/utils/fetch-with-timeout';
+
+function isHttpsRequest(request: NextRequest): boolean {
+  const forwardedProto = request.headers.get('x-forwarded-proto');
+  if (forwardedProto) return forwardedProto.includes('https');
+  return request.nextUrl.protocol === 'https:';
+}
+
+function isLikelyJwt(token: string): boolean {
+  const parts = token.split('.');
+  return parts.length === 3 && parts.every(Boolean);
+}
 
 export async function POST(request: NextRequest) {
   try {
     let body: { code?: string; token?: string } = {};
     try {
       body = await request.json();
-    } catch (e) {
-      // Body is empty or invalid JSON
+    } catch {
+      // empty body
     }
-    // Поддержка двух вариантов: либо приходит { code }, либо { token }
+
     const code = body.code;
     const accessTokenFromClient = body.token;
 
     if (!code && !accessTokenFromClient) {
-      return NextResponse.json(
-        { message: 'Code or token is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: 'Code or token is required' }, { status: 400 });
     }
 
     let cookieValue = '';
-    let debugInfo = {};
+
     if (code) {
-      // Оригинальная логика обмена code на токен
       const clientId = process.env.NEXT_PUBLIC_AZURE_AD_CLIENT_ID;
       const tenantId = process.env.NEXT_PUBLIC_AZURE_AD_TENANT_ID;
       const redirectUri = process.env.NEXT_PUBLIC_BASE_URL + '/auth/callback';
@@ -42,51 +50,49 @@ export async function POST(request: NextRequest) {
         client_secret: clientSecret,
       });
 
-      const response = await fetch(tokenUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+      const response = await fetchWithTimeout(
+        tokenUrl,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString(),
         },
-        body: params.toString(),
-      });
+        15000
+      );
 
       if (!response.ok) {
-        const errorText = await response.text();
         throw new Error(`Failed to exchange code for token: ${response.statusText}`);
       }
 
       const data = await response.json();
       cookieValue = data.access_token;
-      debugInfo = { ...data };
     } else if (accessTokenFromClient) {
-      // Если токен уже есть на клиенте (MSAL flow)
       cookieValue = accessTokenFromClient;
-      debugInfo = { note: 'token from client', tokenLength: accessTokenFromClient.length };
     }
 
-    const cookieStr = `auth_token=${cookieValue}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${60 * 60 * 24 * 7}`;
+    if (!cookieValue || !isLikelyJwt(cookieValue)) {
+      return NextResponse.json({ message: 'Invalid token format' }, { status: 400 });
+    }
 
-    const res = NextResponse.json({
-      message: 'Token set',
-      debug: debugInfo,
-      setCookie: cookieStr,
-      origin: request.headers.get('origin'),
-      headers: Object.fromEntries(request.headers.entries())
-    }, {
-      status: 200,
-      headers: {
-        'Set-Cookie': cookieStr,
-        'Content-Type': 'application/json'
-      }
+    const res = NextResponse.json({ message: 'Token set' }, { status: 200 });
+    res.cookies.set({
+      name: 'auth_token',
+      value: cookieValue,
+      httpOnly: true,
+      secure: isHttpsRequest(request),
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
     });
+
     return res;
-  } catch (error) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { 
+      {
         message: 'Internal server error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );
   }
-} 
+}

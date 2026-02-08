@@ -1,3 +1,5 @@
+import logger from '@/lib/logger';
+
 /**
  * Утилиты для работы с датами и временем
  */
@@ -20,8 +22,8 @@ export function calculateDuration(start: string, end: string): number {
     const durationInHours = Math.round((durationInMs / (1000 * 60 * 60)) * 10) / 10;
     
     return durationInHours;
-  } catch (error) {
-    console.error('Ошибка при расчете продолжительности:', error);
+  } catch (error: unknown) {
+    logger.error('Ошибка при расчете продолжительности:', error);
     return 0;
   }
 }
@@ -43,8 +45,8 @@ export function formatDateTime(dateString: string): string {
       minute: '2-digit',
       hour12: false
     }).format(date);
-  } catch (error) {
-    console.error('Ошибка форматирования даты и времени:', error);
+  } catch (error: unknown) {
+    logger.error('Ошибка форматирования даты и времени:', error);
     return dateString;
   }
 }
@@ -63,8 +65,8 @@ export function formatDate(dateString: string): string {
       month: '2-digit',
       year: 'numeric'
     }).format(date);
-  } catch (error) {
-    console.error('Ошибка форматирования даты:', error);
+  } catch (error: unknown) {
+    logger.error('Ошибка форматирования даты:', error);
     return dateString;
   }
 }
@@ -83,8 +85,10 @@ export function formatTime(dateString: string): string {
       minute: '2-digit',
       hour12: false
     }).format(date);
-  } catch (error) {
-    console.error('Ошибка форматирования времени:', error);
+  } catch (error: unknown) {
+    logger.error('Ошибка форматирования времени:', error);
     return dateString;
   }
 }
+
+

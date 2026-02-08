@@ -1,7 +1,8 @@
 # Структура базы данных Supabase
 
-> Автоматически сгенерировано из OpenAPI схемы Supabase
-> Дата: 2026-01-15
+> Дата актуализации: 2026-02-06
+>
+> **ВАЖНО**: Система использует месячное планирование (monthly_plans → daily_tasks)
 
 ## Таблицы
 
@@ -58,42 +59,117 @@
 | quarterly_id | string (uuid) | да |
 | status | string (public.plan_status) | да |
 
-### weekly_plans
+### services (Услуги)
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| service_id | string (uuid) | да | PK |
+| process_id | string (uuid) |  | FK на processes |
+| name | string (text) | да | Название услуги |
+| description | string (text) |  | Описание |
+| is_active | boolean | да | Активна ли услуга |
+| created_at | string (timestamptz) |  | Дата создания |
+
+### monthly_plans (Месячные планы) ⭐
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| monthly_plan_id | string (uuid) | да | PK |
+| quarterly_id | string (uuid) |  | FK на quarterly_plans |
+| service_id | string (uuid) |  | FK на services |
+| year | integer | да | Год плана |
+| month | integer | да | Месяц (1-12) |
+| description | string (text) |  | Описание |
+| status | string (plan_status) | да | Статус плана |
+| planned_hours | number (numeric) | да | Плановые часы |
+| distribution_type | string (text) |  | Тип распределения: ATBi7, ATBi5, etc. |
+| created_by | string (uuid) |  | FK на user_profiles (создатель) |
+| created_at | string (timestamptz) |  | Дата создания |
+
+### daily_tasks (Ежедневные задачи) ⭐
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| daily_task_id | string (uuid) | да | PK |
+| monthly_plan_id | string (uuid) | да | FK на monthly_plans |
+| user_id | string (uuid) | да | FK на user_profiles |
+| task_date | string (date) | да | Дата выполнения |
+| description | string (text) | да | Описание задачи |
+| spent_hours | number (numeric) | да | Затраченные часы |
+| attachment_url | string (text) |  | URL вложения |
+| document_number | string (text) |  | Номер документа (СЗ) |
+| project_id | string (uuid) |  | FK на projects (опционально) |
+| created_at | string (timestamptz) |  | Дата создания |
+
+**Валидация:** Сумма часов пользователя за день ≤ 8 часов
+
+### projects (Проекти - довідник) ⭐ NEW
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| project_id | string (uuid) | да | PK |
+| project_name | string (varchar 255) | да | Назва проекту |
+| description | string (text) |  | Опис |
+| is_active | boolean | да | Чи активний (default true) |
+| created_by | string (uuid) |  | FK на user_profiles |
+| created_at | string (timestamptz) |  | Дата створення |
+| updated_at | string (timestamptz) |  | Дата оновлення |
+
+**Призначення:** Тег для групування задач по зовнішнім замовленням/проектам
+
+### project_departments (Зв'язок проект ↔ департаменти) ⭐ NEW
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| project_id | string (uuid) | да | FK на projects |
+| department_id | string (uuid) | да | FK на departments |
+| created_at | string (timestamptz) |  | Дата створення |
+
+**PK:** (project_id, department_id)
+**Зв'язок:** M:N - один проект може бути прив'язаний до кількох департаментів
+
+### monthly_plan_assignees (Исполнители)
 
 | Поле | Тип | Обязательно |
 |------|-----|-------------|
+| monthly_plan_id | string (uuid) | да |
+| user_id | string (uuid) | да |
+
+**PK:** (monthly_plan_id, user_id)
+
+### monthly_plan_companies (Предприятия)
+
+| Поле | Тип | Обязательно |
+|------|-----|-------------|
+| monthly_plan_id | string (uuid) | да |
+| company_id | string (uuid) | да |
+
+**PK:** (monthly_plan_id, company_id)
+
+### weekly_plans (Legacy - устаревшие)
+
+> ⚠️ **УСТАРЕВШЕЕ**: Используйте monthly_plans
+
+| Поле | Тип | Обязательно |
+|------|-----|-------------|
+| weekly_id | string (uuid) | да |
+| quarterly_id | string (uuid) |  |
 | expected_result | string (text) | да |
 | planned_hours | number (numeric) |  |
-| quarterly_id | string (uuid) |  |
-| status | string (public.plan_status) | да |
+| status | string (plan_status) | да |
 | weekly_date | string (date) | да |
-| weekly_id | string (uuid) | да |
 
-### weekly_tasks
+### weekly_tasks (Legacy - устаревшие)
+
+> ⚠️ **УСТАРЕВШЕЕ**: Используйте daily_tasks
 
 | Поле | Тип | Обязательно |
 |------|-----|-------------|
-| attachment_url | string (text) |  |
-| completed_at | string (timestamp without time zone) |  |
+| weekly_tasks_id | string (uuid) | да |
+| weekly_plan_id | string (uuid) | да |
+| user_id | string (uuid) | да |
 | description | string (text) | да |
 | spent_hours | number (numeric) | да |
-| user_id | string (uuid) | да |
-| weekly_plan_id | string (uuid) | да |
-| weekly_tasks_id | string (uuid) | да |
-
-### weekly_plan_assignees
-
-| Поле | Тип | Обязательно |
-|------|-----|-------------|
-| user_id | string (uuid) | да |
-| weekly_plan_id | string (uuid) | да |
-
-### weekly_plan_companies
-
-| Поле | Тип | Обязательно |
-|------|-----|-------------|
-| company_id | string (uuid) | да |
-| weekly_id | string (uuid) | да |
 
 ### companies
 
@@ -101,6 +177,24 @@
 |------|-----|-------------|
 | company_id | string (uuid) | да |
 | company_name | string (text) | да |
+
+### company_infrastructure
+
+Ежемесячные записи инфраструктуры предприятий (серверы, рабочие станции).
+
+| Поле | Тип | Обязательно | Описание |
+|------|-----|-------------|----------|
+| infrastructure_id | string (uuid) | да | PK |
+| company_id | string (uuid) | да | FK на companies |
+| period_year | integer | да | Год записи |
+| period_month | integer | да | Месяц записи (1-12) |
+| servers_count | integer | да | Количество серверов |
+| workstations_count | integer | да | Количество рабочих станций |
+| notes | string (text) |  | Примечания |
+| created_at | string (timestamptz) |  | Дата создания |
+| created_by | string (uuid) |  | FK на user_profiles |
+
+**Уникальный индекс:** (company_id, period_year, period_month)
 
 ### activities
 
@@ -279,6 +373,67 @@
 | period_start | string (date) |
 | target_value | number (numeric) |
 
+### v_companies_with_infrastructure
+
+Компании с актуальными данными инфраструктуры и процентами.
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| company_id | string (uuid) | ID компании |
+| company_name | string (text) | Название компании |
+| infrastructure_id | string (uuid) | ID записи инфраструктуры |
+| period_year | integer | Год записи |
+| period_month | integer | Месяц записи |
+| servers_count | integer | Количество серверов |
+| workstations_count | integer | Количество рабочих станций |
+| has_servers | boolean | Есть ли серверы |
+| total_endpoints | integer | Общее количество единиц |
+| total_servers | integer | Общее кол-во серверов (по всем компаниям) |
+| total_workstations | integer | Общее кол-во РС (по всем компаниям) |
+| workstations_percentage | numeric | Процент РС от общего |
+| servers_percentage | numeric | Процент серверов от общего |
+| history_records_count | integer | Количество записей истории |
+
+### v_projects_with_departments ⭐ NEW
+
+Проекти з агрегованими даними департаментів.
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| project_id | string (uuid) | ID проекту |
+| project_name | string (varchar) | Назва |
+| description | string (text) | Опис |
+| is_active | boolean | Активний |
+| created_by | string (uuid) | Хто створив |
+| created_at | string (timestamptz) | Дата створення |
+| updated_at | string (timestamptz) | Дата оновлення |
+| department_ids | array (uuid[]) | Масив ID департаментів |
+| department_names | array (text[]) | Масив назв департаментів |
+
+### v_activity_feed
+
+Лента активности: выполненные задачи и созданные планы.
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| activity_id | string (text) | Уникальный ID события |
+| event_type | string (text) | Тип: 'task_completed', 'plan_created' |
+| event_time | string (timestamp with time zone) | Время события |
+| user_id | string (uuid) | ID пользователя |
+| user_name | string (text) | ФИО пользователя |
+| user_photo | string (text) | Фото в Base64 |
+| user_role | string (text) | Роль пользователя |
+| department_id | string (uuid) | ID отдела |
+| department_name | string (text) | Название отдела |
+| event_description | string (text) | Описание события |
+| spent_hours | number (numeric) | Часы (для задач) или план. часы (для планов) |
+| plan_id | string (uuid) | ID недельного плана |
+| plan_name | string (text) | Название плана |
+| plan_date | string (date) | Дата недели плана |
+| quarterly_goal | string (text) | Цель квартального плана |
+| quarter | integer (integer) | Квартал |
+| process_name | string (text) | Название процесса ИБ |
+
 ## RPC Functions (Stored Procedures)
 
 ### manage_annual_plan
@@ -333,6 +488,7 @@
 ### manage_weekly_task
 
 Управление задачами недельных планов.
+**Валидация:** Проверяет, что сумма часов пользователя за указанную дату не превышает 8 часов.
 
 | Параметр | Тип | Описание |
 |----------|-----|----------|
@@ -343,6 +499,7 @@
 | _spent_hours | numeric | Затраченные часы |
 | _completed_at | date | Дата выполнения |
 | _attachment_url | text | URL вложения |
+| _document_number | text | Номер документа (СЗ) |
 
 ### upsert_user_profile
 
@@ -433,6 +590,111 @@
 | p_target_id | uuid | ID объекта |
 | p_details | jsonb | Детали в JSON |
 
+## Функции удаления планов (TypeScript)
+
+> Реализованы в `src/lib/plans/plan-service.ts`
+
+### canDeleteAnnualPlan / deleteAnnualPlan
+
+Удаление годового плана.
+
+**Проверки:**
+- Только создатель (`user_id`) может удалить
+- Нет связанных квартальных планов
+
+```typescript
+canDeleteAnnualPlan(annualId: string, userId: string): Promise<DeleteCheckResult>
+deleteAnnualPlan(annualId: string, userId: string): Promise<{ success: boolean; error?: string }>
+```
+
+### canDeleteQuarterlyPlan / deleteQuarterlyPlan
+
+Удаление квартального плана.
+
+**Проверки:**
+- Только создатель (`created_by`) может удалить
+- Нет связанных месячных планов
+
+```typescript
+canDeleteQuarterlyPlan(quarterlyId: string, userId: string): Promise<DeleteCheckResult>
+deleteQuarterlyPlan(quarterlyId: string, userId: string): Promise<{ success: boolean; error?: string }>
+```
+
+### canDeleteMonthlyPlan / deleteMonthlyPlan
+
+Удаление месячного плана с каскадным удалением.
+
+**Проверки:**
+- Только создатель (`created_by`) может удалить
+
+**Каскад:**
+1. Удаляются задачи (`daily_tasks`)
+2. Удаляются назначения (`monthly_plan_assignees`)
+3. Удаляются связи с компаниями (`monthly_plan_companies`)
+4. Удаляется сам план
+
+```typescript
+canDeleteMonthlyPlan(monthlyPlanId: string, userId: string): Promise<DeleteCheckResult>
+deleteMonthlyPlan(monthlyPlanId: string, userId: string): Promise<{
+  success: boolean;
+  error?: string;
+  deletedTasks?: number;
+}>
+
+interface DeleteCheckResult {
+  canDelete: boolean;
+  reason?: string;
+  childCount?: number;
+}
+```
+
+### get_activity_feed
+
+Получение ленты активности с фильтрацией по ролям.
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| p_user_id | uuid | ID текущего пользователя (определяет доступ) |
+| p_department_id | uuid | Фильтр по отделу (опционально) |
+| p_days_back | integer | Количество дней назад (по умолчанию 7) |
+| p_limit | integer | Лимит записей (по умолчанию 50) |
+
+**Логика доступа:**
+- `chief` — видит активность всех сотрудников
+- `head` — видит активность только своего отдела
+- `employee` — видит только свою активность
+
+**Возвращает:** Записи из `v_activity_feed` отсортированные по времени DESC.
+
+### manage_company_infrastructure
+
+CRUD операции для инфраструктуры предприятий.
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| p_action | text | Действие: 'create', 'update', 'delete' |
+| p_infrastructure_id | uuid | ID записи (для update/delete) |
+| p_company_id | uuid | ID компании |
+| p_period_year | integer | Год |
+| p_period_month | integer | Месяц (1-12) |
+| p_servers_count | integer | Количество серверов |
+| p_workstations_count | integer | Количество рабочих станций |
+| p_notes | text | Примечания |
+| p_user_id | uuid | ID пользователя |
+
+**Возвращает:** `{ infrastructure_id: uuid }`
+
+### get_company_infrastructure_history
+
+Получение истории инфраструктуры компании.
+
+| Параметр | Тип | Описание |
+|----------|-----|----------|
+| p_company_id | uuid | ID компании |
+| p_limit | integer | Лимит записей (по умолчанию 12) |
+
+**Возвращает:** Таблица с полями: infrastructure_id, period_year, period_month, period_label, servers_count, workstations_count, total_endpoints, notes, created_at, created_by_name.
+
 ### manage_kpi_metric
 
 Управление метриками KPI.
@@ -474,9 +736,12 @@
 
 ### plan_status
 - `draft` - Черновик
-- `active` - Активный
+- `submitted` - На рассмотрении
+- `approved` - Утвержден
+- `active` - В работе
 - `completed` - Выполнен
 - `failed` - Не выполнен
+- `returned` - Возвращен
 
 ### user_status
 - `active` - Активный
@@ -579,3 +844,48 @@
 | Процессы | 11 |
 | Компании | 8 |
 | Сотрудники | 21 (активных: 19, заблокированных: 2) |
+
+## Логика отчётности
+
+### Привязка задач к неделям
+
+**Ключевой принцип:** Задача всегда привязана к неделе выполнения через `completed_at`, независимо от типа плана.
+
+### Недельный отчёт
+
+Группировка: **План → Задачи этой недели**
+
+```
+Неделя 13-19 января 2026
+────────────────────────
+📋 Впровадження SIEM [проект]
+   ├─ Налаштування збору логів (8ч)
+   └─ Тестування правил (4ч)
+
+🔄 Управління доступами [процес]
+   ├─ Надання доступу до SAP (2ч)
+   └─ Аудит прав адмінів (3ч)
+```
+
+### Месячный/Квартальный отчёт
+
+Группировка: **План упоминается один раз → Все задачи за период**
+
+```
+Квартал 1, 2026
+────────────────────────
+📋 Впровадження SIEM
+   Період: 13.01 - 31.03.2026
+   Всього: 54ч (18 задач)
+
+   ├─ [Тиж 3] Налаштування збору логів — 8ч
+   ├─ [Тиж 4] Інтеграція з AD — 12ч
+   └─ ...
+
+🔄 Управління доступами
+   Всього за квартал: 156ч
+```
+
+### Подробнее
+
+См. [docs/architecture/PLAN_TYPES.md](../architecture/PLAN_TYPES.md)

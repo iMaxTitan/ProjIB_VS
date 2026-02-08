@@ -1,16 +1,23 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { AnnualPlan, QuarterlyPlan, WeeklyPlan, PlanStatus } from '@/types/planning';
+import { AnnualPlan, QuarterlyPlan, MonthlyPlan, PlanStatus } from '@/types/planning';
 import { UserInfo } from '@/types/azure';
+import { getErrorMessage } from '@/lib/utils/error-message';
+import logger from '@/lib/logger';
+import {
+  aggregateHoursByMonthlyPlan,
+  buildMeasuresMap,
+  mapMonthlyPlansWithHierarchy,
+} from '@/modules/plans/monthly-mappers';
 
 export const usePlans = (user: UserInfo) => {
   // Состояния для данных
   const [annualPlans, setAnnualPlans] = useState<AnnualPlan[]>([]);
   const [quarterlyPlans, setQuarterlyPlans] = useState<QuarterlyPlan[]>([]);
-  const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlan[]>([]);
+  const [monthlyPlans, setMonthlyPlans] = useState<MonthlyPlan[]>([]);
 
   // Состояния для UI
-  const [activeView, setActiveView] = useState<'yearly' | 'quarterly' | 'weekly'>('yearly');
+  const [activeView, setActiveView] = useState<'yearly' | 'quarterly'>('yearly');
   const [selectedAnnualPlan, setSelectedAnnualPlan] = useState<string | null>(null);
   const [selectedQuarterlyPlan, setSelectedQuarterlyPlan] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<PlanStatus | null>(null);
@@ -19,10 +26,55 @@ export const usePlans = (user: UserInfo) => {
   const [showPermissionError, setShowPermissionError] = useState<boolean>(false);
   const [permissionErrorMessage, setPermissionErrorMessage] = useState<string>('');
 
+  const loadMonthlyPlansByQuarterlyIds = useCallback(async (
+    quarterlyIds: string[],
+    quarterlySource: QuarterlyPlan[] = quarterlyPlans,
+    annualSource: AnnualPlan[] = annualPlans
+  ) => {
+    if (quarterlyIds.length === 0) {
+      setMonthlyPlans([]);
+      return;
+    }
+
+    const [monthlyResult, tasksResult, measuresResult] = await Promise.all([
+      supabase
+        .from('monthly_plans')
+        .select('*')
+        .in('quarterly_id', quarterlyIds)
+        .order('month', { ascending: true }),
+      supabase
+        .from('daily_tasks')
+        .select('monthly_plan_id, spent_hours'),
+      supabase
+        .from('v_kpi_operational')
+        .select('entity_id, entity_name, process_id, process_name')
+    ]);
+
+    if (monthlyResult.error) throw monthlyResult.error;
+    if (tasksResult.error) throw tasksResult.error;
+    if (measuresResult.error) throw measuresResult.error;
+
+    const measuresMap = buildMeasuresMap(measuresResult.data || []);
+    const hoursMap = aggregateHoursByMonthlyPlan(tasksResult.data || []);
+    const plans = mapMonthlyPlansWithHierarchy({
+      monthlyRows: monthlyResult.data || [],
+      quarterlyPlans: quarterlySource,
+      annualPlans: annualSource,
+      measuresMap,
+      hoursMap,
+    });
+
+    setMonthlyPlans(plans);
+  }, [quarterlyPlans, annualPlans]);
+
   // Загрузка всех записей с пагинацией (Supabase ограничивает до 1000 за запрос)
-  const fetchAllWithPagination = async (table: string, orderBy: string, ascending: boolean = true) => {
+  const fetchAllWithPagination = async <T>(
+    table: string,
+    orderBy: string,
+    ascending: boolean = true
+  ): Promise<T[]> => {
     const pageSize = 1000;
-    let allData: any[] = [];
+    const allData: T[] = [];
     let page = 0;
     let hasMore = true;
 
@@ -39,7 +91,7 @@ export const usePlans = (user: UserInfo) => {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        allData = [...allData, ...data];
+        allData.push(...data);  // O(n) вместо O(n²) конкатенации
         hasMore = data.length === pageSize;
         page++;
       } else {
@@ -50,42 +102,10 @@ export const usePlans = (user: UserInfo) => {
     return allData;
   };
 
-  // Параллельная загрузка всех планов
-  const fetchAllPlans = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Запускаем загрузку параллельно с пагинацией для больших таблиц
-      const [annualData, quarterlyData, weeklyData] = await Promise.all([
-        supabase
-          .from('v_annual_plans')
-          .select('*')
-          .order('year', { ascending: false })
-          .then(r => { if (r.error) throw r.error; return r.data || []; }),
-        supabase
-          .from('v_quarterly_plans')
-          .select('*')
-          .order('quarter', { ascending: true })
-          .then(r => { if (r.error) throw r.error; return r.data || []; }),
-        // Недельные планы - с пагинацией (их много)
-        fetchAllWithPagination('v_weekly_plans', 'weekly_date', true)
-      ]);
-
-      setAnnualPlans(annualData);
-      setQuarterlyPlans(quarterlyData);
-      setWeeklyPlans(weeklyData);
-    } catch (error: any) {
-      console.error('Ошибка при загрузке планов:', error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Загрузка годовых планов (отдельно, если нужно)
+  // Загрузка только годовых планов как начальной точки
   const fetchAnnualPlans = useCallback(async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('v_annual_plans')
         .select('*')
@@ -93,61 +113,156 @@ export const usePlans = (user: UserInfo) => {
 
       if (error) throw error;
       setAnnualPlans(data || []);
-    } catch (error: any) {
-      console.error('Ошибка при загрузке годовых планов:', error);
-      setError(error.message);
+
+      // Очищаем зависимые данные при полной перезагрузке годовых, 
+      // или оставляем старые? Лучше очистить, если год не выбран.
+    } catch (error: unknown) {
+      logger.error('Ошибка при загрузке годовых планов:', error);
+      setError(getErrorMessage(error));
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  // Загрузка квартальных планов
-  const fetchQuarterlyPlans = useCallback(async (annualPlanId?: string) => {
+  // Загрузка квартальных планов для конкретного года
+  const fetchQuarterlyPlans = useCallback(async (year: number) => {
     try {
-      let query = supabase
-        .from('v_quarterly_plans')
-        .select('*');
+      // Ищем ID годового плана по году (или передаем ID напрямую)
+      // Если мы фильтруем по году, нам нужно найти annual_id для этого года
+      // Но v_quarterly_plans имеет annual_plan_id. 
+      // Вариант 1: Загрузить по annual_plan_id (как сейчас).
+      // Вариант 2: Загрузить по году через join (сложнее).
+      // Оставим загрузку по annual_plan_id, но интерфейс должен это поддерживать.
 
-      if (annualPlanId) {
-        query = query.eq('annual_plan_id', annualPlanId);
+      // Однако PlansPageNew выбирает "год".
+      // Нам нужно найти plan с этим годом.
+
+      // 1. Находим все AnnualPlans для заданного года
+      const annualids = annualPlans
+        .filter(p => p.year === year)
+        .map(p => p.annual_id);
+
+      if (annualids.length === 0) {
+        setQuarterlyPlans([]);
+        return;
       }
 
-      const { data, error } = await query.order('quarter', { ascending: true });
+      // 2. Загружаем QuarterlyPlans для ВСЕХ этих AnnualPlans
+      const { data, error } = await supabase
+        .from('v_quarterly_plans')
+        .select('*')
+        .in('annual_plan_id', annualids)
+        .order('quarter', { ascending: true });
+
+      if (error) throw error;
+
+      // Важно: Мы должны не заменять ВСЕ квартальные планы, а добавлять/обновлять их для этого года?
+      // Если мы заменим, то при переключении года "исчезнут" другие.
+      // Для дерева это ОК, если дерево показывает только выбранный год.
+      // Но если дерево показывает ВСЕ годы...
+      // Спецификация говорит: "Выбор Года загружает только Годовые планы этого года".
+      // Значит, дерево тоже фильтруется.
+      setQuarterlyPlans(data || []);
+    } catch (error: unknown) {
+      logger.error('Ошибка при загрузке квартальных планов:', error);
+      setError(getErrorMessage(error));
+    }
+  }, [annualPlans]);
+
+  // Загрузка квартальных планов по ID годового плана (прямая загрузка)
+  const fetchQuarterlyPlansByAnnualId = useCallback(async (annualId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('v_quarterly_plans')
+        .select('*')
+        .eq('annual_plan_id', annualId)
+        .order('quarter', { ascending: true });
+
       if (error) throw error;
       setQuarterlyPlans(data || []);
-    } catch (error: any) {
-      console.error('Ошибка при загрузке квартальных планов:', error);
-      setError(error.message);
+    } catch (error: unknown) {
+      setError(getErrorMessage(error));
     }
   }, []);
 
-  // Загрузка недельных планов
-  const fetchWeeklyPlans = useCallback(async (quarterlyPlanId?: string) => {
+  // Загрузка месячных планов для выбранного квартала
+  const fetchMonthlyPlans = useCallback(async (quarter: number) => {
     try {
-      let data: any[];
+      // 1. Находим все QuarterlyPlans для выбранного квартала
+      const quarterlyIds = quarterlyPlans
+        .filter(q => q.quarter === quarter)
+        .map(q => q.quarterly_id);
+      await loadMonthlyPlansByQuarterlyIds(quarterlyIds);
+    } catch (error: unknown) {
+      logger.error('Ошибка при загрузке месячных планов:', error);
+      setError(getErrorMessage(error));
+    }
+  }, [quarterlyPlans, loadMonthlyPlansByQuarterlyIds]);
 
-      if (quarterlyPlanId) {
-        // Если фильтр по квартальному плану - обычный запрос (их будет < 1000)
-        const result = await supabase
-          .from('v_weekly_plans')
+  // Загрузка месячных планов по ID квартального плана
+  const fetchMonthlyPlansByQuarterlyId = useCallback(async (quarterlyId: string) => {
+    try {
+      await loadMonthlyPlansByQuarterlyIds([quarterlyId]);
+    } catch (error: unknown) {
+      logger.error('Ошибка при загрузке месячных планов:', error);
+      setError(getErrorMessage(error));
+    }
+  }, [loadMonthlyPlansByQuarterlyIds]);
+
+  // Универсальный метод обновления - загрузка ВСЕХ планов
+  const refreshPlans = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      // Загружаем все планы параллельно
+      const [annualData, quarterlyData, monthlyRawData, dailyTasksData, measuresData] = await Promise.all([
+        fetchAllWithPagination<AnnualPlan>('v_annual_plans', 'year', false),
+        fetchAllWithPagination<QuarterlyPlan>('v_quarterly_plans', 'quarter', true),
+        // Месячные планы без join
+        supabase
+          .from('monthly_plans')
           .select('*')
-          .eq('quarterly_id', quarterlyPlanId)
-          .order('weekly_date', { ascending: true });
-        if (result.error) throw result.error;
-        data = result.data || [];
-      } else {
-        // Без фильтра - загружаем все с пагинацией
-        data = await fetchAllWithPagination('v_weekly_plans', 'weekly_date', true);
-      }
+          .order('month', { ascending: true })
+          .then(({ data, error }) => {
+            if (error) throw error;
+            return data || [];
+          }),
+        // Загружаем все daily_tasks для агрегации spent_hours
+        supabase
+          .from('daily_tasks')
+          .select('monthly_plan_id, spent_hours')
+          .then(({ data, error }) => {
+            if (error) throw error;
+            return data || [];
+          }),
+        // Загружаем мероприятия через view (работает с RLS)
+        supabase
+          .from('v_kpi_operational')
+          .select('entity_id, entity_name, process_id, process_name')
+          .then(({ data, error }) => {
+            if (error) throw error;
+            return data || [];
+          })
+      ]);
 
-      setWeeklyPlans(data);
+      const measuresMap = buildMeasuresMap(measuresData);
+      const hoursMap = aggregateHoursByMonthlyPlan(dailyTasksData);
+      const monthlyData = mapMonthlyPlansWithHierarchy({
+        monthlyRows: monthlyRawData,
+        quarterlyPlans: quarterlyData,
+        annualPlans: annualData,
+        measuresMap,
+        hoursMap,
+      });
 
-      if (quarterlyPlanId) {
-        setSelectedQuarterlyPlan(quarterlyPlanId);
-      } else {
-        setSelectedQuarterlyPlan(null);
-      }
-    } catch (error: any) {
-      console.error('Ошибка при загрузке недельных планов:', error);
-      setError(error.message);
+      setAnnualPlans(annualData);
+      setQuarterlyPlans(quarterlyData);
+      setMonthlyPlans(monthlyData);
+    } catch (error: unknown) {
+      logger.error('Ошибка при загрузке планов:', error);
+      setError(getErrorMessage(error));
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -155,19 +270,22 @@ export const usePlans = (user: UserInfo) => {
   const handleAnnualPlanClick = useCallback((planId: string) => {
     setSelectedAnnualPlan(planId);
     setActiveView('quarterly');
-    fetchQuarterlyPlans(planId ?? undefined);
-  }, [fetchQuarterlyPlans]);
+
+    // Находим план, чтобы получить год
+    const plan = annualPlans.find(p => p.annual_id === planId);
+    if (plan) {
+      fetchQuarterlyPlans(plan.year);
+    }
+  }, [fetchQuarterlyPlans, annualPlans]);
 
   const handleQuarterlyPlanClick = useCallback((planId: string) => {
     setSelectedQuarterlyPlan(planId);
-    setActiveView('weekly');
-    fetchWeeklyPlans(planId ?? undefined);
-  }, [fetchWeeklyPlans]);
+  }, []);
 
   // Обновление данных после успешного действия
   const handlePlanSuccess = useCallback(() => {
-    fetchAllPlans();
-  }, [fetchAllPlans]);
+    refreshPlans();
+  }, [refreshPlans]);
 
   // Пример обработчика смены фильтра статуса
   const handleStatusFilterChange = useCallback((newStatus: PlanStatus | null) => {
@@ -178,7 +296,7 @@ export const usePlans = (user: UserInfo) => {
     // Данные
     annualPlans,
     quarterlyPlans,
-    weeklyPlans,
+    monthlyPlans,
 
     // Состояние UI
     activeView,
@@ -197,10 +315,13 @@ export const usePlans = (user: UserInfo) => {
     setPermissionErrorMessage,
 
     // Методы
-    fetchAllPlans,
+    fetchAllPlans: refreshPlans, // Алиас для совместимости
+    refreshPlans,
     fetchAnnualPlans,
     fetchQuarterlyPlans,
-    fetchWeeklyPlans,
+    fetchQuarterlyPlansByAnnualId,
+    fetchMonthlyPlans,
+    fetchMonthlyPlansByQuarterlyId,
     handleAnnualPlanClick,
     handleQuarterlyPlanClick,
     handlePlanSuccess,
@@ -209,3 +330,6 @@ export const usePlans = (user: UserInfo) => {
 };
 
 export default usePlans;
+
+
+

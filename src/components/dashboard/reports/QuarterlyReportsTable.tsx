@@ -11,11 +11,6 @@ type Report = {
   status: string;
   process_id: string;
   process_name: string;
-  weekly_plans_count: number;
-  total_weekly: number;
-  completed_weekly: number;
-  active_weekly: number;
-  failed_weekly: number;
   completion_percentage: number;
 };
 
@@ -34,11 +29,6 @@ export function QuarterlyReportsTable({ reports }: Props) {
           <th>Ожидаемый результат</th>
           <th>Статус</th>
           <th>Процесс</th>
-          <th>Всего недель</th>
-          <th>Всего записей</th>
-          <th>Активных</th>
-          <th>Выполнено</th>
-          <th>Провалено</th>
           <th>% выполнения</th>
         </tr>
       </thead>
@@ -51,11 +41,6 @@ export function QuarterlyReportsTable({ reports }: Props) {
             <td>{r.expected_result}</td>
             <td>{r.status}</td>
             <td>{r.process_name || '-'}</td>
-            <td>{r.weekly_plans_count}</td>
-            <td>{r.total_weekly}</td>
-            <td>{r.active_weekly}</td>
-            <td>{r.completed_weekly}</td>
-            <td>{r.failed_weekly}</td>
             <td>{r.completion_percentage}%</td>
           </tr>
         ))}

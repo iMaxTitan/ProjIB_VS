@@ -1,94 +1,101 @@
-import { useMemo } from 'react';
-import { PlanStatus, PlanStatusInfo, PLAN_STATUSES } from '@/types/planning';
+﻿import { useMemo } from 'react';
+import { PlanStatus, PlanStatusInfo, PLAN_STATUSES, MONTHLY_PLAN_STATUSES } from '@/types/planning';
 import { UserInfo } from '@/types/azure';
+import { UserRole } from '@/types/supabase';
+import { getAvailableStatusTransitions } from '@/lib/plans/plan-service';
 
 interface UseAvailableStatusesOptions {
   user: UserInfo | null;
   currentStatus: PlanStatus;
-  isEditMode: boolean;
+  isEditMode?: boolean;
   /** Типы планов имеют разные доступные статусы */
-  planType: 'annual' | 'quarterly' | 'weekly';
+  planType: 'annual' | 'quarterly' | 'monthly';
 }
 
 /**
- * Хук для определения доступных статусов плана в зависимости от роли пользователя,
- * текущего статуса и режима редактирования
+ * Хук для определения доступных статусов плана в зависимости
+ * от роли пользователя и текущего статуса.
+ *
+ * Для месячных планов: упрощенный workflow
+ * - Только 4 статуса: draft, active, completed, failed
+ * - И head, и chief могут менять статусы
+ *
+ * Для годовых/квартальных планов: полный workflow
+ * - draft -> submitted (Head отправляет на рассмотрение)
+ * - submitted -> approved/returned (Chief утверждает или возвращает)
+ * - returned -> submitted (Head исправляет и отправляет повторно)
+ * - approved -> active (Head запускает в работу)
+ * - active -> completed/failed (Chief завершает план)
  */
 export function useAvailableStatuses({
   user,
   currentStatus,
-  isEditMode,
+  isEditMode = true,
   planType,
 }: UseAvailableStatusesOptions): PlanStatusInfo[] {
   return useMemo(() => {
-    const isChief = user?.role === 'chief';
-    const isHead = user?.role === 'head';
-
-    // Для недельных планов — упрощенный набор статусов
-    if (planType === 'weekly') {
-      const weeklyStatuses = PLAN_STATUSES.filter(s =>
-        ['draft', 'active', 'completed', 'failed'].includes(s.value)
-      );
-
-      if (!isEditMode) {
-        return weeklyStatuses.filter(s => ['draft', 'active'].includes(s.value));
-      }
-
-      if (isChief || isHead) {
-        switch (currentStatus) {
-          case 'draft':
-            return weeklyStatuses.filter(s => ['draft', 'active'].includes(s.value));
-          case 'active':
-            return weeklyStatuses.filter(s => ['active', 'completed', 'failed'].includes(s.value));
-          case 'completed':
-          case 'failed':
-            return weeklyStatuses.filter(s => ['completed', 'failed'].includes(s.value));
-          default:
-            return weeklyStatuses;
-        }
-      }
-
-      return weeklyStatuses.filter(s => s.value === currentStatus);
+    if (!user?.role) {
+      return [];
     }
 
-    // Для годовых и квартальных планов — полный workflow
-    if (!isEditMode) {
-      return PLAN_STATUSES.filter(s => ['draft', 'submitted'].includes(s.value));
-    }
+    // Получаем допустимые переходы из сервиса (с учетом типа плана)
+    const availableTransitions = getAvailableStatusTransitions(
+      currentStatus,
+      user.role as UserRole,
+      planType
+    );
 
-    if (isChief) {
-      switch (currentStatus) {
-        case 'draft':
-          return PLAN_STATUSES.filter(s => ['draft', 'submitted'].includes(s.value));
-        case 'submitted':
-          return PLAN_STATUSES.filter(s => ['submitted', 'approved', 'returned'].includes(s.value));
-        case 'returned':
-          return PLAN_STATUSES.filter(s => ['returned', 'draft'].includes(s.value));
-        case 'approved':
-          return PLAN_STATUSES.filter(s => ['approved', 'active'].includes(s.value));
-        case 'active':
-          return PLAN_STATUSES.filter(s => ['active', 'completed', 'failed'].includes(s.value));
-        default:
-          return PLAN_STATUSES;
-      }
-    }
+    // Добавляем текущий статус в список (чтобы он отображался как выбранный)
+    const availableStatuses = new Set([currentStatus, ...availableTransitions]);
 
-    if (isHead) {
-      switch (currentStatus) {
-        case 'draft':
-          return PLAN_STATUSES.filter(s => ['draft', 'submitted'].includes(s.value));
-        case 'returned':
-          return PLAN_STATUSES.filter(s => ['returned', 'draft'].includes(s.value));
-        case 'approved':
-          return PLAN_STATUSES.filter(s => ['approved', 'active'].includes(s.value));
-        default:
-          return PLAN_STATUSES.filter(s => s.value === currentStatus);
-      }
-    }
+    // Для месячных планов используем урезанный список статусов
+    const statusList = planType === 'monthly' ? MONTHLY_PLAN_STATUSES : PLAN_STATUSES;
 
-    // Для остальных ролей — только текущий статус
-    return PLAN_STATUSES.filter(s => s.value === currentStatus);
-  }, [user, currentStatus, isEditMode, planType]);
+    // Фильтруем по допустимым переходам
+    return statusList.filter(s => availableStatuses.has(s.value));
+  }, [user?.role, currentStatus, planType, isEditMode]);
+}
+
+/**
+ * Получить описание действия для перехода статуса
+ */
+export function getStatusActionLabel(fromStatus: PlanStatus, toStatus: PlanStatus): string {
+  const actions: Record<string, string> = {
+    // Стандартный workflow (годовые/квартальные)
+    'draft_submitted': 'Отправить на рассмотрение',
+    'submitted_approved': 'Утвердить',
+    'submitted_returned': 'Вернуть на доработку',
+    'returned_submitted': 'Отправить повторно',
+    'approved_active': 'Запустить в работу',
+    'active_completed': 'Отметить как выполненный',
+    'active_failed': 'Отметить как невыполненный',
+    // Упрощенный workflow (месячные)
+    'draft_active': 'Запустить в работу',
+    'active_draft': 'Вернуть в черновик',
+    'completed_active': 'Переоткрыть',
+    'failed_active': 'Переоткрыть',
+  };
+
+  const key = `${fromStatus}_${toStatus}`;
+  return actions[key] || `Изменить на "${toStatus}"`;
+}
+
+/**
+ * Проверить, может ли пользователь изменять статус плана
+ */
+export function canUserChangeStatus(
+  user: UserInfo | null,
+  currentStatus: PlanStatus,
+  planType: 'annual' | 'quarterly' | 'monthly' = 'quarterly'
+): boolean {
+  if (!user?.role) return false;
+
+  const availableTransitions = getAvailableStatusTransitions(
+    currentStatus,
+    user.role as UserRole,
+    planType
+  );
+  return availableTransitions.length > 0;
 }
 
 export default useAvailableStatuses;

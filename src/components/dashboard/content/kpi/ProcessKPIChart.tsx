@@ -10,7 +10,7 @@ const ProcessKPIChart: React.FC<ProcessKPIChartProps> = ({ data }) => {
   // Масштабируем высоту относительно максимального value
   const maxValue = Math.max(...data.map(item => item.actual_value || 0), 1);
   const bars = data.map((item, index) => {
-    const barHeight = maxValue > 0 ? (item.actual_value / maxValue) * 90 : 0; 
+    const barHeight = maxValue > 0 ? (item.actual_value / maxValue) * 90 : 0;
     const percentForColor = item.actual_value;
     const colorName = getKPIBarColor(percentForColor);
     const barColorClass = colorName === 'red' ? 'bg-red-500' : colorName === 'yellow' ? 'bg-yellow-500' : 'bg-green-500';
@@ -24,7 +24,7 @@ const ProcessKPIChart: React.FC<ProcessKPIChartProps> = ({ data }) => {
           {item.entity_name}
         </span>
         {/* ВРЕМЕННО: вывод значения actual_value для наглядности */}
-        <span className="text-[10px] text-gray-500">{item.actual_value}</span>
+        <span className="text-2xs text-gray-500">{item.actual_value}</span>
       </div>
     );
   });

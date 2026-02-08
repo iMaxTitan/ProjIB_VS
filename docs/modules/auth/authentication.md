@@ -252,6 +252,85 @@ export const logout = async (): Promise<void> => {
 
 ---
 
+## 📋 Правила использования данных пользователя (ОБЯЗАТЕЛЬНО!)
+
+> **Дата**: 2026-02-07. Эти правила предотвращают дублирование запросов к БД.
+
+### Правило 1: Страницы получают user ТОЛЬКО через `useAuth()`
+
+```typescript
+// ✅ ПРАВИЛЬНО — один хук, данные из единого кэша
+export default function MyPage() {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <Spinner />;
+  if (!user) { redirect('/login'); return null; }
+  return <MyContent user={user} />;
+}
+
+// ❌ НЕПРАВИЛЬНО — дублирование кэша и лишний запрос к v_user_details
+export default function MyPage() {
+  const [user, setUser] = useState(null);
+  useEffect(() => { getCurrentUser().then(setUser); }, []);
+  // ...
+}
+```
+
+**Почему:** `useAuth()` уже вызывает `getCurrentUser()` внутри, кэширует результат в React state и обновляет каждые 2.5 мин. Вызов `getCurrentUser()` напрямую создаёт дублирование.
+
+### Правило 2: Сервисные функции принимают role/department как параметры
+
+```typescript
+// ✅ ПРАВИЛЬНО — данные уже есть в user, передаём напрямую
+export async function getActivityStats(
+  userId: string,
+  userRole: string,              // из user.role
+  userDepartmentId: string|null, // из user.department_id
+  departmentId?: string,
+  daysBack = 7
+)
+
+// ❌ НЕПРАВИЛЬНО — повторный запрос к user_profiles
+export async function getActivityStats(userId: string, ...) {
+  const { data } = await supabase.from('user_profiles')
+    .select('role, department_id').eq('user_id', userId).single();
+}
+```
+
+**Почему:** Компоненты уже имеют полный `UserInfo` объект с role и department_id. Передача этих данных параметрами экономит 1 запрос к БД на каждый вызов.
+
+### Правило 3: Компоненты получают user через props от страницы
+
+```
+Страница (useAuth → user)
+  └─ DashboardContent (user prop)
+      ├─ ActivityContent (user prop) → getActivityFeed(user.user_id, user.role, user.department_id, ...)
+      ├─ PlansPageNew (user prop)
+      └─ EmployeesContent (user prop)
+```
+
+**Не создавать** отдельный UserContext — `useAuth()` + проброс props уже покрывает все потребности.
+
+### Кэширование (как работает)
+
+| Слой | Где | TTL | Что кэширует |
+|------|-----|-----|-------------|
+| localStorage | `auth_user_cache` | 5 мин | Полный UserInfo (role, dept, name...) |
+| React state | `useAuth().user` | до unmount | То же, обновляется каждые 2.5 мин |
+| Supabase view | `v_user_details` | - | JOIN user_profiles + departments |
+
+**Поток:** `useAuth()` → проверяет localStorage кэш → если истёк, запрашивает `v_user_details` → обновляет кэш → возвращает user.
+
+### Файлы
+
+| Файл | Роль |
+|------|------|
+| `src/lib/auth/index.ts` | `getCurrentUser()`, `useAuth()`, кэширование |
+| `src/app/dashboard/page.tsx` | Основная страница — использует `useAuth()` |
+| `src/app/dashboard/plans/page.tsx` | Планы — использует `useAuth()` |
+| `src/lib/services/activity.service.ts` | Принимает userRole/userDepartmentId как параметры |
+
+---
+
 ## 🚀 Перспективы развития
 
 1. Интеграция с Teams SSO для бесшовной авторизации в Teams-приложении

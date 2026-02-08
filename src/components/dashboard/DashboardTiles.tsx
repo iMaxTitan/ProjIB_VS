@@ -1,7 +1,4 @@
 import React, { useState } from 'react';
-import AnnualPlanModal from '@/components/planning/AnnualPlanModal';
-import QuarterlyPlanModal from '@/components/planning/QuarterlyPlanModal';
-import WeeklyPlanModal from '@/components/planning/WeeklyPlanModal';
 import { UserInfo } from '@/types/azure';
 import { usePlansContext } from '@/context/PlansContext';
 import type { PlanView } from '@/context/PlansContext';
@@ -36,7 +33,6 @@ interface Tile {
 interface PlanCountsBySection {
   annual: { active: number; submitted: number; draft: number; returned: number };
   quarterly: { active: number; submitted: number; draft: number; returned: number };
-  weekly: { active: number; submitted: number; draft: number; returned: number; approved: number; completed: number; failed: number };
 }
 
 interface DashboardTilesProps {
@@ -44,7 +40,7 @@ interface DashboardTilesProps {
   user: UserInfo;
   planCounts: PlanCountsBySection;
   onNavigate?: (path: string) => void;
-  onTileClick?: (type: 'yearly' | 'quarterly' | 'weekly') => void;
+  onTileClick?: (type: 'yearly' | 'quarterly') => void;
 }
 
 // Универсальный компонент Chip для типов и статусов планов
@@ -60,25 +56,28 @@ const Chip: React.FC<{
   <button
     type="button"
     className={`
-      flex items-center gap-2 px-4 py-1.5 rounded-full
-      text-sm font-medium select-none
-      border transition-all duration-200
+      flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 rounded-full
+      text-xs sm:text-sm font-medium select-none
+      border transition-all duration-base
       relative overflow-hidden
       ${active
         ? 'text-white shadow-md border-indigo-200 backdrop-blur-sm hover:shadow-lg hover:scale-105'
         : 'bg-gray-100 text-gray-700 border-gray-300 hover:shadow-md hover:scale-105'}
-      focus:outline-none
+      focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+      active:scale-95
       ${className}
     `}
     style={active ? style : undefined}
     onClick={onClick}
+    aria-label={`${label}${typeof count === 'number' ? `: ${count}` : ''}`}
   >
     {/* Белый стеклянный оверлей при наведении — теперь для всех чипов */}
-    <span className="pointer-events-none absolute inset-0 rounded-full opacity-0 hover:opacity-100 transition-opacity duration-200 bg-white/30 backdrop-blur-sm" />
-    {icon && <span className="text-lg relative z-10">{icon}</span>}
-    <span className="relative z-10">{label}</span>
+    <span className="pointer-events-none absolute inset-0 rounded-full opacity-0 hover:opacity-100 transition-opacity duration-base bg-white/30 backdrop-blur-sm" />
+    {icon && <span className="text-base sm:text-lg relative z-10" aria-hidden="true">{icon}</span>}
+    <span className="relative z-10 hidden xs:inline">{label}</span>
+    <span className="relative z-10 xs:hidden">{label.split(' ')[0]}</span>
     {typeof count === 'number' && (
-      <span className="ml-2 bg-white text-indigo-600 rounded-full px-2 py-0.5 text-xs font-bold shadow relative z-10">
+      <span className="ml-1 sm:ml-2 bg-white text-indigo-600 rounded-full px-1.5 sm:px-2 py-0.5 text-xs font-bold shadow relative z-10">
         {count}
       </span>
     )}
@@ -96,15 +95,10 @@ const DashboardTiles: React.FC<DashboardTilesProps> = ({
   const [activeTile, setActiveTile] = useState<string | null>(null);
   const [activeIndicator, setActiveIndicator] = useState<number | null>(null);
 
-  // States for modals
-  const [showAnnualPlanModal, setShowAnnualPlanModal] = useState(false);
-  const [showQuarterlyPlanModal, setShowQuarterlyPlanModal] = useState(false);
-  const [showWeeklyPlanModal, setShowWeeklyPlanModal] = useState(false);
-
   // Get context
   const {
-    setActiveView, 
-    setSelectedAnnualPlan, 
+    setActiveView,
+    setSelectedAnnualPlan,
     setSelectedQuarterlyPlan,
     setStatusFilter
   } = usePlansContext();
@@ -112,7 +106,7 @@ const DashboardTiles: React.FC<DashboardTilesProps> = ({
   const [selectedTile, setSelectedTile] = useState<number>(0); // по умолчанию первая плитка
   const [selectedStatus, setSelectedStatus] = useState<PlanStatus | null>(null);
 
-  const tileToView: PlanView[] = ['yearly', 'quarterly', 'weekly'];
+  const tileToView: PlanView[] = ['yearly', 'quarterly'];
 
   const handleTileClick = (tileIndex: number) => {
     setSelectedTile(tileIndex);
@@ -131,25 +125,21 @@ const DashboardTiles: React.FC<DashboardTilesProps> = ({
     setStatusFilter(status);
   };
 
-  const handleAddWeeklyPlan = () => {
-    setShowWeeklyPlanModal(true);
-  };
-
   const getGradient = (index: number, total: number) => {
     // Создаем более темный градиент в фиолетово-синей гамме
     const startColor = 'from-indigo-600/40';
     const middleColor = 'via-blue-600/30';
     const endColor = 'to-indigo-500/20';
-    
+
     // Для темной темы
     const darkStartColor = 'dark:from-indigo-700/50';
     const darkMiddleColor = 'dark:via-blue-700/40';
     const darkEndColor = 'dark:to-indigo-600/30';
-    
+
     return `bg-gradient-to-br ${startColor} ${middleColor} ${endColor} ${darkStartColor} ${darkMiddleColor} ${darkEndColor}`;
   };
 
-  const getCounts = (section: 'annual' | 'quarterly' | 'weekly') => planCounts[section] || {};
+  const getCounts = (section: 'annual' | 'quarterly') => planCounts[section] || {};
 
   const tiles: Record<string, Tile[]> = {
     '/dashboard/plans': [
@@ -179,17 +169,6 @@ const DashboardTiles: React.FC<DashboardTilesProps> = ({
             gradient: getPlanStatusGradient('draft'),
             count: getCounts('annual').draft ?? 0,
             status: 'draft'
-          },
-          {
-            tooltip: 'Создать план',
-            gradient: getPlanStatusGradient('draft'),
-            icon: (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            ),
-            customStyle: 'bg-white hover:bg-gray-100 border-2 border-indigo-500',
-            onClick: () => setShowAnnualPlanModal(true)
           }
         ]
       },
@@ -219,62 +198,13 @@ const DashboardTiles: React.FC<DashboardTilesProps> = ({
             gradient: getPlanStatusGradient('draft'),
             count: getCounts('quarterly').draft ?? 0,
             status: 'draft'
-          },
-          {
-            tooltip: 'Создать план',
-            gradient: getPlanStatusGradient('draft'),
-            icon: (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            ),
-            customStyle: 'bg-white hover:bg-gray-100 border-2 border-indigo-500',
-            onClick: () => setShowQuarterlyPlanModal(true)
           }
         ]
       },
-      {
-        title: 'Недельные планы',
-        icon: (
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        ),
-        onTileClick: (e) => handleTileClick(2),
-        indicators: [
-          {
-            tooltip: 'Активные',
-            gradient: getPlanStatusGradient('active'),
-            count: getCounts('weekly').active ?? 0,
-            status: 'active'
-          },
-          {
-            tooltip: 'Черновики',
-            gradient: getPlanStatusGradient('draft'),
-            count: getCounts('weekly').draft ?? 0,
-            status: 'draft'
-          },
-          {
-            tooltip: 'Создать план',
-            gradient: getPlanStatusGradient('draft'),
-            icon: (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            ),
-            customStyle: 'bg-white border border-blue-100 text-blue-500 hover:bg-blue-50',
-            onClick: () => setShowWeeklyPlanModal(true)
-          }
-        ]
-      }
-    ],
-    '/dashboard/tasks': [
-      { title: 'Активные задачи', onTileClick: () => {} },
-      { title: 'Завершенные задачи', onTileClick: () => {} }
     ],
     '/dashboard/reports': [
-      { title: 'Месячные отчеты', onTileClick: () => {} },
-      { title: 'Годовые отчеты', onTileClick: () => {} }
+      { title: 'Месячные отчеты', onTileClick: () => { } },
+      { title: 'Годовые отчеты', onTileClick: () => { } }
     ]
   };
 
@@ -286,7 +216,7 @@ const DashboardTiles: React.FC<DashboardTilesProps> = ({
 
   return (
     <>
-      <div className="flex flex-wrap gap-3 justify-center mt-2 mb-3 items-center">
+      <div className="flex flex-wrap gap-2 sm:gap-3 justify-center mt-2 mb-3 items-center px-2">
         {tiles[currentPath]?.map((tile, tileIndex) => {
           const isActive = selectedTile === tileIndex;
           return (
@@ -294,44 +224,37 @@ const DashboardTiles: React.FC<DashboardTilesProps> = ({
               key={tile.title}
               type="button"
               className={`
-                flex items-center gap-2 px-4 py-1.5 rounded-full
-                text-sm font-medium select-none
-                border-2 transition-all duration-200
+                flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 rounded-full
+                text-xs sm:text-sm font-medium select-none
+                border-2 transition-all duration-base
                 relative overflow-hidden
                 ${isActive
                   ? 'text-white shadow-lg border-indigo-400 backdrop-blur-md hover:shadow-xl hover:scale-105'
                   : 'bg-gray-100 text-gray-700 border-gray-200 hover:shadow-md hover:scale-105'}
-                focus:outline-none
+                focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+                active:scale-95
               `}
               style={isActive ? {
                 background: 'linear-gradient(90deg, rgba(139,92,246,0.7), rgba(59,130,246,0.7))',
                 boxShadow: '0 2px 12px 0 rgba(59,130,246,0.18) inset, 0 1px 4px 0 rgba(255,255,255,0.18) inset'
               } : undefined}
               onClick={() => handleTileClick(tileIndex)}
+              aria-label={`Выбрать ${tile.title}`}
+              aria-current={isActive ? 'true' : undefined}
             >
               {/* Белый оверлей при наведении (для всех чипов типов) */}
-              <span className="pointer-events-none absolute inset-0 rounded-full opacity-0 hover:opacity-100 transition-opacity duration-200 bg-white/30 backdrop-blur-sm" />
-              {tile.icon && <span className="text-lg relative z-10">{tile.icon}</span>}
-              <span className="relative z-10">{tile.title.replace(' планы', '').replace('Планы', '')}</span>
+              <span className="pointer-events-none absolute inset-0 rounded-full opacity-0 hover:opacity-100 transition-opacity duration-base bg-white/30 backdrop-blur-sm" />
+              {tile.icon && <span className="text-base sm:text-lg relative z-10" aria-hidden="true">{tile.icon}</span>}
+              <span className="relative z-10 hidden xs:inline">{tile.title.replace(' планы', '').replace('Планы', '')}</span>
+              <span className="relative z-10 xs:hidden">{tile.title.split(' ')[0]}</span>
             </button>
           );
         })}
-        {/* Кнопка "+ Добавить" только для годовых планов и без фильтров */}
-        {currentPath === '/dashboard/plans' && selectedTile === 0 && selectedStatus === null && (
-          <button
-            type="button"
-            className="ml-4 px-4 py-2 rounded-full bg-indigo-600 text-white font-semibold shadow hover:bg-indigo-700 transition"
-            onClick={() => setShowAnnualPlanModal(true)}
-            aria-label="Добавить годовой план"
-          >
-            + Добавить
-          </button>
-        )}
       </div>
 
       {/* Показываем только одну строку статусов для выбранного плана */}
       {tiles[currentPath]?.[selectedTile]?.indicators && (
-        <div className="flex flex-wrap gap-2 items-center justify-center pb-2 z-10 mt-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2 items-center justify-center pb-2 z-10 mt-2 px-2">
           {tiles[currentPath][selectedTile].indicators.map((indicator, idx) => {
             const statusMeta = PLAN_STATUSES.find(s => s.value === indicator.status);
             if (!indicator.status) return null;
@@ -349,36 +272,6 @@ const DashboardTiles: React.FC<DashboardTilesProps> = ({
             );
           })}
         </div>
-      )}
-
-      {showAnnualPlanModal && (
-        <AnnualPlanModal
-          isOpen={showAnnualPlanModal}
-          onClose={() => setShowAnnualPlanModal(false)}
-          onSuccess={() => setShowAnnualPlanModal(false)}
-          planToEdit={null}
-        />
-      )}
-
-      {showQuarterlyPlanModal && (
-        <QuarterlyPlanModal
-          isOpen={showQuarterlyPlanModal}
-          onClose={() => setShowQuarterlyPlanModal(false)}
-          onSuccess={() => setShowQuarterlyPlanModal(false)}
-          annualPlanId={null}
-          planToEdit={null}
-        />
-      )}
-
-      {showWeeklyPlanModal && (
-        <WeeklyPlanModal
-          isOpen={showWeeklyPlanModal}
-          onClose={() => setShowWeeklyPlanModal(false)}
-          onSuccess={() => setShowWeeklyPlanModal(false)}
-          user={user}
-          quarterlyPlanId={null}
-          planToEdit={null}
-        />
       )}
     </>
   );

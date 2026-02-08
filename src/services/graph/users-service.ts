@@ -1,5 +1,6 @@
 import { GraphUser } from '@/types/graph-types';
 import { GraphAuthService } from './auth-service';
+import { logger } from '@/lib/logger';
 
 /**
  * Класс для работы с пользователями через Microsoft Graph API
@@ -15,7 +16,7 @@ export class GraphUsersService {
       // Получаем токен доступа для запроса
       const token = await GraphAuthService.getAccessToken();
       if (!token) {
-        console.error('Отсутствует токен доступа при поиске пользователя');
+        logger.error('Отсутствует токен доступа при поиске пользователя');
         return [];
       }
 
@@ -32,14 +33,14 @@ export class GraphUsersService {
       );
 
       if (!response.ok) {
-        console.error(`Ошибка API при поиске пользователя: ${response.status} ${response.statusText}`);
+        logger.error(`Ошибка API при поиске пользователя: ${response.status} ${response.statusText}`);
         return [];
       }
 
       const data = await response.json();
       return data.value || [];
-    } catch (error) {
-      console.error('Ошибка при поиске пользователя:', error);
+    } catch (error: unknown) {
+      logger.error('Ошибка при поиске пользователя:', error);
       return [];
     }
   }
@@ -53,7 +54,7 @@ export class GraphUsersService {
     try {
       const token = await GraphAuthService.getAccessToken();
       if (!token) {
-        console.error('Отсутствует токен доступа при получении фото пользователя');
+        logger.error('Отсутствует токен доступа при получении фото пользователя');
         return null;
       }
 
@@ -73,23 +74,66 @@ export class GraphUsersService {
         if (response.status === 404) {
           return null;
         }
-        console.error(`Ошибка API при получении фото пользователя: ${response.status} ${response.statusText}`);
+        logger.error(`Ошибка API при получении фото пользователя: ${response.status} ${response.statusText}`);
         return null;
       }
 
       // Получаем фото как Blob
       const photoBlob = await response.blob();
 
-      // Конвертируем Blob в base64
+      // Конвертируем Blob в base64 и сжимаем
       return new Promise((resolve) => {
         const reader = new FileReader();
-        reader.onloadend = function() {
-          resolve(reader.result as string);
+        reader.onloadend = function () {
+          const base64String = reader.result as string;
+
+          // Создаем изображение для изменения размера
+          const img = new Image();
+          img.src = base64String;
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Максимальный размер 200x200
+            const MAX_WIDTH = 200;
+            const MAX_HEIGHT = 200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+              }
+            } else {
+              if (height > MAX_HEIGHT) {
+                width *= MAX_HEIGHT / height;
+                height = MAX_HEIGHT;
+              }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              // Возвращаем сжатое изображение в формате JPEG с качеством 0.7
+              resolve(canvas.toDataURL('image/jpeg', 0.7));
+            } else {
+              // Если не удалось получить контекст, возвращаем оригинал
+              resolve(base64String);
+            }
+          };
+
+          img.onerror = () => {
+            // Если не удалось загрузить изображение, возвращаем оригинал
+            resolve(base64String);
+          };
         };
         reader.readAsDataURL(photoBlob);
       });
-    } catch (error) {
-      console.error('Ошибка при получении фото пользователя:', error);
+    } catch (error: unknown) {
+      logger.error('Ошибка при получении фото пользователя:', error);
       return null;
     }
   }
@@ -103,7 +147,7 @@ export class GraphUsersService {
     try {
       const token = options.accessToken || await GraphAuthService.getAccessToken();
       if (!token) {
-        console.error('Отсутствует токен доступа при получении данных пользователя');
+        logger.error('Отсутствует токен доступа при получении данных пользователя');
         return null;
       }
 
@@ -119,14 +163,15 @@ export class GraphUsersService {
       );
 
       if (!response.ok) {
-        console.error(`Ошибка API при получении данных пользователя: ${response.status} ${response.statusText}`);
+        logger.error(`Ошибка API при получении данных пользователя: ${response.status} ${response.statusText}`);
         return null;
       }
 
       return await response.json();
-    } catch (error) {
-      console.error('Ошибка при получении данных пользователя:', error);
+    } catch (error: unknown) {
+      logger.error('Ошибка при получении данных пользователя:', error);
       return null;
     }
   }
 }
+

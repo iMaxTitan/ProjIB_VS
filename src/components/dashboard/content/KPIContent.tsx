@@ -77,9 +77,9 @@ const KPIContent: React.FC = () => {
         } else {
           setKpis(data || []);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         if (!isCancelled) {
-          setError('Ошибка загрузки KPI: ' + (err as Error).message);
+          setError('Ошибка загрузки KPI: ' + (err instanceof Error ? err.message : String(err)));
           setKpis([]);
         }
       } finally {

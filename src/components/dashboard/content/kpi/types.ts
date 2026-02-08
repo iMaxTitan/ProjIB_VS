@@ -52,6 +52,28 @@ export interface Period {
 // Типы для статусов KPI
 export type KPIStatus = 'excellent' | 'good' | 'warning' | 'critical';
 
+// Категория заходу (Measure)
+export type MeasureCategory = 'strategic' | 'process' | 'operational';
+
+// Интерфейс для заходу (Measure)
+export interface Measure {
+  measure_id: string;
+  process_id: string | null;
+  name: string;
+  description?: string;
+  category: MeasureCategory;
+  target_value: number;
+  target_period: 'year' | 'quarter' | 'month';
+  is_active: boolean;
+  created_at?: string;
+  // Joined/computed fields
+  process_name?: string;
+  actual_value?: number;
+  plans_count?: number;
+  total_hours?: number;
+  completion_percentage?: number;
+}
+
 // Интерфейс для конфигурации цветов KPI
 export interface KPIColorConfig {
   excellent: string;

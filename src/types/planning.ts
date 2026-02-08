@@ -1,28 +1,142 @@
-import { UserInfo } from './azure';
+﻿import { UserInfo } from './azure';
 import { UserRole, UserStatus } from './supabase';
 
-// Типы статусов планов
+// РўРёРїС‹ РїР»Р°РЅРѕРІ (РёРµСЂР°СЂС…РёСЏ)
+export type PlanType = 'annual' | 'quarterly' | 'monthly';
+
+// РРЅС‚РµСЂС„РµР№СЃ СѓСЃР»СѓРіРё (legacy/compatibility)
+export interface Service {
+  service_id: string;
+  process_id: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  created_at?: string;
+  process_name?: string;
+}
+
+// РљР°С‚РµРіРѕСЂРёСЏ РјРµСЂРѕРїСЂРёСЏС‚РёСЏ (Measure)
+export type MeasureCategory = 'strategic' | 'process' | 'operational';
+
+// РРЅС‚РµСЂС„РµР№СЃ РјРµСЂРѕРїСЂРёСЏС‚РёСЏ (Measure)
+export interface Measure {
+  measure_id: string;
+  process_id: string | null;
+  name: string;
+  description?: string;
+  category: MeasureCategory;
+  target_value: number;
+  target_period: 'year' | 'quarter' | 'month';
+  is_active: boolean;
+  created_at?: string;
+  // Joined fields
+  process_name?: string;
+}
+
+// РРЅС‚РµСЂС„РµР№СЃ РјРµСЃСЏС‡РЅРѕРіРѕ РїР»Р°РЅР°
+export interface MonthlyPlan {
+  monthly_plan_id: string;
+  quarterly_id: string | null;
+  measure_id: string | null;
+  year: number;
+  month: number; // 1-12
+  month_number?: number; // Alias РґР»СЏ month РІ AI-РєРѕРЅС‚РµРєСЃС‚Рµ
+  description?: string;
+  status: PlanStatus;
+  planned_hours: number;
+  distribution_type?: string; // РўРёРї СЂР°СЃРїСЂРµРґРµР»РµРЅРёСЏ РїРѕ РєРѕРјРїР°РЅРёСЏРј
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
+  // Joined fields
+  measure_name?: string;
+  process_id?: string;
+  process_name?: string;
+  department_id?: string;
+  department_name?: string;
+  quarter?: number;
+  assignees_count?: number;
+  total_spent_hours?: number;
+  tasks_count?: number;
+  completion_percentage?: number;
+  // Hierarchy - joined plans
+  annual_plan?: {
+    goal: string;
+    expected_result?: string;
+    year: number;
+  };
+  quarterly_plan?: {
+    goal: string;
+    expected_result?: string;
+    quarter: number;
+  };
+}
+
+// РРЅС‚РµСЂС„РµР№СЃ РЅР°Р·РЅР°С‡РµРЅРёСЏ РјРµСЃСЏС‡РЅРѕРіРѕ РїР»Р°РЅР°
+export interface MonthlyPlanAssignee {
+  monthly_plan_id: string;
+  user_id: string;
+  assigned_at?: string;
+  // Joined fields
+  full_name?: string;
+  email?: string;
+  photo_url?: string;
+  role?: UserRole;
+  user_status?: UserStatus;
+  department_id?: string;
+  department_name?: string;
+}
+
+// РРЅС‚РµСЂС„РµР№СЃ РµР¶РµРґРЅРµРІРЅРѕР№ Р·Р°РґР°С‡Рё
+export interface DailyTask {
+  daily_task_id: string;
+  monthly_plan_id: string;
+  user_id: string;
+  task_date: string; // YYYY-MM-DD
+  description: string;
+  spent_hours: number;
+  attachment_url?: string;
+  document_number?: string;
+  created_at?: string;
+  // Joined fields
+  user_name?: string;
+  user_email?: string;
+  user_photo?: string;
+}
+
+// РўРёРїС‹ СЃС‚Р°С‚СѓСЃРѕРІ РїР»Р°РЅРѕРІ
 export type PlanStatus = 'draft' | 'submitted' | 'approved' | 'active' | 'completed' | 'failed' | 'returned';
 
-// Интерфейс для статуса плана с дополнительной информацией
+// РРЅС‚РµСЂС„РµР№СЃ СЃС‚Р°С‚СѓСЃР° РїР»Р°РЅР° СЃ РјРµС‚Р°РґР°РЅРЅС‹РјРё
 export interface PlanStatusInfo {
   value: PlanStatus;
   label: string;
   color: string;
 }
 
-// Список всех статусов планов с метаданными
+// Р•РґРёРЅС‹Р№ РёСЃС‚РѕС‡РЅРёРє СЃС‚Р°С‚СѓСЃРѕРІ Рё С†РІРµС‚РѕРІ (СЃРј. docs/BUSINESS_REQUIREMENTS.md 7.2)
 export const PLAN_STATUSES: PlanStatusInfo[] = [
   { value: 'draft', label: 'Черновик', color: 'gray' },
   { value: 'submitted', label: 'На рассмотрении', color: 'blue' },
-  { value: 'approved', label: 'Утвержден', color: 'indigo' },
-  { value: 'active', label: 'Активен', color: 'green' },
-  { value: 'completed', label: 'Завершен', color: 'emerald' },
+  { value: 'approved', label: 'Утвержден', color: 'emerald' },
+  { value: 'active', label: 'В работе', color: 'violet' },
+  { value: 'completed', label: 'Выполнен', color: 'green' },
   { value: 'failed', label: 'Не выполнен', color: 'red' },
-  { value: 'returned', label: 'Возвращен', color: 'orange' }
+  { value: 'returned', label: 'Возвращен', color: 'amber' }
 ];
 
-// Интерфейс для годового плана
+// РЈРїСЂРѕС‰РµРЅРЅС‹Рµ СЃС‚Р°С‚СѓСЃС‹ РґР»СЏ РјРµСЃСЏС‡РЅС‹С… РїР»Р°РЅРѕРІ
+export const MONTHLY_PLAN_STATUSES: PlanStatusInfo[] = [
+  { value: 'draft', label: 'Черновик', color: 'gray' },
+  { value: 'active', label: 'В работе', color: 'violet' },
+  { value: 'completed', label: 'Выполнен', color: 'green' },
+  { value: 'failed', label: 'Не выполнен', color: 'red' }
+];
+
+// РџРѕРґРјРЅРѕР¶РµСЃС‚РІРѕ СЃС‚Р°С‚СѓСЃРѕРІ РґР»СЏ MonthlyPlan
+export type MonthlyPlanStatus = 'draft' | 'active' | 'completed' | 'failed';
+
+// РРЅС‚РµСЂС„РµР№СЃ РіРѕРґРѕРІРѕРіРѕ РїР»Р°РЅР°
 export interface AnnualPlan {
   annual_id: string;
   year: number;
@@ -39,13 +153,13 @@ export interface AnnualPlan {
   completion_percentage?: number;
 }
 
-// Интерфейс для процесса
+// РРЅС‚РµСЂС„РµР№СЃ РїСЂРѕС†РµСЃСЃР°
 export interface Process {
   process_id: string;
   process_name: string;
 }
 
-// Интерфейс для квартального плана
+// РРЅС‚РµСЂС„РµР№СЃ РєРІР°СЂС‚Р°Р»СЊРЅРѕРіРѕ РїР»Р°РЅР°
 export interface QuarterlyPlan {
   quarterly_id: string;
   annual_plan_id: string | null;
@@ -55,50 +169,12 @@ export interface QuarterlyPlan {
   goal: string;
   expected_result: string;
   status: PlanStatus;
-  weekly_plans_count?: number;
   completion_percentage?: number;
   process_id?: string | null;
   process_name?: string;
 }
 
-// Интерфейс для недельного плана
-export interface WeeklyPlan {
-  weekly_id: string;
-  quarterly_id: string | null;
-  weekly_date: string;
-  expected_result: string;
-  status: PlanStatus;
-  annual_plan_id?: string | null;
-  department_id?: string | null;
-  department_name?: string;
-  quarter?: number;
-  year?: number;
-  assignees_count?: number;
-  completion_percentage?: number;
-  created_at?: string;
-  updated_at?: string;
-  planned_hours: number; // Новое поле для плановых часов
-  total_spent_hours?: number; // Затраченные часы (из view)
-  company_names?: string[]; // Массив названий компаний
-}
-
-// Интерфейс для назначения недельного плана
-export interface WeeklyPlanAssignee {
-  weekly_plan_id: string;
-  user_id: string;
-  full_name?: string;
-  email?: string;
-  photo_url?: string;
-  role?: UserRole;
-  user_status?: UserStatus;
-  department_id?: string;
-  department_name?: string;
-  weekly_date?: string;
-  quarter?: number;
-  year?: number;
-}
-
-// Интерфейс для активности
+// РРЅС‚РµСЂС„РµР№СЃ Р°РєС‚РёРІРЅРѕСЃС‚Рё
 export interface Activity {
   id: string;
   user_id: string;
@@ -106,20 +182,20 @@ export interface Activity {
   target_type: string;
   target_id: string;
   timestamp: string;
-  details?: any;
+  details?: Record<string, unknown>;
   created_at: string;
 }
 
-// Типы для фильтров
+// РўРёРїС‹ С„РёР»СЊС‚СЂРѕРІ
 export type PlanFilterType = 'status' | 'department' | 'year' | 'quarter';
 
-// Интерфейс для фильтра планов
+// РРЅС‚РµСЂС„РµР№СЃ С„РёР»СЊС‚СЂР° РїР»Р°РЅРѕРІ
 export interface PlanFilter {
   type: PlanFilterType;
   value: string | number;
 }
 
-// Функции для работы с планами
+// РўРµРєСЃС‚ СЃС‚Р°С‚СѓСЃР° РїР»Р°РЅР°
 export const getPlanStatusText = (status: PlanStatus): string => {
   switch (status) {
     case 'draft': return 'Черновик';
@@ -133,110 +209,86 @@ export const getPlanStatusText = (status: PlanStatus): string => {
   }
 };
 
+// Р¦РІРµС‚ СЃС‚Р°С‚СѓСЃР° СЃРѕРіР»Р°СЃРЅРѕ docs/BUSINESS_REQUIREMENTS.md 7.2
 export const getPlanStatusColor = (status: PlanStatus): string => {
   switch (status) {
     case 'draft': return 'gray';
     case 'submitted': return 'blue';
-    case 'approved': return 'indigo';
-    case 'active': return 'green';
-    case 'completed': return 'emerald';
+    case 'approved': return 'emerald';
+    case 'active': return 'violet';
+    case 'completed': return 'green';
     case 'failed': return 'red';
-    case 'returned': return 'orange';
+    case 'returned': return 'amber';
     default: return 'gray';
   }
 };
 
-// --- Градиентные классы для статусов планов ---
+// Р“СЂР°РґРёРµРЅС‚ РґР»СЏ СЃС‚Р°С‚СѓСЃР° РїР»Р°РЅР°
 export function getPlanStatusGradient(status: PlanStatus): string {
   switch (status) {
-    case 'draft': return 'linear-gradient(90deg, #9CA3AF, #4B5563)'; // Серый
-    case 'submitted': return 'linear-gradient(90deg, #93C5FD, #3B82F6)'; // Синий
-    case 'approved': return 'linear-gradient(90deg, #34D399, #059669)'; // Зеленый
-    case 'active': return 'linear-gradient(90deg, #A5B4FC, #6366F1)'; // Индиго
-    case 'completed': return 'linear-gradient(90deg, #10B981, #047857)'; // Изумрудный
-    case 'failed': return 'linear-gradient(90deg, #F87171, #B91C1C)'; // Красный
-    case 'returned': return 'linear-gradient(90deg, #FDBA74, #EA580C)'; // Оранжевый
-    default: return 'linear-gradient(90deg, #9CA3AF, #4B5563)'; // Серый по умолчанию
+    case 'draft': return 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)';
+    case 'submitted': return 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)';
+    case 'approved': return 'linear-gradient(135deg, #34d399 0%, #10b981 100%)';
+    case 'active': return 'linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)';
+    case 'completed': return 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
+    case 'failed': return 'linear-gradient(135deg, #f87171 0%, #ef4444 100%)';
+    case 'returned': return 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)';
+    default: return 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)';
   }
 }
 
-// Функция для форматирования даты
-export const formatDate = (dateString: string): string => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  });
-};
-
-// Функция для получения номера недели
-export const getWeekNumber = (dateString: string): number => {
-  const date = new Date(dateString);
-  const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
-  const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000;
-  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
-};
-
-// Функция для получения диапазона дат недели
-export const getWeekDateRange = (dateString: string): { start: string; end: string } => {
-  const date = new Date(dateString);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Корректировка для недели, начинающейся с понедельника
-  
-  const startDate = new Date(date.setDate(diff));
-  const endDate = new Date(startDate);
-  endDate.setDate(startDate.getDate() + 6);
-  
-  return {
-    start: formatDate(startDate.toISOString()),
-    end: formatDate(endDate.toISOString())
-  };
-};
-
-// Функция для проверки прав доступа к управлению планами
+// РџСЂР°РІР° СѓРїСЂР°РІР»РµРЅРёСЏ РїР»Р°РЅР°РјРё
 export const canManagePlans = (user: UserInfo, planDepartmentId?: string | null): boolean => {
   if (!user) return false;
-  
-  // Руководитель подразделения может управлять всеми планами
   if (user.role === 'chief') return true;
-  
-  // Начальники отделов могут управлять планами своего отдела
   if (user.role === 'head' && user.department_id === planDepartmentId) return true;
-  
   return false;
 };
 
-// Функция для проверки прав доступа к созданию годовых планов
+// РџСЂР°РІР° СЃРѕР·РґР°РЅРёСЏ РіРѕРґРѕРІС‹С… РїР»Р°РЅРѕРІ
 export const canCreateAnnualPlans = (user: UserInfo): boolean => {
   if (!user) return false;
-  
-  // Руководитель подразделения и начальники отделов могут создавать годовые планы
   return user.role === 'chief' || user.role === 'head';
 };
 
-// Функция для проверки прав доступа к созданию квартальных планов
+// РџСЂР°РІР° СЃРѕР·РґР°РЅРёСЏ РєРІР°СЂС‚Р°Р»СЊРЅС‹С… РїР»Р°РЅРѕРІ
 export const canCreateQuarterlyPlans = (user: UserInfo, departmentId?: string | null): boolean => {
   if (!user) return false;
-  
-  // Руководитель подразделения может создавать квартальные планы для любого отдела
   if (user.role === 'chief') return true;
-  
-  // Начальники отделов могут создавать квартальные планы только для своего отдела
   if (user.role === 'head' && user.department_id === departmentId) return true;
-  
   return false;
 };
 
-// Функция для проверки прав доступа к созданию недельных планов
-export const canCreateWeeklyPlans = (user: UserInfo, departmentId?: string | null): boolean => {
+// РџСЂР°РІР° СЃРѕР·РґР°РЅРёСЏ РјРµСЃСЏС‡РЅС‹С… РїР»Р°РЅРѕРІ
+export const canCreateMonthlyPlans = (user: UserInfo, departmentId?: string | null): boolean => {
   if (!user) return false;
-  
-  // Руководитель подразделения может создавать недельные планы для любого отдела
   if (user.role === 'chief') return true;
-  
-  // Начальники отделов могут создавать недельные планы только для своего отдела
   if (user.role === 'head' && user.department_id === departmentId) return true;
-  
   return false;
 };
+
+// РќР°Р·РІР°РЅРёСЏ РјРµСЃСЏС†РµРІ РЅР° СѓРєСЂР°РёРЅСЃРєРѕРј
+export const MONTH_NAMES_UK: string[] = [
+  'Січень', 'Лютий', 'Березень', 'Квітень',
+  'Травень', 'Червень', 'Липень', 'Серпень',
+  'Вересень', 'Жовтень', 'Листопад', 'Грудень'
+];
+
+// Названия месяцев на русском
+export const MONTH_NAMES_RU: string[] = [
+  'Январь', 'Февраль', 'Март', 'Апрель',
+  'Май', 'Июнь', 'Июль', 'Август',
+  'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+];
+
+// РџРѕР»СѓС‡РёС‚СЊ РЅР°Р·РІР°РЅРёРµ РјРµСЃСЏС†Р°
+export const getMonthName = (month: number, lang: 'uk' | 'ru' = 'ru'): string => {
+  const names = lang === 'uk' ? MONTH_NAMES_UK : MONTH_NAMES_RU;
+  return names[month - 1] || '';
+};
+
+// Р¤РѕСЂРјР°С‚РёСЂРѕРІР°С‚СЊ РјРµСЃСЏС† Рё РіРѕРґ
+export const formatMonthYear = (month: number, year: number, lang: 'uk' | 'ru' = 'ru'): string => {
+  return `${getMonthName(month, lang)} ${year}`;
+};
+

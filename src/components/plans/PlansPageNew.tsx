@@ -2,22 +2,22 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { UserInfo } from '@/types/azure';
-import { AnnualPlan, QuarterlyPlan, WeeklyPlan, MonthlyPlan, PlanStatus, canCreateAnnualPlans } from '@/types/planning';
+import { AnnualPlan, QuarterlyPlan, MonthlyPlan, PlanStatus, canCreateAnnualPlans } from '@/types/planning';
 import { usePlans } from '@/hooks/usePlans';
 import { usePlanNavigation } from '@/hooks/planning/usePlanNavigation';
 import { usePlanFilters } from '@/hooks/planning/usePlanFilters';
-import { getWeekNumber, getWeekDateRange, getStatusColorClasses, getStatusVariant, getStatusBgClass } from '@/lib/utils/planning-utils';
+import { getWeekNumber, getWeekDateRange, getStatusBgClass } from '@/lib/utils/planning-utils';
 import { Plus } from 'lucide-react';
 import { useIsMobile } from '@/hooks/useMediaQuery';
+import { supabase } from '@/lib/supabase';
 
 // Components
 import PlansLayout from './PlansLayout';
 import PlanTreeHeader from './tree/PlanTreeHeader';
-import PlanStatusFilter from './tree/PlanStatusFilter';
 import AnnualPlanDetails from './details/AnnualPlanDetails';
 import QuarterlyPlanDetails from './details/QuarterlyPlanDetails';
-import WeeklyPlanDetails from './details/WeeklyPlanDetails';
 import MonthlyPlanDetails from './details/MonthlyPlanDetails';
+import AddTaskModal from '@/components/dashboard/Tasks/AddTaskModal';
 import { cn } from '@/lib/utils';
 import { getPlanStatusText } from '@/types/planning';
 
@@ -26,16 +26,21 @@ interface PlansPageNewProps {
   fetchPlanCounts?: () => void;
 }
 
-type PlanType = 'annual' | 'quarterly' | 'weekly' | 'monthly';
+type PlanType = 'annual' | 'quarterly' | 'monthly';
 
 export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProps) {
   // State
   const [selectedType, setSelectedType] = useState<PlanType | null>(null);
-  const [selectedPlan, setSelectedPlan] = useState<AnnualPlan | QuarterlyPlan | WeeklyPlan | MonthlyPlan | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<AnnualPlan | QuarterlyPlan | MonthlyPlan | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   // Parent ID for creating child plans
   const [parentIdForCreate, setParentIdForCreate] = useState<string | null>(null);
+
+  // Task modal state
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [taskModalPlan, setTaskModalPlan] = useState<MonthlyPlan | null>(null);
+  const [assignedPlanIds, setAssignedPlanIds] = useState<string[]>([]);
 
   // Mobile detection
   const isMobile = useIsMobile();
@@ -44,23 +49,25 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
   const {
     annualPlans,
     quarterlyPlans,
-    weeklyPlans,
     monthlyPlans,
     loading,
     error,
-    fetchAllPlans,
     refreshPlans,
     fetchAnnualPlans,
     fetchQuarterlyPlans,
-    fetchWeeklyPlans,
     fetchMonthlyPlans,
     handlePlanSuccess
   } = usePlans(user);
 
   // Initial Load
   useEffect(() => {
-    fetchAnnualPlans();
-  }, [fetchAnnualPlans]);
+    // Для сотрудников - загружаем все планы сразу (включая месячные)
+    if (user.role === 'employee') {
+      refreshPlans();
+    } else {
+      fetchAnnualPlans();
+    }
+  }, [fetchAnnualPlans, refreshPlans, user.role]);
 
 
   // Hooks
@@ -70,15 +77,12 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
     selectedMonth, setSelectedMonth,
     // selectedWeekNumber, setSelectedWeekNumber, // Deprecated
     availableYears
-  } = usePlanNavigation(annualPlans, quarterlyPlans, weeklyPlans);
+  } = usePlanNavigation(annualPlans, quarterlyPlans);
 
   const {
-    searchQuery, setSearchQuery, // eslint-disable-line @typescript-eslint/no-unused-vars
-    statusFilter, setStatusFilter,
     filteredAnnualPlans,
-    filteredQuarterlyPlans,
-    filteredWeeklyPlans
-  } = usePlanFilters(annualPlans, quarterlyPlans, weeklyPlans, selectedYear, selectedQuarter, user);
+    filteredQuarterlyPlans
+  } = usePlanFilters(annualPlans, quarterlyPlans, selectedYear, selectedQuarter, user);
 
   // Lazy Load Quarterly Plans
   useEffect(() => {
@@ -87,13 +91,6 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
     }
   }, [selectedYear, fetchQuarterlyPlans]);
 
-  // Lazy Load Weekly Plans
-  useEffect(() => {
-    if (selectedYear && selectedQuarter && quarterlyPlans.length > 0) {
-      fetchWeeklyPlans(selectedQuarter);
-    }
-  }, [selectedYear, selectedQuarter, quarterlyPlans, fetchWeeklyPlans]);
-
   // Lazy Load Monthly Plans
   useEffect(() => {
     if (selectedYear && selectedQuarter && quarterlyPlans.length > 0) {
@@ -101,8 +98,26 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
     }
   }, [selectedYear, selectedQuarter, quarterlyPlans, fetchMonthlyPlans]);
 
+  // Fetch user's assigned monthly plans
+  useEffect(() => {
+    if (!user?.user_id) return;
+
+    const fetchAssignments = async () => {
+      const { data } = await supabase
+        .from('monthly_plan_assignees')
+        .select('monthly_plan_id')
+        .eq('user_id', user.user_id);
+
+      if (data) {
+        setAssignedPlanIds(data.map(d => d.monthly_plan_id));
+      }
+    };
+
+    fetchAssignments();
+  }, [user?.user_id]);
+
   // Handlers
-  const handleSelectPlan = (type: PlanType, plan: AnnualPlan | QuarterlyPlan | WeeklyPlan | MonthlyPlan) => {
+  const handleSelectPlan = (type: PlanType, plan: AnnualPlan | QuarterlyPlan | MonthlyPlan) => {
     setSelectedType(type);
     setSelectedPlan(plan);
     // На мобильных открываем drawer с деталями
@@ -160,51 +175,6 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
       return;
     }
 
-    // Inline creation for Weekly Plans
-    if (type === 'weekly') {
-      let effectiveParentId = parentId;
-
-      // If no explicit parent provided, check if we have a selected Quarterly Plan
-      if (!effectiveParentId && selectedType === 'quarterly' && selectedPlan) {
-        effectiveParentId = (selectedPlan as QuarterlyPlan).quarterly_id;
-      }
-
-      const parentQuarterly = quarterlyPlans.find(q => q.quarterly_id === effectiveParentId);
-
-      // Determine default date based on selected context
-      const defaultDate = new Date();
-      if (selectedYear) {
-        defaultDate.setFullYear(selectedYear);
-        // If selectedQuarter/selectedMonth is active, pick correct date
-        if (selectedMonth !== null) {
-          defaultDate.setMonth(selectedMonth);
-          defaultDate.setDate(1); // Start of month
-
-          // Adjust to Monday if needed? No, weekly_date expects exact date usually, 
-          // but we usually pick Monday of the current week. 
-          // Here just defaulting to 1st of month is OK, backend/UI might correct it to Monday.
-        } else if (selectedQuarter) {
-          const targetMonth = (selectedQuarter - 1) * 3;
-          defaultDate.setMonth(targetMonth);
-          defaultDate.setDate(1); // Start of quarter
-        }
-      }
-
-      const newPlan: WeeklyPlan = {
-        weekly_id: 'new', // Placeholder ID
-        quarterly_id: effectiveParentId || null,
-        weekly_date: defaultDate.toISOString(),
-        expected_result: '',
-        status: 'draft',
-        planned_hours: 0,
-        department_id: parentQuarterly?.department_id || user.department_id || null,
-        department_name: parentQuarterly?.department_name || '',
-      };
-
-      setSelectedType('weekly');
-      setSelectedPlan(newPlan);
-    }
-
     // Inline creation for Monthly Plans
     if (type === 'monthly') {
       let effectiveParentId = parentId;
@@ -228,7 +198,7 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
       const newPlan: MonthlyPlan = {
         monthly_plan_id: 'new',
         quarterly_id: effectiveParentId || null,
-        service_id: null,
+        measure_id: null,
         year: selectedYear || new Date().getFullYear(),
         month: defaultMonth,
         description: '',
@@ -257,24 +227,170 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
     fetchPlanCounts?.();
 
     if (newPlanId && selectedPlan) {
-      if ((selectedPlan as any).annual_id === 'new') {
-        setSelectedPlan(prev => ({ ...prev!, annual_id: newPlanId } as any));
-      } else if ((selectedPlan as any).quarterly_id === 'new') {
-        setSelectedPlan(prev => ({ ...prev!, quarterly_id: newPlanId } as any));
-      } else if ((selectedPlan as any).weekly_id === 'new') {
-        setSelectedPlan(prev => ({ ...prev!, weekly_id: newPlanId } as any));
-      } else if ((selectedPlan as any).monthly_plan_id === 'new') {
-        setSelectedPlan(prev => ({ ...prev!, monthly_plan_id: newPlanId } as any));
+      if (selectedType === 'annual' && 'annual_id' in selectedPlan && selectedPlan.annual_id === 'new') {
+        setSelectedPlan({
+          ...selectedPlan,
+          annual_id: newPlanId,
+        });
+      } else if (selectedType === 'quarterly' && 'quarterly_id' in selectedPlan && selectedPlan.quarterly_id === 'new') {
+        setSelectedPlan({
+          ...selectedPlan,
+          quarterly_id: newPlanId,
+        });
+      } else if (selectedType === 'monthly' && 'monthly_plan_id' in selectedPlan && selectedPlan.monthly_plan_id === 'new') {
+        setSelectedPlan({
+          ...selectedPlan,
+          monthly_plan_id: newPlanId,
+        });
       }
     }
-  }, [refreshPlans, handlePlanSuccess, fetchPlanCounts, selectedPlan]);
+  }, [refreshPlans, handlePlanSuccess, fetchPlanCounts, selectedPlan, selectedType]);
+
+  // Update selectedPlan when plans data changes (after edit/save)
+  useEffect(() => {
+    if (!selectedPlan || !selectedType) return;
+
+    if (selectedType === 'annual') {
+      const planId = (selectedPlan as AnnualPlan).annual_id;
+      if (planId && planId !== 'new') {
+        const updated = annualPlans.find(p => p.annual_id === planId);
+        if (updated) setSelectedPlan(updated);
+      }
+    } else if (selectedType === 'quarterly') {
+      const planId = (selectedPlan as QuarterlyPlan).quarterly_id;
+      if (planId && planId !== 'new') {
+        const updated = quarterlyPlans.find(p => p.quarterly_id === planId);
+        if (updated) setSelectedPlan(updated);
+      }
+    } else if (selectedType === 'monthly') {
+      const planId = (selectedPlan as MonthlyPlan).monthly_plan_id;
+      if (planId && planId !== 'new') {
+        const updated = monthlyPlans.find(p => p.monthly_plan_id === planId);
+        if (updated) setSelectedPlan(updated);
+      }
+    }
+  }, [annualPlans, quarterlyPlans, monthlyPlans]);
+
+  // Task modal handlers
+  const handleAddTaskFromTile = useCallback((plan: MonthlyPlan) => {
+    setTaskModalPlan(plan);
+    setIsTaskModalOpen(true);
+  }, []);
+
+  const handleTaskModalSuccess = useCallback(() => {
+    setIsTaskModalOpen(false);
+    setTaskModalPlan(null);
+    refreshPlans();
+  }, [refreshPlans]);
 
   const canCreate = canCreateAnnualPlans(user);
-  /* eslint-disable @typescript-eslint/no-unused-vars */
   const canEdit = user.role === 'chief' || user.role === 'head';
+  const isEmployee = user.role === 'employee';
 
   // --- Render Left Panel Content ---
   const renderTreeContent = () => {
+    // Для сотрудников - только активные планы, к которым они назначены
+    if (isEmployee) {
+      const myActivePlans = monthlyPlans.filter(
+        p => p.status === 'active' && assignedPlanIds.includes(p.monthly_plan_id)
+      );
+
+      if (loading) {
+        return (
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+          </div>
+        );
+      }
+
+      if (myActivePlans.length === 0) {
+        return (
+          <div className="text-center py-8 text-gray-400 text-sm">
+            <p>У вас нет активных планов</p>
+            <p className="text-xs mt-1">Обратитесь к руководителю для назначения</p>
+          </div>
+        );
+      }
+
+      return (
+        <div className="space-y-1">
+          <div className="text-2xs font-medium text-gray-400 uppercase tracking-wide px-2 py-1 flex justify-between">
+            <span>Мои активные планы</span>
+            <span>({myActivePlans.length})</span>
+          </div>
+          {myActivePlans.map(monthPlan => {
+            const isSelected = selectedPlan && selectedType === 'monthly' && (selectedPlan as MonthlyPlan).monthly_plan_id === monthPlan.monthly_plan_id;
+            const qPlan = quarterlyPlans.find(q => q.quarterly_id === monthPlan.quarterly_id);
+            const spentHours = monthPlan.total_spent_hours || 0;
+            const plannedHours = monthPlan.planned_hours || 0;
+            const completionPct = monthPlan.completion_percentage || 0;
+            const monthName = new Date(2024, monthPlan.month - 1, 1).toLocaleString('ru-RU', { month: 'short' });
+
+            const progressColor = completionPct >= 80 ? 'bg-emerald-500' : completionPct >= 50 ? 'bg-amber-500' : 'bg-blue-500';
+            const progressBgColor = isSelected ? 'bg-white/30' : 'bg-gray-200';
+
+            return (
+              <div
+                key={monthPlan.monthly_plan_id}
+                onClick={() => handleSelectPlan('monthly', monthPlan)}
+                className={cn(
+                  "px-3 py-2 rounded-xl cursor-pointer transition-all border shadow-sm",
+                  isSelected ? "bg-gradient-to-r from-indigo-400/80 to-blue-400/80 text-white shadow-md border-white/20 backdrop-blur-md" : "glass-card text-slate-800 bg-white/70 hover:bg-white/90 hover:border-indigo-300"
+                )}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className={cn("w-3 h-3 rounded-full flex-shrink-0", getStatusBgClass(monthPlan.status), isSelected && "ring-2 ring-white")}
+                    title={getPlanStatusText(monthPlan.status)}
+                    aria-label={getPlanStatusText(monthPlan.status)}
+                  />
+                  <span className={cn("text-2xs font-bold", isSelected ? "text-indigo-100" : "text-slate-500")}>
+                    {monthName} {monthPlan.year}
+                  </span>
+                  {qPlan?.department_name && (
+                    <span className={cn("text-2xs truncate flex-1", isSelected ? "text-indigo-200" : "text-slate-400")}>• {qPlan.department_name}</span>
+                  )}
+                  <span className={cn("text-2xs font-mono font-black border-l px-2 flex-shrink-0", isSelected ? "text-white border-white/20" : "text-indigo-600 border-indigo-100")}>
+                    {spentHours}h / {plannedHours}h
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAddTaskFromTile(monthPlan);
+                    }}
+                    aria-label="Добавить задачу"
+                    className={cn(
+                      "p-0.5 rounded transition-all",
+                      "focus:outline-none focus:ring-2 focus:ring-indigo-500",
+                      isSelected
+                        ? "text-indigo-200 hover:text-white hover:bg-white/20"
+                        : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-100"
+                    )}
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+                <p className={cn("text-xs leading-tight line-clamp-2 mb-1", isSelected && "font-semibold")}>{monthPlan.measure_name || 'Мероприятие не выбрано'}</p>
+
+                {/* Прогресс-бар */}
+                <div className="flex items-center gap-2">
+                  <div className={cn("flex-1 h-1.5 rounded-full overflow-hidden", progressBgColor)}>
+                    <div
+                      className={cn("h-full rounded-full transition-all", progressColor)}
+                      style={{ width: `${Math.min(100, completionPct)}%` }}
+                    />
+                  </div>
+                  <span className={cn("text-2xs font-bold tabular-nums min-w-[32px] text-right", isSelected ? "text-white" : completionPct >= 80 ? "text-emerald-600" : completionPct >= 50 ? "text-amber-600" : "text-blue-600")}>
+                    {completionPct}%
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
     if (loading) {
       return (
         <div className="flex justify-center py-8">
@@ -290,7 +406,7 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
     if (selectedMonth !== null) { // 0 is falsy, check for null
       const monthNum = selectedMonth + 1; // selectedMonth is 0-indexed, monthly_plans.month is 1-indexed
       const filteredMonthlyPlans = monthlyPlans.filter(m => m.month === monthNum);
-      const monthName = new Date(2024, selectedMonth, 1).toLocaleString('uk-UA', { month: 'long' });
+      const monthName = new Date(2024, selectedMonth, 1).toLocaleString('ru-RU', { month: 'long' });
 
       if (filteredMonthlyPlans.length === 0) {
         return <div className="text-center py-8 text-gray-400 text-sm">Месячные планы за {monthName} не найдены</div>;
@@ -305,26 +421,70 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
           {filteredMonthlyPlans.map(monthPlan => {
             const isSelected = selectedPlan && selectedType === 'monthly' && (selectedPlan as MonthlyPlan).monthly_plan_id === monthPlan.monthly_plan_id;
             const qPlan = quarterlyPlans.find(q => q.quarterly_id === monthPlan.quarterly_id);
+            const spentHours = monthPlan.total_spent_hours || 0;
+            const plannedHours = monthPlan.planned_hours || 0;
+            const completionPct = monthPlan.completion_percentage || 0;
+            const canAddTask = assignedPlanIds.includes(monthPlan.monthly_plan_id);
+
+            // Цвет прогресса: зеленый ≥80%, желтый 50-80%, синий <50% (начало работы)
+            const progressColor = completionPct >= 80 ? 'bg-emerald-500' : completionPct >= 50 ? 'bg-amber-500' : 'bg-blue-500';
+            const progressBgColor = isSelected ? 'bg-white/30' : 'bg-gray-200';
 
             return (
               <div
                 key={monthPlan.monthly_plan_id}
                 onClick={() => handleSelectPlan('monthly', monthPlan)}
                 className={cn(
-                  "p-3 rounded-xl cursor-pointer transition-all border shadow-sm",
-                  isSelected ? "bg-gradient-to-r from-indigo-500 to-blue-500 text-white ring-2 ring-indigo-500/50 shadow-xl border-indigo-500/50" : "glass-card text-slate-800 bg-white/70 hover:bg-white/90 hover:border-indigo-300"
+                  "px-3 py-2 rounded-xl cursor-pointer transition-all border shadow-sm",
+                  isSelected ? "bg-gradient-to-r from-indigo-400/80 to-blue-400/80 text-white shadow-md border-white/20 backdrop-blur-md" : "glass-card text-slate-800 bg-white/70 hover:bg-white/90 hover:border-indigo-300"
                 )}
               >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className={cn("text-3xs px-2 py-0.5 rounded-full font-black uppercase shadow-sm", isSelected ? "bg-white text-indigo-700" : getStatusColorClasses(monthPlan.status))}>
-                    {getPlanStatusText(monthPlan.status)}
-                  </span>
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className={cn("w-3 h-3 rounded-full flex-shrink-0", getStatusBgClass(monthPlan.status), isSelected && "ring-2 ring-white")}
+                    title={getPlanStatusText(monthPlan.status)}
+                    aria-label={getPlanStatusText(monthPlan.status)}
+                  />
                   {qPlan?.department_name && (
                     <span className={cn("text-2xs font-bold truncate flex-1", isSelected ? "text-indigo-100" : "text-slate-500")}>{qPlan.department_name}</span>
                   )}
-                  <span className={cn("text-2xs font-mono font-black border-l px-2 flex-shrink-0", isSelected ? "text-white border-white/20" : "text-indigo-600 border-indigo-100")}>{monthPlan.planned_hours}h</span>
+                  <span className={cn("text-2xs font-mono font-black border-l px-2 flex-shrink-0", isSelected ? "text-white border-white/20" : "text-indigo-600 border-indigo-100")}>
+                    {spentHours}h / {plannedHours}h
+                  </span>
+                  {canAddTask && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddTaskFromTile(monthPlan);
+                      }}
+                      aria-label="Добавить задачу"
+                      className={cn(
+                        "p-0.5 rounded transition-all",
+                        "focus:outline-none focus:ring-2 focus:ring-indigo-500",
+                        isSelected
+                          ? "text-indigo-200 hover:text-white hover:bg-white/20"
+                          : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-100"
+                      )}
+                    >
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  )}
                 </div>
-                <p className="text-xs font-semibold leading-relaxed line-clamp-2">{monthPlan.service_name || (monthPlan as any).title || 'Без назви'}</p>
+                <p className={cn("text-xs leading-tight line-clamp-2 mb-1", isSelected && "font-semibold")}>{monthPlan.measure_name || 'Мероприятие не выбрано'}</p>
+
+                {/* Прогресс-бар */}
+                <div className="flex items-center gap-2">
+                  <div className={cn("flex-1 h-1.5 rounded-full overflow-hidden", progressBgColor)}>
+                    <div
+                      className={cn("h-full rounded-full transition-all", progressColor)}
+                      style={{ width: `${Math.min(100, completionPct)}%` }}
+                    />
+                  </div>
+                  <span className={cn("text-2xs font-bold tabular-nums min-w-[32px] text-right", isSelected ? "text-white" : completionPct >= 80 ? "text-emerald-600" : completionPct >= 50 ? "text-amber-600" : "text-blue-600")}>
+                    {completionPct}%
+                  </span>
+                </div>
               </div>
             );
           })}
@@ -346,37 +506,64 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
                 const planMonths = monthlyPlans.filter(m => m.quarterly_id === plan.quarterly_id);
                 const isSelected = selectedPlan && selectedType === 'quarterly' && (selectedPlan as QuarterlyPlan).quarterly_id === plan.quarterly_id;
 
+                // Агрегируем часы по всем месячным планам квартала
+                const totalSpent = planMonths.reduce((sum, m) => sum + (m.total_spent_hours || 0), 0);
+                const totalPlanned = planMonths.reduce((sum, m) => sum + (m.planned_hours || 0), 0);
+                const completionPct = totalPlanned > 0 ? Math.round((totalSpent / totalPlanned) * 100) : 0;
+
+                // Цвет прогресса: зеленый ≥80%, желтый 50-80%, синий <50% (начало работы)
+                const progressColor = completionPct >= 80 ? 'bg-emerald-500' : completionPct >= 50 ? 'bg-amber-500' : 'bg-blue-500';
+                const progressBgColor = isSelected ? 'bg-white/30' : 'bg-gray-200';
+
                 return (
                   <div
                     key={plan.quarterly_id}
                     onClick={() => handleSelectPlan('quarterly', plan)}
                     className={cn(
-                      "p-3 rounded-xl cursor-pointer transition-all border shadow-sm",
-                      isSelected ? "bg-gradient-to-r from-purple-500 to-violet-500 text-white ring-2 ring-purple-500/50 shadow-xl border-purple-500/50" : "glass-card text-slate-800 bg-white/70 hover:bg-white/90 hover:border-purple-300"
+                      "px-3 py-2 rounded-xl cursor-pointer transition-all border shadow-sm",
+                      isSelected ? "bg-gradient-to-r from-purple-400/80 to-violet-400/80 text-white shadow-md border-white/20 backdrop-blur-md" : "glass-card text-slate-800 bg-white/70 hover:bg-white/90 hover:border-purple-300"
                     )}
                   >
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className={cn("text-3xs px-2 py-0.5 rounded-full font-black uppercase shadow-sm", isSelected ? "bg-white text-purple-700" : getStatusColorClasses(plan.status))}>
-                        {getPlanStatusText(plan.status)}
-                      </span>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span
+                        className={cn("w-3 h-3 rounded-full flex-shrink-0", getStatusBgClass(plan.status), isSelected && "ring-2 ring-white")}
+                        title={getPlanStatusText(plan.status)}
+                        aria-label={getPlanStatusText(plan.status)}
+                      />
                       {plan.department_name && (
                         <span className={cn("text-2xs font-bold truncate flex-1", isSelected ? "text-purple-100" : "text-slate-500")}>{plan.department_name}</span>
                       )}
-                      <span className={cn("text-2xs font-mono font-black border-l px-2 flex-shrink-0", isSelected ? "text-white border-white/20" : "text-purple-600 border-purple-100")}>{planMonths.length}m</span>
+                      <span className={cn("text-2xs font-mono font-black border-l px-2 flex-shrink-0", isSelected ? "text-white border-white/20" : "text-purple-600 border-purple-100")}>
+                        {Math.round(totalSpent)}h / {totalPlanned}h
+                      </span>
                       {canCreate && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleCreatePlan('monthly', plan.quarterly_id);
                           }}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white/40 rounded-md transition-colors border border-transparent hover:border-indigo-100 shadow-sm"
+                          className="p-0.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 rounded transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500"
                           title="Создать месячный план"
+                          aria-label="Создать месячный план"
                         >
-                          <Plus className="h-4 w-4" />
+                          <Plus className="h-4 w-4" aria-hidden="true" />
                         </button>
                       )}
                     </div>
-                    <p className="text-xs font-semibold leading-relaxed line-clamp-2">{plan.goal}</p>
+                    <p className={cn("text-xs leading-tight line-clamp-2 mb-1", isSelected && "font-semibold")}>{plan.goal}</p>
+
+                    {/* Прогресс-бар */}
+                    <div className="flex items-center gap-2">
+                      <div className={cn("flex-1 h-1.5 rounded-full overflow-hidden", progressBgColor)}>
+                        <div
+                          className={cn("h-full rounded-full transition-all", progressColor)}
+                          style={{ width: `${Math.min(100, completionPct)}%` }}
+                        />
+                      </div>
+                      <span className={cn("text-2xs font-bold tabular-nums min-w-[32px] text-right", isSelected ? "text-white" : completionPct >= 80 ? "text-emerald-600" : completionPct >= 50 ? "text-amber-600" : "text-blue-600")}>
+                        {completionPct}%
+                      </span>
+                    </div>
                   </div>
                 );
               })}
@@ -403,37 +590,66 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
               const planQuarters = quarterlyPlans.filter(q => q.annual_plan_id === plan.annual_id);
               const isSelected = selectedPlan && selectedType === 'annual' && (selectedPlan as AnnualPlan).annual_id === plan.annual_id;
 
+              // Агрегируем часы по всем месячным планам года (через квартальные)
+              const quarterIds = planQuarters.map(q => q.quarterly_id);
+              const yearMonthlyPlans = monthlyPlans.filter(m => quarterIds.includes(m.quarterly_id || ''));
+              const totalSpent = yearMonthlyPlans.reduce((sum, m) => sum + (m.total_spent_hours || 0), 0);
+              const totalPlanned = yearMonthlyPlans.reduce((sum, m) => sum + (m.planned_hours || 0), 0);
+              const completionPct = totalPlanned > 0 ? Math.round((totalSpent / totalPlanned) * 100) : 0;
+
+              // Цвет прогресса: зеленый ≥80%, желтый 50-80%, синий <50% (начало работы)
+              const progressColor = completionPct >= 80 ? 'bg-emerald-500' : completionPct >= 50 ? 'bg-amber-500' : 'bg-blue-500';
+              const progressBgColor = isSelected ? 'bg-white/30' : 'bg-gray-200';
+
               return (
                 <div
                   key={plan.annual_id}
                   onClick={() => handleSelectPlan('annual', plan)}
                   className={cn(
-                    "p-3 rounded-xl cursor-pointer transition-all border shadow-sm",
-                    isSelected ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white ring-2 ring-amber-500/50 shadow-xl border-amber-500/50" : "glass-card text-slate-800 bg-white/70 hover:bg-white/90 hover:border-amber-300"
+                    "px-3 py-2 rounded-xl cursor-pointer transition-all border shadow-sm",
+                    isSelected ? "bg-gradient-to-r from-amber-400/80 to-orange-400/80 text-white shadow-md border-white/20 backdrop-blur-md" : "glass-card text-slate-800 bg-white/70 hover:bg-white/90 hover:border-amber-300"
                   )}
                 >
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className={cn("text-3xs px-2 py-0.5 rounded-full font-black uppercase shadow-sm", isSelected ? "bg-white text-amber-700" : getStatusColorClasses(plan.status))}>
-                      {getPlanStatusText(plan.status)}
-                    </span>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className={cn("w-3 h-3 rounded-full flex-shrink-0", getStatusBgClass(plan.status), isSelected && "ring-2 ring-white")}
+                      title={getPlanStatusText(plan.status)}
+                      aria-label={getPlanStatusText(plan.status)}
+                    />
                     {plan.author_name && (
                       <span className={cn("text-2xs font-bold truncate flex-1", isSelected ? "text-amber-100" : "text-slate-500")}>{plan.author_name}</span>
                     )}
-                    <span className={cn("text-2xs font-mono font-black border-l px-2 flex-shrink-0", isSelected ? "text-white border-white/20" : "text-amber-600 border-amber-100")}>{planQuarters.length}Q</span>
+                    <span className={cn("text-2xs font-mono font-black border-l px-2 flex-shrink-0", isSelected ? "text-white border-white/20" : "text-amber-600 border-amber-100")}>
+                      {Math.round(totalSpent)}h / {totalPlanned}h
+                    </span>
                     {canCreate && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleCreatePlan('quarterly', plan.annual_id);
                         }}
-                        className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-white/40 rounded-md transition-colors border border-transparent hover:border-purple-100 shadow-sm"
+                        className="p-0.5 text-slate-400 hover:text-purple-600 hover:bg-purple-100 rounded transition-all focus:outline-none focus:ring-2 focus:ring-purple-500"
                         title="Создать квартальный план"
+                        aria-label="Создать квартальный план"
                       >
-                        <Plus className="h-4 w-4" />
+                        <Plus className="h-4 w-4" aria-hidden="true" />
                       </button>
                     )}
                   </div>
-                  <p className="text-xs font-semibold leading-relaxed line-clamp-2">{plan.goal}</p>
+                  <p className={cn("text-xs leading-tight line-clamp-2 mb-1", isSelected && "font-semibold")}>{plan.goal}</p>
+
+                  {/* Прогресс-бар */}
+                  <div className="flex items-center gap-2">
+                    <div className={cn("flex-1 h-1.5 rounded-full overflow-hidden", progressBgColor)}>
+                      <div
+                        className={cn("h-full rounded-full transition-all", progressColor)}
+                        style={{ width: `${Math.min(100, completionPct)}%` }}
+                      />
+                    </div>
+                    <span className={cn("text-2xs font-bold tabular-nums min-w-[32px] text-right", isSelected ? "text-white" : completionPct >= 80 ? "text-emerald-600" : completionPct >= 50 ? "text-amber-600" : "text-blue-600")}>
+                      {completionPct}%
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -470,7 +686,6 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
           onUpdate={handleSuccess}
           canEdit={canEdit}
           quarterlyPlans={quarterlyPlans}
-          weeklyPlans={weeklyPlans}
         />
       );
     }
@@ -486,21 +701,6 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
           canEdit={canEdit}
           annualPlans={annualPlans}
           monthlyPlans={monthlyPlans}
-        />
-      );
-    }
-
-    if (selectedType === 'weekly') {
-      return (
-        <WeeklyPlanDetails
-          plan={selectedPlan as WeeklyPlan}
-          user={user}
-          onEdit={handleEditPlan}
-          onClose={handleCloseDetails}
-          onUpdate={handleSuccess}
-          canEdit={canEdit}
-          quarterlyPlans={quarterlyPlans}
-          annualPlans={annualPlans}
         />
       );
     }
@@ -529,34 +729,30 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
         onDrawerClose={handleDrawerClose}
         leftPanel={
           <>
-            <PlanTreeHeader
-              availableYears={availableYears}
-              selectedYear={selectedYear}
-              selectedQuarter={selectedQuarter}
-              selectedMonth={selectedMonth}
-              annualPlans={annualPlans}
-              quarterlyPlans={quarterlyPlans}
-              weeklyPlans={weeklyPlans}
-              onSelectYear={setSelectedYear}
-              onSelectQuarter={setSelectedQuarter}
-              onSelectMonth={setSelectedMonth}
-              onCreatePlan={handleCreatePlan}
-              canCreate={canCreate}
-              onDoubleClickYear={(plan) => handleSelectPlan('annual', plan)}
-              user={user}
-            />
-            <PlanStatusFilter
-              statusFilter={statusFilter}
-              setStatusFilter={setStatusFilter}
-              selectedMonth={selectedMonth}
-              selectedQuarter={selectedQuarter}
-              selectedYear={selectedYear}
-            />
+            {/* Фильтры - только для chief и head */}
+            {!isEmployee && (
+              <PlanTreeHeader
+                availableYears={availableYears}
+                selectedYear={selectedYear}
+                selectedQuarter={selectedQuarter}
+                selectedMonth={selectedMonth}
+                annualPlans={annualPlans}
+                quarterlyPlans={quarterlyPlans}
+                onSelectYear={setSelectedYear}
+                onSelectQuarter={setSelectedQuarter}
+                onSelectMonth={setSelectedMonth}
+                onCreatePlan={handleCreatePlan}
+                canCreate={canCreate}
+                onDoubleClickYear={(plan) => handleSelectPlan('annual', plan)}
+                user={user}
+              />
+            )}
             <div className={cn(
               "flex-1 overflow-y-auto p-3 space-y-4",
-              selectedMonth !== null ? "bg-indigo-50/20" :
-                selectedQuarter ? "bg-purple-50/20" :
-                  selectedYear ? "bg-amber-50/20" : "bg-slate-50/20"
+              isEmployee ? "bg-indigo-50/20" :
+                selectedMonth !== null ? "bg-indigo-50/20" :
+                  selectedQuarter ? "bg-purple-50/20" :
+                    selectedYear ? "bg-amber-50/20" : "bg-slate-50/20"
             )}>
               {renderTreeContent()}
             </div>
@@ -565,6 +761,21 @@ export default function PlansPageNew({ user, fetchPlanCounts }: PlansPageNewProp
         rightPanel={renderDetailsContent()}
       />
 
+      {/* Task Modal - for adding tasks from plan tiles */}
+      {taskModalPlan && (
+        <AddTaskModal
+          isOpen={isTaskModalOpen}
+          onClose={() => {
+            setIsTaskModalOpen(false);
+            setTaskModalPlan(null);
+          }}
+          onSuccess={handleTaskModalSuccess}
+          monthlyPlanId={taskModalPlan.monthly_plan_id}
+          userId={user.user_id}
+          userDepartmentId={user.department_id || undefined}
+          monthlyPlan={taskModalPlan}
+        />
+      )}
     </>
   );
 }

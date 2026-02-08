@@ -9,7 +9,7 @@ import { BottomDrawer } from '@/components/ui/BottomDrawer';
 interface PlansLayoutProps {
     leftPanel: React.ReactNode;
     rightPanel: React.ReactNode;
-    selectedType: 'annual' | 'quarterly' | 'weekly' | 'monthly' | null;
+    selectedType: 'annual' | 'quarterly' | 'monthly' | null;
     /** Открыт ли drawer с деталями (для мобильного) */
     isDrawerOpen?: boolean;
     /** Callback для закрытия drawer */
@@ -60,18 +60,12 @@ export default function PlansLayout({
                 {/* Bottom Drawer для деталей плана - свайп за header карточки */}
                 <BottomDrawer
                     isOpen={isDrawerOpen}
-                    onClose={onDrawerClose || (() => {})}
+                    onClose={onDrawerClose || (() => { })}
                     height="full"
                     showCloseButton={false}
                     showDragHandle={false}
                 >
-                    <div className={cn(
-                        "min-h-full",
-                        selectedType === 'weekly' ? "bg-indigo-50/30" :
-                            selectedType === 'monthly' ? "bg-indigo-50/30" :
-                                selectedType === 'quarterly' ? "bg-purple-50/30" :
-                                    selectedType === 'annual' ? "bg-amber-50/30" : "bg-transparent"
-                    )}>
+                    <div className="min-h-full">
                         {rightPanel}
                     </div>
                 </BottomDrawer>
@@ -107,10 +101,9 @@ export default function PlansLayout({
             {/* Правая панель - детали плана */}
             <div className={cn(
                 "flex-1 overflow-y-auto relative z-0",
-                selectedType === 'weekly' ? "bg-indigo-50/30" :
-                    selectedType === 'monthly' ? "bg-indigo-50/30" :
-                        selectedType === 'quarterly' ? "bg-purple-50/30" :
-                            selectedType === 'annual' ? "bg-amber-50/30" : "bg-transparent"
+                selectedType === 'monthly' ? "bg-indigo-50/30" :
+                    selectedType === 'quarterly' ? "bg-purple-50/30" :
+                        selectedType === 'annual' ? "bg-amber-50/30" : "bg-transparent"
             )}>
                 {rightPanel}
             </div>

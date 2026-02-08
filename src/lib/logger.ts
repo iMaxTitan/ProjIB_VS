@@ -1,25 +1,25 @@
-/**
- * Условное логирование - работает только в development режиме
+﻿/**
+ * Единый логгер проекта.
+ * Информационные логи выводим только в development,
+ * ошибки логируем всегда.
  */
-
-const isDev = process.env.NODE_ENV === 'development';
+export const IS_DEV = process.env.NODE_ENV === 'development';
 
 export const logger = {
   log: (...args: unknown[]) => {
-    if (isDev) console.log(...args);
+    if (IS_DEV) console.log(...args);
   },
   warn: (...args: unknown[]) => {
-    if (isDev) console.warn(...args);
+    if (IS_DEV) console.warn(...args);
   },
   error: (...args: unknown[]) => {
-    // Ошибки логируем всегда
     console.error(...args);
   },
   info: (...args: unknown[]) => {
-    if (isDev) console.info(...args);
+    if (IS_DEV) console.info(...args);
   },
   debug: (...args: unknown[]) => {
-    if (isDev) console.debug(...args);
+    if (IS_DEV) console.debug(...args);
   },
 };
 

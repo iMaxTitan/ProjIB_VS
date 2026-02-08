@@ -1,0 +1,6 @@
+# Игнорируем файлы с данными (большие)
+import/*.csv
+import/*.json
+
+# Но сохраняем README
+!import/README.md

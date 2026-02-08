@@ -1,74 +1,98 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import logger from '@/lib/logger';
 
-/**
- * Пути, которые не требуют авторизации
- */
 const LOGIN_ROUTE = '/login';
 const CALLBACK_ROUTE = '/auth/callback';
 const HOME_ROUTE = '/';
+
 const publicPaths = [
-  LOGIN_ROUTE,       // /login
-  CALLBACK_ROUTE,    // /auth/callback
-  '/api/auth/token'  // Точный путь для API установки токена
+  LOGIN_ROUTE,
+  CALLBACK_ROUTE,
+  '/api/auth/token',
 ];
 
-/**
- * Middleware функция, которая проверяет авторизацию пользователя.
- * 
- * @param {NextRequest} request - Объект запроса.
- * @returns {Promise<NextResponse>} - Объект ответа.
- */
+function isJwtExpired(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded)) as { exp?: number };
+
+    if (!payload.exp) return false;
+    return payload.exp * 1000 <= Date.now();
+  } catch {
+    return true;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  console.log(`[Middleware] Pathname: ${pathname}`); // Лог 1: Какой путь пришел
+  logger.debug(`[Middleware] Pathname: ${pathname}`);
 
-  // Пропускаем публичные маршруты
-  const isPublic = publicPaths.some(path => pathname.startsWith(path));
-  console.log(`[Middleware] Is public path? ${isPublic}`); // Лог 2: Путь публичный?
+  const isPublic = publicPaths.some((path) => pathname.startsWith(path));
+  logger.debug(`[Middleware] Is public path? ${isPublic}`);
   if (isPublic) {
-    console.log('[Middleware] Allowing public path.'); // Лог 3: Пропускаем
+    logger.debug('[Middleware] Allowing public path.');
     return NextResponse.next();
   }
 
-  // Пропускаем корневой путь - там своя проверка
   if (pathname === HOME_ROUTE) {
-    console.log('[Middleware] Allowing home path.'); // Лог 4: Пропускаем корень
+    logger.debug('[Middleware] Allowing home path.');
     return NextResponse.next();
   }
 
-  // Проверяем наличие и значение cookie 'auth-status'
-  console.log('[Middleware] Checking auth-status cookie...'); // Лог 5: Начинаем проверку cookie
-  const authStatusCookie = request.cookies.get('auth-status');
+  if (pathname.startsWith('/_next')) {
+    return NextResponse.next();
+  }
 
-  if (authStatusCookie?.value !== 'authenticated') {
-    console.log(`[Middleware] Auth status cookie not found or invalid ('${authStatusCookie?.value}'). Redirecting to login.`); // Лог 6: Редирект
+  logger.debug('[Middleware] Checking auth token...');
+
+  const authToken = request.cookies.get('auth_token')?.value;
+  const hasValidAuthToken = Boolean(
+    authToken &&
+    authToken !== 'undefined' &&
+    authToken !== 'null' &&
+    !isJwtExpired(authToken)
+  );
+
+  if (!hasValidAuthToken) {
+    logger.debug('[Middleware] Auth token not found, invalid, or expired.');
+
+    const isServerAction = request.headers.has('next-action') || request.headers.has('x-invoke-path');
+    if (isServerAction) {
+      logger.debug('[Middleware] Unauthorized Server Action attempt. Returning 401.');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    logger.debug('[Middleware] Redirecting to login.');
+
     const loginUrl = new URL(LOGIN_ROUTE, request.nextUrl.origin);
-    // Сохраняем URL, на который пользователь пытался перейти
-    loginUrl.searchParams.set('returnUrl', encodeURIComponent(request.nextUrl.pathname + request.nextUrl.search));
+    loginUrl.searchParams.set(
+      'returnUrl',
+      encodeURIComponent(request.nextUrl.pathname + request.nextUrl.search)
+    );
+
     return NextResponse.redirect(loginUrl);
   }
 
-  // Если cookie 'auth-status' = 'authenticated', пропускаем запрос дальше
-  console.log('[Middleware] Auth status cookie is valid. Allowing request.'); // Лог 8 (новый): Успешная проверка
+  logger.debug('[Middleware] Auth check passed. Allowing request.');
   return NextResponse.next();
 }
 
-// Конфигурация Middleware: указываем пути, на которых он должен срабатывать
 export const config = {
   matcher: [
     /*
-     * Сопоставляем все пути запросов, кроме тех, что начинаются с:
-     * - api (маршруты API)
-     * - _next/static (статические файлы)
-     * - _next/image (оптимизация изображений)
-     * - favicon.ico (иконка)
-     * - images (папка со статичными изображениями, если есть)
-     * - / (корневой путь, обрабатывается на странице)
-     * - /login (страница входа)
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - images (public images)
+     * - login (auth page)
+     * - api/auth/token (auth sync)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|images|login).*)',
-    // Добавляем корневой путь сюда, если хотим, чтобы middleware работал и на нем
-    // '/' 
+    '/((?!_next/static|_next/image|_next/server|favicon.ico|images|login|api/auth/token).*)',
   ],
 };

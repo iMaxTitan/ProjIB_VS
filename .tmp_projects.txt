@@ -1,0 +1,525 @@
+﻿'use client';
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { Folder, Plus, GripVertical, Pencil } from 'lucide-react';
+import { UserInfo } from '@/types/azure';
+import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useMediaQuery';
+import { BottomDrawer } from '@/components/ui/BottomDrawer';
+import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
+import { supabase } from '@/lib/supabase';
+import { useProjects } from '@/hooks/useProjects';
+import { ProjectWithDepartments } from '@/types/projects';
+
+export default function ProjectsReferenceContent({ user }: { user: UserInfo }) {
+  const { projects, loading, error, createProject, updateProject, toggleActive, refetch } = useProjects();
+  const [selectedProject, setSelectedProject] = useState<ProjectWithDepartments | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<ProjectWithDepartments | null>(null);
+  const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('active');
+  const [departments, setDepartments] = useState<{ department_id: string; department_name: string }[]>([]);
+  const [panelWidth, setPanelWidth] = useState(400);
+  const isResizingRef = React.useRef(false);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+
+  const isMobile = useIsMobile();
+  const canEdit = user.role === 'chief' || user.role === 'head';
+
+  const [formData, setFormData] = useState({
+    project_name: '',
+    description: '',
+    department_ids: [] as string[],
+    is_active: true
+  });
+
+  // Load departments for form
+  useEffect(() => {
+    const loadDepartments = async () => {
+      const { data } = await supabase
+        .from('departments')
+        .select('department_id, department_name')
+        .order('department_name');
+      setDepartments(data || []);
+    };
+    loadDepartments();
+  }, []);
+
+  // Filter projects
+  const filteredProjects = useMemo(() => {
+    return projects.filter(p => {
+      if (filterActive === 'active') return p.is_active;
+      if (filterActive === 'inactive') return !p.is_active;
+      return true;
+    });
+  }, [projects, filterActive]);
+
+  const handleSelectProject = (project: ProjectWithDepartments) => {
+    setSelectedProject(project);
+    if (isMobile) {
+      setIsDrawerOpen(true);
+    }
+  };
+
+  const handleCloseDetails = () => {
+    setSelectedProject(null);
+    setIsDrawerOpen(false);
+  };
+
+  const openNewForm = () => {
+    setEditingProject(null);
+    setFormData({
+      project_name: '',
+      description: '',
+      department_ids: [],
+      is_active: true
+    });
+    setIsFormOpen(true);
+  };
+
+  const openEditForm = (project: ProjectWithDepartments) => {
+    setEditingProject(project);
+    setFormData({
+      project_name: project.project_name,
+      description: project.description || '',
+      department_ids: project.department_ids || [],
+      is_active: project.is_active
+    });
+    setIsFormOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.project_name.trim()) return;
+
+    if (editingProject) {
+      const result = await updateProject({
+        project_id: editingProject.project_id,
+        project_name: formData.project_name,
+        description: formData.description || undefined,
+        department_ids: formData.department_ids,
+        is_active: formData.is_active
+      });
+      if (result.success) {
+        setIsFormOpen(false);
+        setEditingProject(null);
+      }
+    } else {
+      const result = await createProject({
+        project_name: formData.project_name,
+        description: formData.description || undefined,
+        department_ids: formData.department_ids,
+        is_active: formData.is_active
+      });
+      if (result.success) {
+        setIsFormOpen(false);
+      }
+    }
+  };
+
+  const handleToggleActive = async (project: ProjectWithDepartments) => {
+    await toggleActive(project.project_id, !project.is_active);
+  };
+
+  const handleMouseDown = () => {
+    isResizingRef.current = true;
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isResizingRef.current) return;
+    const newWidth = e.clientX - (panelRef.current?.getBoundingClientRect().left || 0);
+    if (newWidth >= 280 && newWidth <= 550) {
+      setPanelWidth(newWidth);
+    }
+  };
+
+  const handleMouseUp = () => {
+    isResizingRef.current = false;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleDepartmentToggle = (deptId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      department_ids: prev.department_ids.includes(deptId)
+        ? prev.department_ids.filter(id => id !== deptId)
+        : [...prev.department_ids, deptId]
+    }));
+  };
+
+  // Left panel - projects list
+  const leftPanel = (
+    <div className="flex flex-col h-full">
+      <div className="flex-shrink-0 p-3 sm:p-4 border-b border-gray-100 bg-white/50">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Folder className="h-5 w-5 text-amber-600" aria-hidden="true" />
+            <h2 className="text-base sm:text-lg font-bold text-slate-800">РџСЂРѕРµРєС‚С‹</h2>
+            <span className="text-sm text-slate-400">({filteredProjects.length})</span>
+          </div>
+          {canEdit && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={openNewForm}
+              aria-label="Р”РѕР±Р°РІРёС‚СЊ РїСЂРѕРµРєС‚"
+              className="gap-1.5 bg-amber-600 hover:bg-amber-700"
+            >
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              <span className="hidden sm:inline">Р”РѕР±Р°РІРёС‚СЊ</span>
+            </Button>
+          )}
+        </div>
+        {/* Filter buttons */}
+        <div className="flex gap-1.5">
+          {(['active', 'inactive', 'all'] as const).map(filter => (
+            <button
+              key={filter}
+              type="button"
+              onClick={() => setFilterActive(filter)}
+              className={cn(
+                "px-2.5 py-1 text-xs rounded-full transition-colors",
+                filterActive === filter
+                  ? "bg-amber-600 text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              )}
+            >
+              {filter === 'active' ? 'РђРєС‚РёРІРЅС‹Рµ' : filter === 'inactive' ? 'РќРµР°РєС‚РёРІРЅС‹Рµ' : 'Р’СЃРµ'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto overscroll-contain p-2 sm:p-3 space-y-1.5">
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+          </div>
+        ) : error ? (
+          <div className="text-center py-12 text-red-500">
+            <p className="text-sm">{error}</p>
+          </div>
+        ) : filteredProjects.length === 0 ? (
+          <div className="text-center py-12 text-slate-400">
+            <Folder className="h-12 w-12 mx-auto mb-3 opacity-50" aria-hidden="true" />
+            <p className="text-sm">РџСЂРѕРµРєС‚С‹ РЅРµ РЅР°Р№РґРµРЅС‹</p>
+          </div>
+        ) : (
+          filteredProjects.map((project) => {
+            const isSelected = selectedProject?.project_id === project.project_id;
+
+            return (
+              <div
+                key={project.project_id}
+                role="button"
+                tabIndex={0}
+                onClick={() => handleSelectProject(project)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleSelectProject(project);
+                  }
+                }}
+                aria-label={`Р’С‹Р±СЂР°С‚СЊ ${project.project_name}`}
+                aria-current={isSelected ? 'true' : undefined}
+                className={cn(
+                  "w-full p-3 rounded-xl border text-left transition-all group cursor-pointer",
+                  "focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2",
+                  "active:scale-[0.98]",
+                  isSelected
+                    ? "bg-amber-50 border-amber-300 shadow-sm"
+                    : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm",
+                  !project.is_active && "opacity-60"
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={cn(
+                    "w-2 h-2 rounded-full flex-shrink-0 mt-1.5",
+                    project.is_active ? "bg-amber-500" : "bg-gray-300"
+                  )} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={cn(
+                        "text-sm font-medium truncate",
+                        isSelected ? "text-amber-900" : "text-slate-800"
+                      )}>
+                        {project.project_name}
+                      </span>
+                      {!project.is_active && (
+                        <span className="text-2xs px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">
+                          РЅРµР°РєС‚РёРІРЅС‹Р№
+                        </span>
+                      )}
+                    </div>
+                    {project.department_names && project.department_names.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {project.department_names.slice(0, 3).map((name, idx) => (
+                          <span key={idx} className="text-2xs px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded">
+                            {name}
+                          </span>
+                        ))}
+                        {project.department_names.length > 3 && (
+                          <span className="text-2xs text-slate-400">
+                            +{project.department_names.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {canEdit && (
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditForm(project);
+                        }}
+                        className="p-1.5 text-slate-500 hover:bg-slate-100 rounded transition-colors"
+                        aria-label="Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ"
+                      >
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+
+  // Cancel form and return to list/details
+  const handleCancelForm = () => {
+    setIsFormOpen(false);
+    setEditingProject(null);
+  };
+
+  // Form panel (shown in right side)
+  const formPanel = (
+    <div className="p-4 space-y-4">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">
+          {editingProject ? 'Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РїСЂРѕРµРєС‚Р°' : 'РќРѕРІС‹Р№ РїСЂРѕРµРєС‚'}
+        </h3>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="project-name" className="block text-sm font-medium text-gray-700 mb-1">
+              РќР°Р·РІР°РЅРёРµ *
+            </label>
+            <input
+              id="project-name"
+              type="text"
+              required
+              value={formData.project_name}
+              onChange={e => setFormData(prev => ({ ...prev, project_name: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label htmlFor="project-desc" className="block text-sm font-medium text-gray-700 mb-1">
+              РћРїРёСЃР°РЅРёРµ
+            </label>
+            <textarea
+              id="project-desc"
+              value={formData.description}
+              onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+              rows={3}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Р”РµРїР°СЂС‚Р°РјРµРЅС‚С‹
+            </label>
+            <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
+              {departments.map(dept => (
+                <label
+                  key={dept.department_id}
+                  className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.department_ids.includes(dept.department_id)}
+                    onChange={() => handleDepartmentToggle(dept.department_id)}
+                    className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                  />
+                  <span className="text-sm">{dept.department_name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="project-active"
+              checked={formData.is_active}
+              onChange={e => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
+              className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+            />
+            <label htmlFor="project-active" className="text-sm text-gray-700">
+              РђРєС‚РёРІРЅС‹Р№ РїСЂРѕРµРєС‚
+            </label>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCancelForm}
+            >
+              РћС‚РјРµРЅРёС‚СЊ
+            </Button>
+            <Button type="submit" className="bg-amber-600 hover:bg-amber-700">
+              {editingProject ? 'РЎРѕС…СЂР°РЅРёС‚СЊ' : 'РЎРѕР·РґР°С‚СЊ'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  // Right panel - project details or form
+  const rightPanel = isFormOpen ? formPanel : selectedProject ? (
+    <div className="p-4 space-y-4">
+      {/* Project info card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-1">
+              {selectedProject.project_name}
+            </h3>
+            <span className={cn(
+              "text-xs px-2 py-1 rounded-full",
+              selectedProject.is_active
+                ? "bg-green-100 text-green-700"
+                : "bg-slate-100 text-slate-500"
+            )}>
+              {selectedProject.is_active ? 'РђРєС‚РёРІРЅС‹Р№' : 'РќРµР°РєС‚РёРІРЅС‹Р№'}
+            </span>
+          </div>
+          {canEdit && (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openEditForm(selectedProject)}
+                aria-label="Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ"
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+              </Button>
+              <Button
+                variant={selectedProject.is_active ? "secondary" : "success"}
+                size="sm"
+                onClick={() => handleToggleActive(selectedProject)}
+                aria-label={selectedProject.is_active ? "Р”РµР°РєС‚РёРІРёСЂРѕРІР°С‚СЊ" : "РђРєС‚РёРІРёСЂРѕРІР°С‚СЊ"}
+              >
+                {selectedProject.is_active ? 'Р”РµР°РєС‚РёРІРёСЂРѕРІР°С‚СЊ' : 'РђРєС‚РёРІРёСЂРѕРІР°С‚СЊ'}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {selectedProject.description && (
+          <p className="text-sm text-gray-600 mb-4">{selectedProject.description}</p>
+        )}
+
+        {selectedProject.department_names && selectedProject.department_names.length > 0 && (
+          <div className="border-t border-gray-100 pt-4">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              Р”РµРїР°СЂС‚Р°РјРµРЅС‚С‹
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {selectedProject.department_names.map((name, idx) => (
+                <span key={idx} className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-sm font-medium">
+                  {name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  ) : (
+    <div className="flex flex-col items-center justify-center h-full text-slate-400 p-8">
+      <Folder className="h-16 w-16 mb-4 opacity-30" aria-hidden="true" />
+      <p className="text-lg font-medium mb-2">Р’С‹Р±РµСЂРёС‚Рµ РїСЂРѕРµРєС‚</p>
+      <p className="text-sm text-center">
+        РќР°Р¶РјРёС‚Рµ РЅР° РїСЂРѕРµРєС‚ РІ СЃРїРёСЃРєРµ СЃР»РµРІР° РґР»СЏ РїСЂРѕСЃРјРѕС‚СЂР° РґРµС‚Р°Р»РµР№
+      </p>
+    </div>
+  );
+
+  // Mobile layout
+  if (isMobile) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex-1 overflow-y-auto glass-panel">
+          {leftPanel}
+        </div>
+
+        <BottomDrawer
+          isOpen={isDrawerOpen || isFormOpen}
+          onClose={() => {
+            handleCloseDetails();
+            handleCancelForm();
+          }}
+          height="full"
+          showCloseButton={true}
+          showDragHandle={true}
+        >
+          <div className="min-h-full bg-slate-50">
+            {rightPanel}
+          </div>
+        </BottomDrawer>
+      </div>
+    );
+  }
+
+  // Desktop layout
+  return (
+    <div className="flex h-full">
+      {/* Left panel */}
+      <div
+        ref={panelRef}
+        className="glass-panel flex flex-col relative z-10 overflow-hidden bg-white/80"
+        style={{ width: panelWidth }}
+      >
+        {leftPanel}
+
+        {/* Resize handle */}
+        <div
+          className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-amber-300/50 active:bg-amber-400/50 transition-colors group"
+          onMouseDown={handleMouseDown}
+          aria-label="РР·РјРµРЅРёС‚СЊ С€РёСЂРёРЅСѓ РїР°РЅРµР»Рё"
+          role="separator"
+          aria-orientation="vertical"
+        >
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <GripVertical className="h-6 w-6 text-gray-400/50" aria-hidden="true" />
+          </div>
+        </div>
+      </div>
+
+      {/* Right panel */}
+      <div className={cn(
+        "flex-1 overflow-y-auto overscroll-contain relative z-0",
+        (selectedProject || isFormOpen) ? "bg-amber-50/30" : "bg-transparent"
+      )}>
+        {rightPanel}
+      </div>
+    </div>
+  );
+}
+
+// Companies content with two-panel layout

@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { MonthlyPlan, getMonthName } from '@/types/planning';
 import { Modal } from '@/components/ui/Modal';
-import { Button } from '@/components/ui/Button';
 import TaskFileUpload from './TaskFileUpload';
-import { getDailyTasksSpentHours } from '@/lib/tasks/task-service';
-import { Sparkles, AlertTriangle, Clock, Calendar, FileText, Paperclip } from 'lucide-react';
+import { getWeeklyTasksSpentHours } from '@/lib/tasks/task-service';
+import { useProjectsForTask } from '@/hooks/useProjects';
+import { Sparkles, AlertTriangle, Clock, Calendar, FileText, Paperclip, Folder, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getErrorMessage } from '@/lib/utils/error-message';
+import logger from '@/lib/logger';
 
 interface AddTaskModalProps {
   isOpen: boolean;
@@ -14,15 +16,24 @@ interface AddTaskModalProps {
   onSuccess: () => void;
   monthlyPlanId: string;
   userId: string;
+  userDepartmentId?: string;
   task?: {
     daily_task_id?: string;
     description?: string;
     spent_hours?: number;
     task_date?: string;
-    attachment_url?: string;
-    document_number?: string;
+    attachment_url?: string | null;
+    document_number?: string | null;
+    project_id?: string | null;
   } | null;
   monthlyPlan?: MonthlyPlan;
+}
+
+
+interface ServiceHistoryItem {
+  description: string;
+  spent_hours: number;
+  task_date?: string;
 }
 
 const AddTaskModal: React.FC<AddTaskModalProps> = ({
@@ -31,6 +42,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   onSuccess,
   monthlyPlanId,
   userId,
+  userDepartmentId,
   task,
   monthlyPlan
 }) => {
@@ -39,14 +51,19 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
   const [taskDate, setTaskDate] = useState<string | null>(null);
   const [attachmentUrl, setAttachmentUrl] = useState('');
   const [documentNumber, setDocumentNumber] = useState('');
+  const [projectId, setProjectId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [documentText, setDocumentText] = useState<string>('');
-  const [dailyHoursUsed, setDailyHoursUsed] = useState(0);
+  const [weeklyHoursUsed, setWeeklyHoursUsed] = useState(0);
   const [hoursWarning, setHoursWarning] = useState<string | null>(null);
-  const [serviceHistory, setServiceHistory] = useState<any[]>([]);
+  const [serviceHistory, setServiceHistory] = useState<ServiceHistoryItem[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResponse, setAiResponse] = useState<string>('');
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Загрузка проектов для dropdown (фильтр по департаменту)
+  const { options: projectOptions, loading: projectsLoading } = useProjectsForTask(userDepartmentId);
 
   // Заполнение полей при редактировании задачи
   useEffect(() => {
@@ -66,6 +83,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
       setAttachmentUrl(task.attachment_url || '');
       setDocumentNumber(task.document_number || '');
+      setProjectId(task.project_id || null);
     } else if (isOpen && !task) {
       setDescription('');
       setSpentHours(0);
@@ -76,61 +94,64 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       setTaskDate(`${year}-${month}-${day}`);
       setAttachmentUrl('');
       setDocumentNumber('');
+      setProjectId(null);
     }
   }, [isOpen, task]);
 
-  // Проверка суточного лимита часов
+  // Проверка недельного лимита часов (40 часов/неделя)
   useEffect(() => {
     if (!taskDate || !userId) return;
 
-    const checkDailyHours = async () => {
-      const hoursUsed = await getDailyTasksSpentHours(userId, taskDate);
-      setDailyHoursUsed(hoursUsed);
+    const checkWeeklyHours = async () => {
+      const hoursUsed = await getWeeklyTasksSpentHours(userId, taskDate);
+      setWeeklyHoursUsed(hoursUsed);
 
-      const currentTaskHours = task?.daily_task_id && task?.task_date === taskDate
+      // Вычитаем часы текущей редактируемой задачи, если она в той же неделе
+      const currentTaskHours = task?.daily_task_id && task?.task_date
         ? Number(task.spent_hours) || 0
         : 0;
       const availableHours = hoursUsed - currentTaskHours;
 
-      if (availableHours >= 8) {
-        setHoursWarning(`На ${taskDate} уже использовано ${availableHours.toFixed(1)} часов`);
+      if (availableHours >= 40) {
+        setHoursWarning(`На этой неделе уже использовано ${availableHours.toFixed(1)} часов`);
       } else {
         setHoursWarning(null);
       }
     };
 
-    checkDailyHours();
+    checkWeeklyHours();
   }, [taskDate, userId, task]);
 
-  // Проверка при изменении spent_hours
+  // Проверка при изменении spent_hours (недельный лимит 40 часов)
   useEffect(() => {
     if (!taskDate || !spentHours) {
       setHoursWarning(null);
       return;
     }
 
-    const currentTaskHours = task?.daily_task_id && task?.task_date === taskDate
+    // Вычитаем часы текущей редактируемой задачи, если она в той же неделе
+    const currentTaskHours = task?.daily_task_id && task?.task_date
       ? Number(task.spent_hours) || 0
       : 0;
-    const totalHours = dailyHoursUsed - currentTaskHours + spentHours;
+    const totalHours = weeklyHoursUsed - currentTaskHours + spentHours;
 
-    if (totalHours > 8) {
-      setHoursWarning(`Превышен лимит: ${totalHours.toFixed(1)} из 8 часов`);
+    if (totalHours > 40) {
+      setHoursWarning(`Превышен лимит: ${totalHours.toFixed(1)} из 40 часов/неделя`);
     } else {
       setHoursWarning(null);
     }
-  }, [spentHours, dailyHoursUsed, taskDate, task]);
+  }, [spentHours, weeklyHoursUsed, taskDate, task]);
 
-  // Загружаем историю задач для AI
+  // Загружаем историю задач для AI (по мероприятию)
   useEffect(() => {
-    if (!isOpen || !monthlyPlan?.service_name) return;
+    if (!isOpen || !monthlyPlan?.measure_id) return;
 
-    const loadServiceHistory = async () => {
+    const loadMeasureHistory = async () => {
       try {
         const { data: plans } = await supabase
           .from('monthly_plans')
           .select('monthly_plan_id')
-          .eq('service_name', monthlyPlan.service_name)
+          .eq('measure_id', monthlyPlan.measure_id)
           .order('created_at', { ascending: false })
           .limit(10);
 
@@ -146,14 +167,14 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
           setServiceHistory(tasks || []);
         }
-      } catch (err) {
-        console.error('Error loading service history:', err);
+      } catch (err: unknown) {
+        logger.error('Error loading measure history:', err);
         setServiceHistory([]);
       }
     };
 
-    loadServiceHistory();
-  }, [isOpen, monthlyPlan?.service_name]);
+    loadMeasureHistory();
+  }, [isOpen, monthlyPlan?.measure_id]);
 
   // Автогенерация при загрузке документа
   useEffect(() => {
@@ -170,13 +191,14 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setError(null);
 
     try {
-      const currentTaskHours = task?.daily_task_id && task?.task_date === taskDate
+      // Вычитаем часы текущей редактируемой задачи, если она в той же неделе
+      const currentTaskHours = task?.daily_task_id && task?.task_date
         ? Number(task.spent_hours) || 0
         : 0;
-      const totalHours = dailyHoursUsed - currentTaskHours + spentHours;
+      const totalHours = weeklyHoursUsed - currentTaskHours + spentHours;
 
-      if (totalHours > 8) {
-        throw new Error(`Превышен суточный лимит: ${totalHours.toFixed(1)} из 8 часов`);
+      if (totalHours > 40) {
+        throw new Error(`Превышен недельный лимит: ${totalHours.toFixed(1)} из 40 часов`);
       }
 
       if (task?.daily_task_id) {
@@ -188,6 +210,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             task_date: taskDate,
             attachment_url: attachmentUrl || null,
             document_number: documentNumber || null,
+            project_id: projectId || null,
           })
           .eq('daily_task_id', task.daily_task_id);
 
@@ -203,14 +226,15 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             task_date: taskDate,
             attachment_url: attachmentUrl || null,
             document_number: documentNumber || null,
+            project_id: projectId || null,
           });
 
         if (insertError) throw insertError;
       }
 
       onSuccess();
-    } catch (err: any) {
-      setError(err.message || `Ошибка при ${task ? 'редактировании' : 'добавлении'} задачи`);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || `Ошибка при ${task ? 'редактировании' : 'добавлении'} задачи`);
     } finally {
       setLoading(false);
     }
@@ -236,7 +260,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             currentInput: description,
             planHierarchy: {
               monthly: monthlyPlan ? {
-                service_name: monthlyPlan.service_name || '',
+                measure_name: monthlyPlan.measure_name || '',
                 month_number: monthlyPlan.month || 1,
                 year: monthlyPlan.year
               } : undefined,
@@ -251,7 +275,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Помилка AI');
+        throw new Error(data.error || 'Ошибка AI');
       }
 
       const match = data.response.match(/"([^"]+)"/);
@@ -263,7 +287,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       let hasDocNum = false;
       if (docNumMatch) {
         const num = docNumMatch[1].trim();
-        if (num.toLowerCase() !== 'не найден' && num.toLowerCase() !== 'не знайдено') {
+        if (num.toLowerCase() !== 'не найден' && num.toLowerCase() !== 'не найдено') {
           setDocumentNumber(num);
           hasDocNum = true;
         }
@@ -273,38 +297,66 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
         setAiResponse(data.response);
       }
 
-    } catch (error: any) {
-      setAiResponse(`Ошибка: ${error.message}`);
+    } catch (error: unknown) {
+      setAiResponse(`Ошибка: ${getErrorMessage(error)}`);
     } finally {
       setAiLoading(false);
     }
   };
 
-  const serviceName = monthlyPlan?.service_name || (monthlyPlan as any)?.title;
+  const measureName = monthlyPlan?.measure_name;
   const monthYear = monthlyPlan ? `${getMonthName(monthlyPlan.month, 'ru')} ${monthlyPlan.year}` : '';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={task ? 'Редактировать задачу' : 'Новая задача'}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={task ? 'Редактировать задачу' : 'Новая задача'}
+      headerVariant="gradient-indigo"
+      showCloseButton={false}
+      headerActions={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-all backdrop-blur-sm disabled:opacity-50"
+            aria-label="Отмена"
+            disabled={loading}
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => formRef.current?.requestSubmit()}
+            className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-all backdrop-blur-sm disabled:opacity-50"
+            aria-label="Сохранить"
+            disabled={loading || !!hoursWarning}
+          >
+            <Check className="w-5 h-5" />
+          </button>
+        </>
+      }
+    >
       <div className="space-y-5">
 
-        {/* Service info chip */}
-        {serviceName && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100">
-            <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-              <FileText className="w-4 h-4 text-indigo-600" />
+        {/* Measure info chip */}
+        {measureName && (
+          <div className="flex items-center gap-3 px-3 py-2 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
+            <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-indigo-100">
+              <FileText className="w-4 h-4 text-indigo-500" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs text-indigo-500 font-medium">{monthYear}</p>
-              <p className="text-sm text-gray-800 truncate">{serviceName}</p>
+              <p className="text-3xs font-bold text-indigo-400 uppercase tracking-wider mb-0.5">{monthYear}</p>
+              <p className="text-xs font-medium text-slate-700 truncate">{measureName}</p>
             </div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
           {/* Description */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">
+              <label className="text-3xs font-bold text-indigo-400 uppercase tracking-wider mb-1.5 pl-1">
                 Описание задачи <span className="text-red-500">*</span>
               </label>
               <button
@@ -325,7 +377,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             </div>
             <textarea
               className={cn(
-                "w-full px-3 py-2.5 text-sm border rounded-xl resize-none transition-all",
+                "w-full px-3 py-2.5 text-xs border rounded-xl resize-none transition-all",
                 "placeholder:text-gray-400",
                 "focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400",
                 "disabled:bg-gray-50 disabled:text-gray-500"
@@ -352,8 +404,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             {/* Hours and Date row on mobile */}
             <div className="flex gap-2">
               <div className="w-20 sm:w-16 flex-shrink-0">
-                <label className="flex items-center gap-1 text-xs font-medium text-gray-700 mb-1.5">
-                  <Clock className="w-3 h-3 text-gray-400" aria-hidden="true" />
+                <label className="flex items-center gap-1.5 text-3xs font-bold text-indigo-400 uppercase tracking-wider mb-1.5 pl-1">
+                  <Clock className="w-3 h-3" aria-hidden="true" />
                   Часы
                 </label>
                 <input
@@ -374,8 +426,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
               </div>
 
               <div className="flex-1 sm:w-32 sm:flex-shrink-0 sm:flex-grow-0">
-                <label className="flex items-center gap-1 text-xs font-medium text-gray-700 mb-1.5">
-                  <Calendar className="w-3 h-3 text-gray-400" aria-hidden="true" />
+                <label className="flex items-center gap-1.5 text-3xs font-bold text-indigo-400 uppercase tracking-wider mb-1.5 pl-1">
+                  <Calendar className="w-3 h-3" aria-hidden="true" />
                   Дата
                 </label>
                 <input
@@ -394,8 +446,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
             {/* Document number - full width on mobile */}
             <div className="flex-1">
-              <label className="flex items-center gap-1 text-xs font-medium text-gray-700 mb-1.5">
-                <FileText className="w-3 h-3 text-gray-400" aria-hidden="true" />
+              <label className="flex items-center gap-1.5 text-3xs font-bold text-indigo-400 uppercase tracking-wider mb-1.5 pl-1">
+                <FileText className="w-3 h-3" aria-hidden="true" />
                 № документа
               </label>
               <input
@@ -407,12 +459,41 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 )}
                 value={documentNumber}
                 onChange={e => setDocumentNumber(e.target.value)}
-                placeholder="№ акту, заявки..."
+                placeholder="№ акта, заявки..."
                 disabled={loading}
                 aria-label="Номер документа"
               />
             </div>
           </div>
+
+          {/* Project dropdown (optional) */}
+          {projectOptions.length > 0 && (
+            <div>
+              <label className="flex items-center gap-1.5 text-3xs font-bold text-indigo-400 uppercase tracking-wider mb-1.5 pl-1">
+                <Folder className="w-3 h-3" aria-hidden="true" />
+                Проект (опционально)
+              </label>
+              <select
+                className={cn(
+                  "w-full px-3 py-2.5 sm:py-2 text-sm border border-gray-200 rounded-xl transition-all",
+                  "focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400",
+                  "bg-white",
+                  !projectId && "text-gray-400"
+                )}
+                value={projectId || ''}
+                onChange={e => setProjectId(e.target.value || null)}
+                disabled={loading || projectsLoading}
+                aria-label="Выберите проект"
+              >
+                <option value="">- Без проекта -</option>
+                {projectOptions.map(project => (
+                  <option key={project.project_id} value={project.project_id}>
+                    {project.project_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Hours warning */}
           {hoursWarning ? (
@@ -420,16 +501,16 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
               <AlertTriangle className="w-3.5 h-3.5" />
               <span>{hoursWarning}</span>
             </div>
-          ) : taskDate && dailyHoursUsed > 0 && (
+          ) : taskDate && weeklyHoursUsed > 0 && (
             <p className="text-xs text-gray-400 px-1">
-              На {taskDate}: {dailyHoursUsed.toFixed(1)} / 8 ч. использовано
+              На этой неделе: {weeklyHoursUsed.toFixed(1)} / 40 ч. использовано
             </p>
           )}
 
           {/* File upload */}
           <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-2">
-              <Paperclip className="w-4 h-4 text-gray-400" />
+            <label className="flex items-center gap-1.5 text-3xs font-bold text-indigo-400 uppercase tracking-wider mb-1.5 pl-1">
+              <Paperclip className="w-4 h-4" />
               Вложения
             </label>
             <TaskFileUpload
@@ -450,24 +531,6 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
-
-          {/* Actions */}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Отменить
-            </Button>
-            <Button
-              type="submit"
-              disabled={loading || !!hoursWarning}
-            >
-              {loading ? 'Сохранение...' : 'Сохранить'}
-            </Button>
-          </div>
         </form>
       </div>
     </Modal>
@@ -475,3 +538,6 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 };
 
 export default AddTaskModal;
+
+
+

@@ -42,16 +42,26 @@ export const getMsalConfig = (): Configuration => ({
   }
 });
 
+// Базовые scopes для авторизации
+const baseScopes = ['openid', 'profile', 'email', 'User.Read'];
+
+// SharePoint scopes для работы с файлами
+// Требуют admin consent в Azure AD
+const sharePointScopes = ['Sites.ReadWrite.All', 'Files.ReadWrite.All'];
+
 // Параметры запроса авторизации для интерактивного входа
 export const interactiveLoginRequest = {
-  scopes: ['openid', 'profile', 'email', 'User.Read']
+  scopes: [...baseScopes, ...sharePointScopes]
 };
 
 // Параметры для silent-запроса
 export const silentLoginRequest = {
-  scopes: ['openid', 'profile', 'email', 'User.Read'],
+  scopes: [...baseScopes, ...sharePointScopes],
   prompt: 'none' as const
 };
+
+// Экспорт scopes для использования в сервисах
+export const SHAREPOINT_SCOPES = sharePointScopes;
 
 // Константы для маршрутов
 export const ROUTES = {

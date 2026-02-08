@@ -1,34 +1,19 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { redirect } from 'next/navigation';
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import DashboardContent from '@/components/dashboard/DashboardContent';
-import { getCurrentUser } from '@/lib/auth';
-import { UserInfo } from '@/types/azure';
+import { useAuth } from '@/lib/auth';
 
 export default function PlansPage() {
-  const [user, setUser] = useState<UserInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const { user, isLoading: loading } = useAuth();
 
   useEffect(() => {
-    async function fetchUserData() {
-      try {
-        const userData = await getCurrentUser();
-        if (userData) {
-          setUser(userData);
-        } else {
-          redirect('/login');
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        redirect('/login');
-      } finally {
-        setLoading(false);
-      }
+    if (!loading && !user) {
+      router.replace('/login');
     }
-
-    fetchUserData();
-  }, []);
+  }, [loading, router, user]);
 
   if (loading) {
     return (
@@ -39,16 +24,7 @@ export default function PlansPage() {
     );
   }
 
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600 mb-4">Доступ запрещен</h1>
-          <p className="text-gray-600">У вас нет доступа к этой странице.</p>
-        </div>
-      </div>
-    );
-  }
+  if (!user) return null;
 
   return (
     <DashboardContent user={user} currentPath="/dashboard/plans" />

@@ -28,6 +28,8 @@ const nextConfig = {
     NEXT_PUBLIC_USE_HTTPS: 'true',
     NEXT_PUBLIC_BASE_URL: 'https://maxtitan.me:3000'
   },
+  // Виключаємо pdfkit з бандлу - він потребує AFM файли
+  serverExternalPackages: ['pdfkit'],
   // Возвращаем отключение HMR через webpack poll
   webpack: (config, { dev, isServer }) => {
     if (dev && !isServer) {

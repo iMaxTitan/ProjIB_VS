@@ -9,6 +9,8 @@
  */
 import { useState } from 'react'; 
 import { Button } from '../ui/Button';
+import { getErrorMessage } from '@/lib/utils/error-message';
+import logger from '@/lib/logger';
 
 /**
  * Свойства компонента LoginForm.
@@ -35,9 +37,9 @@ export default function LoginForm({
     try {
       await onLogin(); // Вызываем переданную функцию
       // Не нужно вручную перенаправлять, это сделает родительский компонент
-    } catch (loginError) {
+    } catch (loginError: unknown) {
       // Ошибку теперь обрабатывает useAuth, здесь просто сбрасываем флаг загрузки
-      console.error('Ошибка при попытке входа (LoginForm):', loginError);
+      logger.error('Ошибка при попытке входа (LoginForm):', getErrorMessage(loginError));
     } finally {
       setIsLoggingIn(false);
     }
@@ -67,3 +69,4 @@ export default function LoginForm({
     </div>
   );
 }
+

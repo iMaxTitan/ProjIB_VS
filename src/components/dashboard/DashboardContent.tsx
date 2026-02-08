@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React from 'react';
 import { usePathname } from 'next/navigation';
 import { UserInfo } from '@/types/azure';
 import {
@@ -8,11 +8,11 @@ import {
   DepartmentContent,
   EmployeesContent,
   CompaniesContent,
-  DefaultContent
+  ReferencesContent
 } from './content';
-import TasksPageNew from '@/app/dashboard/tasks/page-new';
 import KPIContent from './content/KPIContent';
 import PlansPageNew from '@/components/plans/PlansPageNew';
+import logger from '@/lib/logger';
 
 interface DashboardContentProps {
   user: UserInfo;
@@ -21,7 +21,7 @@ interface DashboardContentProps {
 }
 
 export default function DashboardContent({ user, currentPath, fetchPlanCounts }: DashboardContentProps) {
-  // Удалён debug-лог: console.log('[DASHBOARD] DashboardContent получил user:', user);
+  // Удалён debug-лог: logger.log('[DASHBOARD] DashboardContent получил user:', user);
   const pathname = usePathname();
   const activePath = currentPath || pathname || '';
 
@@ -37,8 +37,6 @@ export default function DashboardContent({ user, currentPath, fetchPlanCounts }:
         return <ActivityContent user={user} />;
       case 'plans':
         return <PlansPageNew user={user} fetchPlanCounts={fetchPlanCounts} />;
-      case 'tasks':
-        return <TasksPageNew />;
       case 'reports':
         return <ReportsContent user={user} />;
       case 'department':
@@ -49,13 +47,15 @@ export default function DashboardContent({ user, currentPath, fetchPlanCounts }:
         return <CompaniesContent user={user} />;
       case 'kpi':
         return <KPIContent />;
+      case 'references':
+        return <ReferencesContent user={user} />;
       default:
-        return <DefaultContent user={user} />;
+        return <ActivityContent user={user} />;
     }
   };
 
   const currentSection = activePath.split('/').pop();
-  const isFullHeightPage = currentSection === 'plans' || currentSection === 'tasks';
+  const isFullHeightPage = activePath === '/dashboard' || currentSection === 'plans' || currentSection === 'references';
 
   return (
     <div className={isFullHeightPage ? "h-full" : "px-6 pb-6"}>
@@ -63,3 +63,4 @@ export default function DashboardContent({ user, currentPath, fetchPlanCounts }:
     </div>
   );
 }
+

@@ -32,3 +32,6 @@ Thumbs.db
 # Claude Code (локальные настройки)
 CLAUDE.local.md
 .claude/settings.local.json
+certificates
+supabase/.temp/
+nul

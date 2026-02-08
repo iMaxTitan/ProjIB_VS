@@ -49,7 +49,7 @@ export default function TasksLayout({
     // Мобильный layout: список планов на весь экран, журнал работ в drawer
     if (isMobile) {
         return (
-            <div className="flex flex-col h-full bg-mesh-indigo">
+            <div className="flex flex-col h-full bg-slate-50">
                 {/* Список планов на весь экран */}
                 <div className="flex-1 overflow-y-auto glass-panel">
                     {leftPanel}
@@ -58,12 +58,12 @@ export default function TasksLayout({
                 {/* Bottom Drawer с журналом работ - свайп за header */}
                 <BottomDrawer
                     isOpen={isDrawerOpen}
-                    onClose={onDrawerClose || (() => {})}
+                    onClose={onDrawerClose || (() => { })}
                     height="full"
                     showCloseButton={false}
                     showDragHandle={false}
                 >
-                    <div className="min-h-full bg-indigo-50/30">
+                    <div className="min-h-full">
                         {centerPanel}
                     </div>
                 </BottomDrawer>

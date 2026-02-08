@@ -2,11 +2,11 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { PlanStatus } from '@/types/planning';
 
 // Тип для представления планов
-export type PlanView = 'yearly' | 'quarterly' | 'weekly';
+export type PlanView = 'yearly' | 'quarterly';
 
 // Интерфейс для контекста планов
 interface PlansContextType {
-  // Текущее представление (годовые, квартальные, недельные)
+  // Текущее представление (годовые, квартальные)
   activeView: PlanView;
   setActiveView: (view: PlanView) => void;
   

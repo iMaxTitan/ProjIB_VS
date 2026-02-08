@@ -1,0 +1,795 @@
+﻿'use client';
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Target, Plus, ChevronDown, ChevronRight, GripVertical, Pencil, Trash2 } from 'lucide-react';
+import { UserInfo } from '@/types/azure';
+import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useMediaQuery';
+import { BottomDrawer } from '@/components/ui/BottomDrawer';
+import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
+import { supabase } from '@/lib/supabase';
+import { Measure, MeasureCategory } from '../kpi/types';
+
+// Measures constants
+const CATEGORY_LABELS: Record<MeasureCategory, string> = {
+  strategic: 'РЎС‚СЂР°С‚РµРіРёС‡РµСЃРєРёР№',
+  process: 'РџСЂРѕС†РµСЃСЃРЅС‹Р№',
+  operational: 'РћРїРµСЂР°С†РёРѕРЅРЅС‹Р№'
+};
+
+const CATEGORY_COLORS: Record<MeasureCategory, { bg: string; text: string; border: string }> = {
+  strategic: { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300' },
+  process: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
+  operational: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' }
+};
+
+const PERIOD_LABELS: Record<string, string> = {
+  year: 'РІ РіРѕРґ',
+  quarter: 'РІ РєРІР°СЂС‚Р°Р»',
+  month: 'РІ РјРµСЃСЏС†'
+};
+
+interface Process {
+  process_id: string;
+  process_name: string;
+}
+
+// Measures content with two-panel layout
+export default function MeasuresReferenceContent({ user }: { user: UserInfo }) {
+  const [measures, setMeasures] = useState<Measure[]>([]);
+  const [processes, setProcesses] = useState<Process[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedMeasure, setSelectedMeasure] = useState<Measure | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingMeasure, setEditingMeasure] = useState<Measure | null>(null);
+  const [filterCategory, setFilterCategory] = useState<MeasureCategory | 'all'>('all');
+  const [expandedProcesses, setExpandedProcesses] = useState<Record<string, boolean>>({});
+  const [panelWidth, setPanelWidth] = useState(480);
+  const isResizingRef = React.useRef(false);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+
+  const isMobile = useIsMobile();
+  const canEdit = user.role === 'chief' || user.role === 'head';
+
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    process_id: '',
+    category: 'operational' as MeasureCategory,
+    target_value: 0,
+    target_period: 'year' as 'year' | 'quarter' | 'month'
+  });
+
+  // Fetch data
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data: measuresData, error: measuresError } = await supabase
+        .from('v_kpi_operational')
+        .select('*');
+
+      if (measuresError) throw measuresError;
+
+      const { data: processesData, error: processesError } = await supabase
+        .from('processes')
+        .select('process_id, process_name')
+        .order('process_name');
+
+      if (processesError) throw processesError;
+
+      setMeasures(measuresData?.map(m => ({
+        measure_id: m.entity_id,
+        process_id: m.process_id,
+        name: m.entity_name,
+        description: m.description,
+        category: m.category,
+        target_value: m.target_value,
+        target_period: m.target_period,
+        is_active: true,
+        process_name: m.process_name,
+        actual_value: m.actual_value,
+        plans_count: m.plans_count,
+        total_hours: m.total_hours
+      })) || []);
+      setProcesses(processesData || []);
+    } catch (err: unknown) {
+      setError('РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Sync selectedMeasure with updated measures list and keep its process expanded
+  useEffect(() => {
+    if (selectedMeasure) {
+      const updated = measures.find(m => m.measure_id === selectedMeasure.measure_id);
+      if (updated) {
+        setSelectedMeasure(updated);
+        // Keep the process expanded
+        const processName = updated.process_name || 'Р‘РµР· РїСЂРѕС†РµСЃСЃР°';
+        setExpandedProcesses(prev => ({ ...prev, [processName]: true }));
+      }
+    }
+  }, [measures]);
+
+  // Filter measures
+  const filteredMeasures = useMemo(() => {
+    return measures.filter(m => {
+      if (filterCategory !== 'all' && m.category !== filterCategory) return false;
+      return true;
+    });
+  }, [measures, filterCategory]);
+
+  // Group by process
+  const measuresByProcess = useMemo(() => {
+    const grouped: Record<string, Measure[]> = {};
+    const NO_PROCESS = 'Р‘РµР· РїСЂРѕС†РµСЃСЃР°';
+
+    filteredMeasures.forEach(m => {
+      const processName = m.process_name || NO_PROCESS;
+      if (!grouped[processName]) {
+        grouped[processName] = [];
+      }
+      grouped[processName].push(m);
+    });
+
+    // ????????? ???????? ?????????, ???????? "??? ????????" ?????????
+    const sortedKeys = Object.keys(grouped).sort((a, b) => {
+      if (a === NO_PROCESS) return 1;
+      if (b === NO_PROCESS) return -1;
+      return a.localeCompare(b, 'uk');
+    });
+
+    const sortedGrouped: Record<string, Measure[]> = {};
+    sortedKeys.forEach(key => {
+      sortedGrouped[key] = grouped[key];
+    });
+
+    return sortedGrouped;
+  }, [filteredMeasures]);
+
+  // Get process names list
+  const processNames = useMemo(() => Object.keys(measuresByProcess), [measuresByProcess]);
+
+  // Toggle process expand/collapse
+  const toggleProcess = useCallback((processName: string) => {
+    setExpandedProcesses(prev => ({
+      ...prev,
+      [processName]: !prev[processName]
+    }));
+  }, []);
+
+  const handleSelectMeasure = (measure: Measure) => {
+    setSelectedMeasure(measure);
+    // Auto-expand the process containing this measure
+    const processName = measure.process_name || 'Р‘РµР· РїСЂРѕС†РµСЃСЃР°';
+    setExpandedProcesses(prev => ({ ...prev, [processName]: true }));
+    if (isMobile) {
+      setIsDrawerOpen(true);
+    }
+  };
+
+  const handleCloseDetails = () => {
+    setSelectedMeasure(null);
+    setIsDrawerOpen(false);
+  };
+
+  const openNewForm = () => {
+    setEditingMeasure(null);
+    setFormData({
+      name: '',
+      description: '',
+      process_id: '',
+      category: 'operational',
+      target_value: 0,
+      target_period: 'year'
+    });
+    setIsFormOpen(true);
+  };
+
+  const openEditForm = (measure: Measure) => {
+    setEditingMeasure(measure);
+    setFormData({
+      name: measure.name,
+      description: measure.description || '',
+      process_id: measure.process_id || '',
+      category: measure.category,
+      target_value: measure.target_value,
+      target_period: measure.target_period
+    });
+    setIsFormOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { data, error } = await supabase.rpc('manage_measure', {
+        p_action: editingMeasure ? 'update' : 'create',
+        p_measure_id: editingMeasure?.measure_id || null,
+        p_name: formData.name,
+        p_description: formData.description || null,
+        p_process_id: formData.process_id || null,
+        p_category: formData.category,
+        p_target_value: formData.target_value,
+        p_target_period: formData.target_period,
+        p_user_id: user.user_id
+      });
+
+      if (error) throw error;
+      if (data && !data.success) {
+        throw new Error(data.error || 'РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ');
+      }
+
+      // Expand the process of the saved measure
+      const savedProcessName = formData.process_id
+        ? processes.find(p => p.process_id === formData.process_id)?.process_name || 'Р‘РµР· РїСЂРѕС†РµСЃСЃР°'
+        : 'Р‘РµР· РїСЂРѕС†РµСЃСЃР°';
+      setExpandedProcesses(prev => ({ ...prev, [savedProcessName]: true }));
+
+      setIsFormOpen(false);
+      setEditingMeasure(null);
+      await fetchData();
+    } catch (err: unknown) {
+      setError('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  const handleDelete = async (measureId: string) => {
+    if (!confirm('РЈРґР°Р»РёС‚СЊ СЌС‚Рѕ РјРµСЂРѕРїСЂРёСЏС‚РёРµ?')) return;
+    try {
+      const { data, error } = await supabase.rpc('manage_measure', {
+        p_action: 'delete',
+        p_measure_id: measureId,
+        p_user_id: user.user_id
+      });
+
+      if (error) throw error;
+      if (data && !data.success) {
+        throw new Error(data.error || 'РћС€РёР±РєР° СѓРґР°Р»РµРЅРёСЏ');
+      }
+
+      setMeasures(prev => prev.filter(m => m.measure_id !== measureId));
+      if (selectedMeasure?.measure_id === measureId) {
+        setSelectedMeasure(null);
+      }
+    } catch (err: unknown) {
+      setError('РћС€РёР±РєР° СѓРґР°Р»РµРЅРёСЏ: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  const handleMouseDown = () => {
+    isResizingRef.current = true;
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isResizingRef.current) return;
+    const newWidth = e.clientX - (panelRef.current?.getBoundingClientRect().left || 0);
+    if (newWidth >= 280 && newWidth <= 600) {
+      setPanelWidth(newWidth);
+    }
+  };
+
+  const handleMouseUp = () => {
+    isResizingRef.current = false;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+  };
+
+  // Left panel - measures list
+  const leftPanel = (
+    <div className="flex flex-col h-full">
+      <div className="flex-shrink-0 p-3 sm:p-4 border-b border-gray-100 bg-white/50">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Target className="h-5 w-5 text-purple-600" aria-hidden="true" />
+            <h2 className="text-base sm:text-lg font-bold text-slate-800">РњРµСЂРѕРїСЂРёСЏС‚РёСЏ</h2>
+            <span className="text-sm text-slate-400">({filteredMeasures.length})</span>
+          </div>
+          {canEdit && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={openNewForm}
+              aria-label="Р”РѕР±Р°РІРёС‚СЊ РјРµСЂРѕРїСЂРёСЏС‚РёРµ"
+              className="gap-1.5 bg-purple-600 hover:bg-purple-700"
+            >
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              <span className="hidden sm:inline">Р”РѕР±Р°РІРёС‚СЊ</span>
+            </Button>
+          )}
+        </div>
+        {/* Category filter */}
+        <div className="flex gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setFilterCategory('all')}
+            className={cn(
+              "px-2.5 py-1 text-xs rounded-full transition-colors",
+              filterCategory === 'all'
+                ? "bg-slate-700 text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            )}
+          >
+            Р’СЃРµ
+          </button>
+          {(['strategic', 'process', 'operational'] as MeasureCategory[]).map(cat => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setFilterCategory(cat)}
+              className={cn(
+                "px-2.5 py-1 text-xs rounded-full transition-colors",
+                filterCategory === cat
+                  ? `${CATEGORY_COLORS[cat].bg} ${CATEGORY_COLORS[cat].text}`
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              )}
+            >
+              {CATEGORY_LABELS[cat]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto overscroll-contain p-2 sm:p-3 space-y-2">
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500" />
+          </div>
+        ) : error ? (
+          <div className="text-center py-12 text-red-500">
+            <p className="text-sm">{error}</p>
+          </div>
+        ) : processNames.length === 0 ? (
+          <div className="text-center py-12 text-slate-400">
+            <Target className="h-12 w-12 mx-auto mb-3 opacity-50" aria-hidden="true" />
+            <p className="text-sm">РњРµСЂРѕРїСЂРёСЏС‚РёСЏ РЅРµ РЅР°Р№РґРµРЅС‹</p>
+          </div>
+        ) : (
+          processNames.map((processName) => {
+            const processMeasures = measuresByProcess[processName] || [];
+            const isExpanded = expandedProcesses[processName] ?? false;
+
+            return (
+              <div key={processName} className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => toggleProcess(processName)}
+                  aria-expanded={isExpanded}
+                  aria-label={`${isExpanded ? 'РЎРІРµСЂРЅСѓС‚СЊ' : 'Р Р°Р·РІРµСЂРЅСѓС‚СЊ'} РїСЂРѕС†РµСЃСЃ ${processName}`}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left",
+                    "bg-gradient-to-r from-purple-100/80 to-purple-50/80 border border-purple-200/50",
+                    "hover:from-purple-200/80 hover:to-purple-100/80",
+                    "focus:outline-none focus:ring-2 focus:ring-purple-500",
+                    "transition-all"
+                  )}
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="h-4 w-4 text-purple-400 flex-shrink-0" aria-hidden="true" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-purple-400 flex-shrink-0" aria-hidden="true" />
+                  )}
+                  <span className="text-sm font-semibold text-purple-700 flex-1 truncate">
+                    {processName}
+                  </span>
+                  <span className="text-xs text-purple-400 bg-white/60 px-2 py-0.5 rounded-full">
+                    {processMeasures.length}
+                  </span>
+                </button>
+
+                {isExpanded && (
+                  <div className="space-y-1 pl-2">
+                    {processMeasures.map((measure) => {
+                      const isSelected = selectedMeasure?.measure_id === measure.measure_id;
+                      const percentage = measure.target_value > 0
+                        ? Math.round((measure.actual_value || 0) / measure.target_value * 100)
+                        : 0;
+                      const colors = CATEGORY_COLORS[measure.category] || CATEGORY_COLORS.operational;
+
+                      return (
+                        <button
+                          key={measure.measure_id}
+                          type="button"
+                          onClick={() => handleSelectMeasure(measure)}
+                          aria-label={`Р’С‹Р±СЂР°С‚СЊ ${measure.name}`}
+                          aria-current={isSelected ? 'true' : undefined}
+                          className={cn(
+                            "w-full p-2.5 rounded-lg border text-left transition-all group",
+                            "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1",
+                            "active:scale-[0.98]",
+                            isSelected
+                              ? "bg-purple-50 border-purple-300 shadow-sm"
+                              : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm"
+                          )}
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className={cn(
+                              "w-2 h-2 rounded-full flex-shrink-0 mt-1",
+                              colors.bg.replace('-100', '-500')
+                            )} />
+                            <div className="flex-1 min-w-0">
+                              <span className={cn(
+                                "text-sm font-medium line-clamp-2",
+                                isSelected ? "text-purple-900" : "text-slate-800"
+                              )}>
+                                {measure.name}
+                              </span>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className={cn(
+                                  "text-2xs px-1.5 py-0.5 rounded",
+                                  colors.bg, colors.text
+                                )}>
+                                  {CATEGORY_LABELS[measure.category]}
+                                </span>
+                                <span className="text-2xs text-slate-500">
+                                  {measure.target_value}/{measure.actual_value || 0}
+                                </span>
+                                <span className={cn(
+                                  "text-2xs font-bold",
+                                  percentage >= 100 ? "text-green-600" : percentage >= 50 ? "text-amber-600" : "text-red-500"
+                                )}>
+                                  {percentage}%
+                                </span>
+                              </div>
+                            </div>
+                            {canEdit && (
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditForm(measure);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    openEditForm(measure);
+                                  }
+                                }}
+                                className="p-1 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded opacity-0 group-hover:opacity-100 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                aria-label="Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ"
+                              >
+                                <Pencil className="h-3 w-3" aria-hidden="true" />
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+
+  // Right panel - measure details
+  const rightPanel = selectedMeasure ? (
+    <div className="p-4 space-y-4">
+      {/* Measure info card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-1">
+              {selectedMeasure.name}
+            </h3>
+            <span className={cn(
+              "text-xs px-2 py-1 rounded-full",
+              (CATEGORY_COLORS[selectedMeasure.category] || CATEGORY_COLORS.operational).bg,
+              (CATEGORY_COLORS[selectedMeasure.category] || CATEGORY_COLORS.operational).text
+            )}>
+              {CATEGORY_LABELS[selectedMeasure.category] || 'РћРїРµСЂР°С†РёРѕРЅРЅС‹Р№'}
+            </span>
+          </div>
+          {canEdit && (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openEditForm(selectedMeasure)}
+                aria-label="Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ"
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => handleDelete(selectedMeasure.measure_id)}
+                aria-label="РЈРґР°Р»РёС‚СЊ"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {selectedMeasure.description && (
+          <p className="text-sm text-gray-600 mb-4">{selectedMeasure.description}</p>
+        )}
+
+        <div className="space-y-3">
+          {selectedMeasure.process_name && (
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">РџСЂРѕС†РµСЃСЃ:</span>
+              <span className="font-medium">{selectedMeasure.process_name}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">РџРµСЂРёРѕРґ:</span>
+            <span className="font-medium">{PERIOD_LABELS[selectedMeasure.target_period]}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <h4 className="text-sm font-semibold text-gray-700 mb-4">РџРѕРєР°Р·Р°С‚РµР»Рё РІС‹РїРѕР»РЅРµРЅРёСЏ</h4>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center p-3 bg-purple-50 rounded-lg">
+            <div className="text-2xl font-bold text-purple-700">{selectedMeasure.target_value}</div>
+            <div className="text-xs text-purple-600">РџР»Р°РЅ</div>
+          </div>
+          <div className="text-center p-3 bg-blue-50 rounded-lg">
+            <div className="text-2xl font-bold text-blue-700">{selectedMeasure.actual_value || 0}</div>
+            <div className="text-xs text-blue-600">Р¤Р°РєС‚</div>
+          </div>
+          <div className={cn(
+            "text-center p-3 rounded-lg",
+            (selectedMeasure.actual_value || 0) >= selectedMeasure.target_value
+              ? "bg-green-50"
+              : "bg-amber-50"
+          )}>
+            <div className={cn(
+              "text-2xl font-bold",
+              (selectedMeasure.actual_value || 0) >= selectedMeasure.target_value
+                ? "text-green-700"
+                : "text-amber-700"
+            )}>
+              {selectedMeasure.target_value > 0
+                ? Math.round((selectedMeasure.actual_value || 0) / selectedMeasure.target_value * 100)
+                : 0}%
+            </div>
+            <div className={cn(
+              "text-xs",
+              (selectedMeasure.actual_value || 0) >= selectedMeasure.target_value
+                ? "text-green-600"
+                : "text-amber-600"
+            )}>Р’С‹РїРѕР»РЅРµРЅРёРµ</div>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="mt-4">
+          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className={cn(
+                "h-full transition-all",
+                (selectedMeasure.actual_value || 0) >= selectedMeasure.target_value
+                  ? "bg-green-500"
+                  : (selectedMeasure.actual_value || 0) >= selectedMeasure.target_value * 0.5
+                    ? "bg-amber-500"
+                    : "bg-red-500"
+              )}
+              style={{
+                width: `${Math.min(100, selectedMeasure.target_value > 0
+                  ? ((selectedMeasure.actual_value || 0) / selectedMeasure.target_value * 100)
+                  : 0)}%`
+              }}
+            />
+          </div>
+        </div>
+
+        {selectedMeasure.plans_count !== undefined && (
+          <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between text-sm">
+            <span className="text-gray-500">РџР»Р°РЅРѕРІ СЃ СЌС‚РёРј РјРµСЂРѕРїСЂРёСЏС‚РёРµРј:</span>
+            <span className="font-medium">{selectedMeasure.plans_count}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  ) : (
+    <div className="flex flex-col items-center justify-center h-full text-slate-400 p-8">
+      <Target className="h-16 w-16 mb-4 opacity-30" aria-hidden="true" />
+      <p className="text-lg font-medium mb-2">Р’С‹Р±РµСЂРёС‚Рµ РјРµСЂРѕРїСЂРёСЏС‚РёРµ</p>
+      <p className="text-sm text-center">
+        РќР°Р¶РјРёС‚Рµ РЅР° РјРµСЂРѕРїСЂРёСЏС‚РёРµ РІ СЃРїРёСЃРєРµ СЃР»РµРІР° РґР»СЏ РїСЂРѕСЃРјРѕС‚СЂР° РґРµС‚Р°Р»РµР№
+      </p>
+    </div>
+  );
+
+  // Form modal
+  const formModal = (
+    <Modal
+      isOpen={isFormOpen}
+      onClose={() => setIsFormOpen(false)}
+      title={editingMeasure ? 'Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РјРµСЂРѕРїСЂРёСЏС‚РёСЏ' : 'РќРѕРІРѕРµ РјРµСЂРѕРїСЂРёСЏС‚РёРµ'}
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="measure-name" className="block text-sm font-medium text-gray-700 mb-1">
+            РќР°Р·РІР°РЅРёРµ *
+          </label>
+          <input
+            id="measure-name"
+            type="text"
+            required
+            value={formData.name}
+            onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="measure-desc" className="block text-sm font-medium text-gray-700 mb-1">
+            РћРїРёСЃР°РЅРёРµ
+          </label>
+          <textarea
+            id="measure-desc"
+            value={formData.description}
+            onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            rows={2}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="measure-process" className="block text-sm font-medium text-gray-700 mb-1">
+            РџСЂРѕС†РµСЃСЃ
+          </label>
+          <select
+            id="measure-process"
+            value={formData.process_id}
+            onChange={e => setFormData(prev => ({ ...prev, process_id: e.target.value }))}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+          >
+            <option value="">РќРµ РІС‹Р±СЂР°РЅРѕ</option>
+            {processes.map(p => (
+              <option key={p.process_id} value={p.process_id}>{p.process_name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="measure-category" className="block text-sm font-medium text-gray-700 mb-1">
+            РљР°С‚РµРіРѕСЂРёСЏ
+          </label>
+          <select
+            id="measure-category"
+            value={formData.category}
+            onChange={e => setFormData(prev => ({ ...prev, category: e.target.value as MeasureCategory }))}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+          >
+            <option value="strategic">РЎС‚СЂР°С‚РµРіРёС‡РµСЃРєРёР№</option>
+            <option value="process">РџСЂРѕС†РµСЃСЃРЅС‹Р№</option>
+            <option value="operational">РћРїРµСЂР°С†РёРѕРЅРЅС‹Р№</option>
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="measure-target" className="block text-sm font-medium text-gray-700 mb-1">
+              РџР»Р°РЅ (РіРѕРґ.)
+            </label>
+            <input
+              id="measure-target"
+              type="number"
+              min="0"
+              value={formData.target_value}
+              onChange={e => setFormData(prev => ({ ...prev, target_value: parseInt(e.target.value) || 0 }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="measure-period" className="block text-sm font-medium text-gray-700 mb-1">
+              РџРµСЂРёРѕРґ
+            </label>
+            <select
+              id="measure-period"
+              value={formData.target_period}
+              onChange={e => setFormData(prev => ({ ...prev, target_period: e.target.value as 'year' | 'quarter' | 'month' }))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            >
+              <option value="year">РќР° РіРѕРґ</option>
+              <option value="quarter">РќР° РєРІР°СЂС‚Р°Р»</option>
+              <option value="month">РќР° РјРµСЃСЏС†</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsFormOpen(false)}
+          >
+            РћС‚РјРµРЅРёС‚СЊ
+          </Button>
+          <Button type="submit" className="bg-purple-600 hover:bg-purple-700">
+            {editingMeasure ? 'РЎРѕС…СЂР°РЅРёС‚СЊ' : 'РЎРѕР·РґР°С‚СЊ'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+
+  // Mobile layout
+  if (isMobile) {
+    return (
+      <>
+        <div className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-auto glass-panel">
+            {leftPanel}
+          </div>
+
+          <BottomDrawer
+            isOpen={isDrawerOpen}
+            onClose={handleCloseDetails}
+            height="full"
+            showCloseButton={true}
+            showDragHandle={true}
+          >
+            <div className="min-h-full bg-slate-50">
+              {rightPanel}
+            </div>
+          </BottomDrawer>
+        </div>
+
+        {formModal}
+      </>
+    );
+  }
+
+  // Desktop layout
+  return (
+    <>
+      <div className="flex h-full">
+        {/* Left panel */}
+        <div
+          ref={panelRef}
+          className="glass-panel flex flex-col relative z-10 overflow-hidden bg-white/80"
+          style={{ width: panelWidth }}
+        >
+          {leftPanel}
+
+          {/* Resize handle */}
+          <div
+            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-purple-300/50 active:bg-purple-400/50 transition-colors group"
+            onMouseDown={handleMouseDown}
+            aria-label="РР·РјРµРЅРёС‚СЊ С€РёСЂРёРЅСѓ РїР°РЅРµР»Рё"
+            role="separator"
+            aria-orientation="vertical"
+          >
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <GripVertical className="h-6 w-6 text-gray-400/50" aria-hidden="true" />
+            </div>
+          </div>
+        </div>
+
+        {/* Right panel */}
+        <div className={cn(
+          "flex-1 overflow-y-auto overscroll-contain relative z-0",
+          selectedMeasure ? "bg-purple-50/30" : "bg-transparent"
+        )}>
+          {rightPanel}
+        </div>
+      </div>
+
+      {formModal}
+    </>
+  );
+}
+
+// Projects content with two-panel layout

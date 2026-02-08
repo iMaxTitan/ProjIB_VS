@@ -8,7 +8,7 @@ export default function AzureLoginButton({ onClick, isLoading = false }: AzureLo
     <button
       onClick={onClick}
       disabled={isLoading}
-      className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-[#4B84EE] hover:bg-[#3B74DE] text-white rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+      className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {isLoading ? (
         <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/30 border-t-white"></div>

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ChevronLeft, Pencil, ChevronDown, Check, X, Target, Trash2 } from 'lucide-react';
+﻿import React, { useState, useRef, useEffect } from 'react';
+import { ChevronLeft, Pencil, ChevronDown, Check, X, Target, Trash2, Copy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getPlanStatusText, PlanStatus, PLAN_STATUSES, getPlanStatusColor, PlanStatusInfo } from '@/types/planning';
@@ -24,6 +24,7 @@ interface PlanDetailHeaderProps {
     onDelete?: () => void;
     canDelete?: boolean;
     deleteReason?: string;
+    onCopy?: () => void;
     // Status filtering
     availableStatuses?: PlanStatusInfo[];
 }
@@ -44,9 +45,10 @@ export function PlanDetailHeader({
     onDelete,
     canDelete,
     deleteReason,
+    onCopy,
     availableStatuses
 }: PlanDetailHeaderProps) {
-    // Используем отфильтрованные статусы если переданы, иначе показываем все (для обратной совместимости)
+    // РСЃРїРѕР»СЊР·СѓРµРј РѕС‚С„РёР»СЊС‚СЂРѕРІР°РЅРЅС‹Рµ СЃС‚Р°С‚СѓСЃС‹ РµСЃР»Рё РїРµСЂРµРґР°РЅС‹, РёРЅР°С‡Рµ РїРѕРєР°Р·С‹РІР°РµРј РІСЃРµ (РґР»СЏ РѕР±СЂР°С‚РЅРѕР№ СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё)
     const statusesToShow = availableStatuses || PLAN_STATUSES;
     const [isStatusOpen, setIsStatusOpen] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -63,9 +65,9 @@ export function PlanDetailHeader({
     }, []);
 
     const gradientMap = {
-        amber: 'from-amber-500/80 to-orange-500/80',
-        purple: 'from-purple-500/80 to-violet-500/80',
-        indigo: 'from-indigo-500/80 to-blue-500/80',
+        amber: 'from-amber-400/80 to-orange-400/80',
+        purple: 'from-purple-400/80 to-violet-400/80',
+        indigo: 'from-indigo-400/80 to-blue-400/80',
         blue: 'from-blue-500/80 to-cyan-500/80',
         emerald: 'from-emerald-500/80 to-green-500/80',
         cyan: 'from-cyan-500/80 to-teal-500/80',
@@ -123,9 +125,7 @@ export function PlanDetailHeader({
 
                         {isStatusOpen && (
                             <div className="absolute top-full left-0 mt-2 w-48 bg-white/95 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-slate-200 py-2 z-[100] animate-scale backdrop-blur-xl">
-                                <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 mb-2">
-                                    Выберите статус
-                                </div>
+                                <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 mb-2">Выберите статус</div>
                                 {statusesToShow.map((s) => {
                                     const tailwindColor = getStatusTailwindColor(s.value);
 
@@ -162,10 +162,10 @@ export function PlanDetailHeader({
                     {/* Close button - only on desktop (mobile uses swipe) */}
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={isEditing ? onCancel : onClose}
                         className="hidden md:flex p-2 hover:bg-white/20 rounded-xl transition-all text-white/80 hover:text-white"
-                        aria-label="Закрыть"
-                        title="Закрыть"
+                        aria-label={isEditing ? "Отмена" : "Закрыть"}
+                        title={isEditing ? "Отмена" : "Закрыть"}
                     >
                         <X className="h-5 w-5" aria-hidden="true" />
                     </button>
@@ -173,16 +173,6 @@ export function PlanDetailHeader({
                     {canEdit && (
                         isEditing ? (
                             <>
-                                <span className="text-3xs font-bold bg-white/20 px-2 py-1 rounded-lg shadow-inner-light uppercase tracking-tighter animate-fade-in">
-                                    Редактирование
-                                </span>
-                                <button
-                                    onClick={onCancel}
-                                    className="p-1.5 hover:bg-red-500/20 rounded-xl transition-all text-white/90 hover:text-white"
-                                    title="Отмена"
-                                >
-                                    <X className="h-5 w-5" />
-                                </button>
                                 <button
                                     onClick={onSave}
                                     className="p-1.5 hover:bg-emerald-500/20 rounded-xl transition-all text-white font-bold"
@@ -198,6 +188,16 @@ export function PlanDetailHeader({
                                         <Pencil className="h-4 w-4" />
                                     </button>
                                 )}
+                                {onCopy && (
+                                    <button
+                                        type="button"
+                                        onClick={onCopy}
+                                        className="p-2 hover:bg-white/20 rounded-xl transition-all text-white/80 hover:text-white"
+                                        title="Копировать план"
+                                    >
+                                        <Copy className="h-4 w-4" />
+                                    </button>
+                                )}
                                 {onDelete && (
                                     showDeleteConfirm ? (
                                         <div className="flex items-center gap-1 bg-red-500/30 rounded-xl px-2 py-1 animate-fade-in">
@@ -206,8 +206,7 @@ export function PlanDetailHeader({
                                                 type="button"
                                                 onClick={() => setShowDeleteConfirm(false)}
                                                 className="p-1 hover:bg-white/20 rounded-lg transition-all"
-                                                title="Отмена"
-                                            >
+                                                title="Отмена">
                                                 <X className="h-4 w-4" />
                                             </button>
                                             <button
@@ -217,8 +216,7 @@ export function PlanDetailHeader({
                                                     setShowDeleteConfirm(false);
                                                 }}
                                                 className="p-1 hover:bg-red-500/50 rounded-lg transition-all"
-                                                title="Подтвердить удаление"
-                                            >
+                                                title="Подтвердить удаление">
                                                 <Check className="h-4 w-4" />
                                             </button>
                                         </div>
@@ -253,25 +251,29 @@ interface PlanSectionProps {
     className?: string;
     rightElement?: React.ReactNode;
     colorScheme?: ColorScheme;
+    titleIcon?: React.ReactNode;
 }
 
-export function PlanSection({ title, children, className, rightElement, colorScheme = 'indigo' }: PlanSectionProps) {
+export function PlanSection({ title, children, className, rightElement, colorScheme = 'indigo', titleIcon }: PlanSectionProps) {
     const titleColors = {
-        amber: 'text-amber-600/90',
-        purple: 'text-purple-600/90',
-        indigo: 'text-indigo-600/90',
-        blue: 'text-blue-600/90',
-        emerald: 'text-emerald-600/90',
-        cyan: 'text-cyan-600/90',
+        amber: 'text-amber-400',
+        purple: 'text-purple-400',
+        indigo: 'text-indigo-400',
+        blue: 'text-blue-400',
+        emerald: 'text-emerald-400',
+        cyan: 'text-cyan-400',
     };
 
     return (
         <div className={cn("relative", className)}>
-            <div className="flex justify-between items-center mb-2 font-heading">
-                <h3 className={cn("text-xs font-bold uppercase tracking-widest opacity-80", titleColors[colorScheme])}>{title}</h3>
+            <div className="flex justify-between items-center mb-1.5">
+                <h3 className={cn("text-3xs font-bold uppercase tracking-wider pl-1 flex items-center gap-1.5", titleColors[colorScheme])}>
+                    {titleIcon ? React.cloneElement(titleIcon as React.ReactElement, { className: "h-3 w-3" }) : null}
+                    {title}
+                </h3>
                 {rightElement}
             </div>
-            <div className="text-sm text-slate-700 leading-relaxed">
+            <div className="text-sm text-slate-700 leading-snug">
                 {children}
             </div>
         </div>
@@ -311,9 +313,11 @@ export function PlanStatBox({ icon, value, label, colorScheme }: PlanStatBoxProp
 export function PlanDetailcard({ children, colorScheme }: { children: React.ReactNode, colorScheme: ColorScheme }) {
     return (
         <div className={cn(
-            "rounded-3xl shadow-glass border border-white/30 overflow-hidden flex flex-col h-full glass-card animate-scale"
+            "rounded-3xl shadow-glass border border-white/30 overflow-hidden flex flex-col glass-card animate-scale"
         )}>
             {children}
         </div>
     );
 }
+
+
