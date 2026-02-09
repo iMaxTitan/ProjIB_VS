@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+﻿import React from 'react';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { BottomDrawer } from '@/components/ui/BottomDrawer';
 import { Brain, BarChart2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface ActivityLayoutProps {
     header: React.ReactNode;
@@ -23,16 +22,13 @@ export function ActivityLayout({
 
     return (
         <div className="space-y-6 sm:space-y-8 pb-10">
-            {/* Header Area */}
             {header}
 
             <div className="flex flex-col lg:flex-row gap-6 relative">
-                {/* Main Content (Feed) */}
                 <div className="flex-1 min-w-0">
                     {feed}
                 </div>
 
-                {/* Desktop Sidebar (Sticky) */}
                 {!isMobile && (
                     <div className="w-[380px] flex-shrink-0">
                         <div className="sticky top-6">
@@ -42,7 +38,6 @@ export function ActivityLayout({
                 )}
             </div>
 
-            {/* Mobile Fab/Button to open stats */}
             {isMobile && (
                 <button
                     onClick={onToggleDrawer}
@@ -53,7 +48,6 @@ export function ActivityLayout({
                 </button>
             )}
 
-            {/* Mobile Drawer */}
             {isMobile && (
                 <BottomDrawer
                     isOpen={isDrawerOpen}
@@ -63,7 +57,7 @@ export function ActivityLayout({
                     <div className="p-4 bg-white/50 backdrop-blur-md rounded-t-3xl min-h-[50vh]">
                         <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
                             <Brain className="h-5 w-5 text-amber-500" />
-                            Статистика и Анализ
+                            Статистика и анализ
                         </h3>
                         {sidebar}
                     </div>

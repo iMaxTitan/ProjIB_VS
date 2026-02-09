@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+﻿import { supabase } from '@/lib/supabase';
 import logger from '@/lib/logger';
 
 type ActivityEventType = ActivityEvent['event_type'];
@@ -102,8 +102,8 @@ export interface ActivityFilters {
 }
 
 /**
- * Получение ленты активности с учётом роли пользователя
- * Chief видит всех, Head - свой отдел, Employee - только себя
+ * РџРѕР»СѓС‡РµРЅРёРµ Р»РµРЅС‚С‹ Р°РєС‚РёРІРЅРѕСЃС‚Рё СЃ СѓС‡С‘С‚РѕРј СЂРѕР»Рё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
+ * Chief РІРёРґРёС‚ РІСЃРµС…, Head - СЃРІРѕР№ РѕС‚РґРµР», Employee - С‚РѕР»СЊРєРѕ СЃРµР±СЏ
  */
 export async function getActivityFeed(
     userId: string,
@@ -114,7 +114,7 @@ export async function getActivityFeed(
     const { departmentId, daysBack = 7, limit = 50 } = filters;
 
     try {
-        // Используем RPC функцию get_activity_feed
+        // РСЃРїРѕР»СЊР·СѓРµРј RPC С„СѓРЅРєС†РёСЋ get_activity_feed
         const { data, error } = await supabase.rpc('get_activity_feed', {
             p_user_id: userId,
             p_department_id: departmentId || null,
@@ -127,7 +127,7 @@ export async function getActivityFeed(
             return getActivityFeedFallback(userId, userRole, userDepartmentId, filters);
         }
 
-        // RPC возвращает данные в нужном формате
+        // RPC РІРѕР·РІСЂР°С‰Р°РµС‚ РґР°РЅРЅС‹Рµ РІ РЅСѓР¶РЅРѕРј С„РѕСЂРјР°С‚Рµ
         return ((data || []) as ActivityFeedRow[]).map(mapFeedRowToActivityEvent);
     } catch (err: unknown) {
         logger.error('Error in getActivityFeed:', err);
@@ -136,7 +136,7 @@ export async function getActivityFeed(
 }
 
 /**
- * Fallback если RPC недоступна - прямой запрос через view v_activity_feed
+ * Fallback РµСЃР»Рё RPC РЅРµРґРѕСЃС‚СѓРїРЅР° - РїСЂСЏРјРѕР№ Р·Р°РїСЂРѕСЃ С‡РµСЂРµР· view v_activity_feed
  */
 async function getActivityFeedFallback(
     userId: string,
@@ -148,19 +148,19 @@ async function getActivityFeedFallback(
 
     const userDeptId = userDepartmentId;
 
-    // Вычисляем дату начала
+    // Р’С‹С‡РёСЃР»СЏРµРј РґР°С‚Сѓ РЅР°С‡Р°Р»Р°
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysBack);
 
-    // Используем view v_activity_feed вместо сложных JOIN
+    // РСЃРїРѕР»СЊР·СѓРµРј view v_activity_feed РІРјРµСЃС‚Рѕ СЃР»РѕР¶РЅС‹С… JOIN
     let query = supabase
         .from('v_activity_feed')
         .select('*')
         .gte('event_time', startDate.toISOString())
         .order('event_time', { ascending: false })
-        .limit(limit * 2); // Берём больше, т.к. будем фильтровать
+        .limit(limit * 2); // Р‘РµСЂС‘Рј Р±РѕР»СЊС€Рµ, С‚.Рє. Р±СѓРґРµРј С„РёР»СЊС‚СЂРѕРІР°С‚СЊ
 
-    // Применяем фильтр по роли
+    // РџСЂРёРјРµРЅСЏРµРј С„РёР»СЊС‚СЂ РїРѕ СЂРѕР»Рё
     if (userRole === 'employee') {
         query = query.eq('user_id', userId);
     } else if (userRole === 'head') {
@@ -168,7 +168,7 @@ async function getActivityFeedFallback(
     } else if (userRole === 'chief' && departmentId) {
         query = query.eq('department_id', departmentId);
     }
-    // Chief без фильтра - все
+    // Chief Р±РµР· С„РёР»СЊС‚СЂР° - РІСЃРµ
 
     const { data: events, error } = await query;
 
@@ -177,16 +177,16 @@ async function getActivityFeedFallback(
         return [];
     }
 
-    // Преобразуем в формат ActivityEvent
+    // РџСЂРµРѕР±СЂР°Р·СѓРµРј РІ С„РѕСЂРјР°С‚ ActivityEvent
     return ((events || []) as ActivityFeedRow[]).slice(0, limit).map(mapFeedRowToActivityEvent);
 }
 
 /**
- * Получение статистики активности
- * Использует тот же источник данных что и лента (v_activity_feed)
- * @param userId - ID пользователя
- * @param departmentId - ID отдела для фильтрации (опционально)
- * @param daysBack - количество дней назад (7 = неделя, 90 = квартал, 365 = год)
+ * РџРѕР»СѓС‡РµРЅРёРµ СЃС‚Р°С‚РёСЃС‚РёРєРё Р°РєС‚РёРІРЅРѕСЃС‚Рё
+ * РСЃРїРѕР»СЊР·СѓРµС‚ С‚РѕС‚ Р¶Рµ РёСЃС‚РѕС‡РЅРёРє РґР°РЅРЅС‹С… С‡С‚Рѕ Рё Р»РµРЅС‚Р° (v_activity_feed)
+ * @param userId - ID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
+ * @param departmentId - ID РѕС‚РґРµР»Р° РґР»СЏ С„РёР»СЊС‚СЂР°С†РёРё (РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ)
+ * @param daysBack - РєРѕР»РёС‡РµСЃС‚РІРѕ РґРЅРµР№ РЅР°Р·Р°Рґ (7 = РЅРµРґРµР»СЏ, 90 = РєРІР°СЂС‚Р°Р», 365 = РіРѕРґ)
  */
 export async function getActivityStats(
     userId: string,
@@ -197,21 +197,21 @@ export async function getActivityStats(
 ): Promise<ActivityStats> {
     const userDeptId = departmentId || (userRole === 'head' ? userDepartmentId : null);
 
-    // Даты
+    // Р”Р°С‚С‹
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const periodStart = new Date(today);
     periodStart.setDate(today.getDate() - daysBack);
 
-    // Используем v_activity_feed - тот же источник что и лента событий
-    // Берём только task_created события (это реальные выполненные задачи)
+    // РСЃРїРѕР»СЊР·СѓРµРј v_activity_feed - С‚РѕС‚ Р¶Рµ РёСЃС‚РѕС‡РЅРёРє С‡С‚Рѕ Рё Р»РµРЅС‚Р° СЃРѕР±С‹С‚РёР№
+    // Р‘РµСЂС‘Рј С‚РѕР»СЊРєРѕ task_created СЃРѕР±С‹С‚РёСЏ (СЌС‚Рѕ СЂРµР°Р»СЊРЅС‹Рµ РІС‹РїРѕР»РЅРµРЅРЅС‹Рµ Р·Р°РґР°С‡Рё)
     let query = supabase
         .from('v_activity_feed')
         .select('spent_hours, event_time, user_id, department_id')
         .eq('event_type', 'task_created')
         .gte('event_time', periodStart.toISOString());
 
-    // Фильтрация по роли
+    // Р¤РёР»СЊС‚СЂР°С†РёСЏ РїРѕ СЂРѕР»Рё
     if (userRole === 'employee') {
         query = query.eq('user_id', userId);
     } else if (userRole === 'head') {
@@ -219,7 +219,7 @@ export async function getActivityStats(
     } else if (userRole === 'chief' && departmentId) {
         query = query.eq('department_id', departmentId);
     }
-    // Chief без фильтра - все
+    // Chief Р±РµР· С„РёР»СЊС‚СЂР° - РІСЃРµ
 
     const { data: events, error } = await query;
 
@@ -227,7 +227,7 @@ export async function getActivityStats(
         logger.error('Error fetching activity stats from view:', error);
     }
 
-    // Подсчёт статистики
+    // РџРѕРґСЃС‡С‘С‚ СЃС‚Р°С‚РёСЃС‚РёРєРё
     let totalHours = 0;
     let totalTasks = 0;
     let todayHours = 0;
@@ -247,7 +247,7 @@ export async function getActivityStats(
             }
     }
 
-    // Общее количество пользователей
+    // РћР±С‰РµРµ РєРѕР»РёС‡РµСЃС‚РІРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№
     let usersQuery = supabase
         .from('user_profiles')
         .select('user_id', { count: 'exact' })
@@ -258,10 +258,10 @@ export async function getActivityStats(
     } else if (userRole === 'head') {
         usersQuery = usersQuery.eq('department_id', userDeptId);
     } else if (departmentId) {
-        // Chief с выбранным отделом
+        // Chief СЃ РІС‹Р±СЂР°РЅРЅС‹Рј РѕС‚РґРµР»РѕРј
         usersQuery = usersQuery.eq('department_id', departmentId);
     }
-    // Chief без фильтра - все пользователи
+    // Chief Р±РµР· С„РёР»СЊС‚СЂР° - РІСЃРµ РїРѕР»СЊР·РѕРІР°С‚РµР»Рё
 
     const { count: totalUsers } = await usersQuery;
 
@@ -276,7 +276,7 @@ export async function getActivityStats(
 }
 
 /**
- * Получение списка отделов для фильтра (только для chief)
+ * РџРѕР»СѓС‡РµРЅРёРµ СЃРїРёСЃРєР° РѕС‚РґРµР»РѕРІ РґР»СЏ С„РёР»СЊС‚СЂР° (С‚РѕР»СЊРєРѕ РґР»СЏ chief)
  */
 export async function getDepartmentsForFilter(): Promise<{ id: string; name: string }[]> {
     const { data } = await supabase
@@ -288,10 +288,10 @@ export async function getDepartmentsForFilter(): Promise<{ id: string; name: str
 }
 
 /**
- * Контекст для ИИ-анализа
+ * РљРѕРЅС‚РµРєСЃС‚ РґР»СЏ РР-Р°РЅР°Р»РёР·Р°
  */
 export interface AIContext {
-    // Текущий период
+    // РўРµРєСѓС‰РёР№ РїРµСЂРёРѕРґ
     current: {
         hours: number;
         tasks: number;
@@ -299,7 +299,7 @@ export interface AIContext {
         avgHoursPerTask: number;
         avgHoursPerUser: number;
     };
-    // Предыдущий период (для сравнения)
+    // РџСЂРµРґС‹РґСѓС‰РёР№ РїРµСЂРёРѕРґ (РґР»СЏ СЃСЂР°РІРЅРµРЅРёСЏ)
     previous: {
         hours: number;
         tasks: number;
@@ -307,28 +307,28 @@ export interface AIContext {
         avgHoursPerTask: number;
         avgHoursPerUser: number;
     };
-    // Изменения в %
+    // РР·РјРµРЅРµРЅРёСЏ РІ %
     changes: {
         hoursChange: number;
         tasksChange: number;
         usersChange: number;
-        productivityChange: number; // часы/задача
+        productivityChange: number; // С‡Р°СЃС‹/Р·Р°РґР°С‡Р°
     };
-    // Топ исполнители за период
+    // РўРѕРї РёСЃРїРѕР»РЅРёС‚РµР»Рё Р·Р° РїРµСЂРёРѕРґ
     topPerformers: {
         name: string;
         hours: number;
         tasks: number;
         department: string;
     }[];
-    // Распределение по отделам
+    // Р Р°СЃРїСЂРµРґРµР»РµРЅРёРµ РїРѕ РѕС‚РґРµР»Р°Рј
     departmentStats: {
         name: string;
         hours: number;
         tasks: number;
         users: number;
     }[];
-    // Период анализа
+    // РџРµСЂРёРѕРґ Р°РЅР°Р»РёР·Р°
     periodInfo: {
         type: 'week' | 'month' | 'quarter' | 'year';
         daysBack: number;
@@ -338,12 +338,12 @@ export interface AIContext {
 }
 
 /**
- * Получение обогащённого контекста для ИИ-анализа
- * Контекст зависит от выбранного периода:
- * - Неделя: сравнение с прошлой неделей
- * - Месяц: сравнение с прошлым месяцем
- * - Квартал: сравнение с прошлым кварталом
- * - Год: сравнение с прошлым годом
+ * РџРѕР»СѓС‡РµРЅРёРµ РѕР±РѕРіР°С‰С‘РЅРЅРѕРіРѕ РєРѕРЅС‚РµРєСЃС‚Р° РґР»СЏ РР-Р°РЅР°Р»РёР·Р°
+ * РљРѕРЅС‚РµРєСЃС‚ Р·Р°РІРёСЃРёС‚ РѕС‚ РІС‹Р±СЂР°РЅРЅРѕРіРѕ РїРµСЂРёРѕРґР°:
+ * - РќРµРґРµР»СЏ: СЃСЂР°РІРЅРµРЅРёРµ СЃ РїСЂРѕС€Р»РѕР№ РЅРµРґРµР»РµР№
+ * - РњРµСЃСЏС†: СЃСЂР°РІРЅРµРЅРёРµ СЃ РїСЂРѕС€Р»С‹Рј РјРµСЃСЏС†РµРј
+ * - РљРІР°СЂС‚Р°Р»: СЃСЂР°РІРЅРµРЅРёРµ СЃ РїСЂРѕС€Р»С‹Рј РєРІР°СЂС‚Р°Р»РѕРј
+ * - Р“РѕРґ: СЃСЂР°РІРЅРµРЅРёРµ СЃ РїСЂРѕС€Р»С‹Рј РіРѕРґРѕРј
  */
 export async function getAIContext(
     userId: string,
@@ -352,12 +352,12 @@ export async function getAIContext(
     daysBack: number,
     departmentId?: string
 ): Promise<AIContext> {
-    // Определяем тип периода
+    // РћРїСЂРµРґРµР»СЏРµРј С‚РёРї РїРµСЂРёРѕРґР°
     const periodType = daysBack <= 7 ? 'week' : daysBack <= 30 ? 'month' : daysBack <= 90 ? 'quarter' : 'year';
 
     const userDeptId = departmentId || (userRole === 'head' ? userDepartmentId : null);
 
-    // Даты
+    // Р”Р°С‚С‹
     const now = new Date();
     const currentStart = new Date(now);
     currentStart.setDate(now.getDate() - daysBack);
@@ -365,7 +365,7 @@ export async function getAIContext(
     const previousStart = new Date(currentStart);
     previousStart.setDate(previousStart.getDate() - daysBack);
 
-    // Базовый запрос с фильтрацией по роли
+    // Р‘Р°Р·РѕРІС‹Р№ Р·Р°РїСЂРѕСЃ СЃ С„РёР»СЊС‚СЂР°С†РёРµР№ РїРѕ СЂРѕР»Рё
     const buildQuery = (startDate: Date, endDate: Date) => {
         let query = supabase
             .from('v_activity_feed')
@@ -384,7 +384,7 @@ export async function getAIContext(
         return query;
     };
 
-    // Параллельно загружаем данные за текущий и предыдущий периоды
+    // РџР°СЂР°Р»Р»РµР»СЊРЅРѕ Р·Р°РіСЂСѓР¶Р°РµРј РґР°РЅРЅС‹Рµ Р·Р° С‚РµРєСѓС‰РёР№ Рё РїСЂРµРґС‹РґСѓС‰РёР№ РїРµСЂРёРѕРґС‹
     const [currentResult, previousResult] = await Promise.all([
         buildQuery(currentStart, now),
         buildQuery(previousStart, currentStart)
@@ -393,7 +393,7 @@ export async function getAIContext(
     const currentEvents = currentResult.data || [];
     const previousEvents = previousResult.data || [];
 
-    // Вычисляем статистику
+    // Р’С‹С‡РёСЃР»СЏРµРј СЃС‚Р°С‚РёСЃС‚РёРєСѓ
     const calcStats = (events: ActivityContextRow[]) => {
         const hours = events.reduce((sum, e) => sum + (Number(e.spent_hours) || 0), 0);
         const tasks = events.length;
@@ -412,7 +412,7 @@ export async function getAIContext(
     const current = calcStats(typedCurrentEvents);
     const previous = calcStats(typedPreviousEvents);
 
-    // Вычисляем изменения в %
+    // Р’С‹С‡РёСЃР»СЏРµРј РёР·РјРµРЅРµРЅРёСЏ РІ %
     const calcChange = (curr: number, prev: number) => {
         if (prev === 0) return curr > 0 ? 100 : 0;
         return Math.round(((curr - prev) / prev) * 100);
@@ -425,7 +425,7 @@ export async function getAIContext(
         productivityChange: calcChange(current.avgHoursPerTask, previous.avgHoursPerTask)
     };
 
-    // Топ исполнители (только для текущего периода)
+    // РўРѕРї РёСЃРїРѕР»РЅРёС‚РµР»Рё (С‚РѕР»СЊРєРѕ РґР»СЏ С‚РµРєСѓС‰РµРіРѕ РїРµСЂРёРѕРґР°)
     const userStats = new Map<string, { name: string; hours: number; tasks: number; department: string }>();
     for (const event of typedCurrentEvents) {
         const key = event.user_id;
@@ -444,7 +444,7 @@ export async function getAIContext(
         .slice(0, 5)
         .map(p => ({ ...p, hours: Math.round(p.hours * 100) / 100 }));
 
-    // Статистика по отделам
+    // РЎС‚Р°С‚РёСЃС‚РёРєР° РїРѕ РѕС‚РґРµР»Р°Рј
     const deptStats = new Map<string, { name: string; hours: number; tasks: number; userIds: Set<string> }>();
     for (const event of typedCurrentEvents) {
         const key = event.department_id;
@@ -497,5 +497,6 @@ function getEmptyContext(periodType: 'week' | 'month' | 'quarter' | 'year', days
         }
     };
 }
+
 
 

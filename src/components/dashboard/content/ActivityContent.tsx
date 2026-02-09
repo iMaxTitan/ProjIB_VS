@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { UserInfo } from '@/types/azure';
@@ -22,7 +22,6 @@ import { BottomDrawer } from '@/components/ui/BottomDrawer';
 import { ActivityFeed } from './ActivityFeed';
 import {
     getActivityFeed,
-    getDepartmentsForFilter,
     getAIContext,
     ActivityEvent,
 } from '@/lib/services/activity.service';
@@ -51,27 +50,35 @@ interface ActivityStats {
     todayTasks: number;
 }
 
-interface BuildChangelogItem {
-    hash: string;
-    shortHash: string;
-    message: string;
-    author: string;
-    date: string;
-}
+type ChangelogType = 'Добавлено' | 'Обновлено' | 'Исправлено';
 
-interface BuildChangelogResponse {
-    source: 'git' | 'fallback';
-    generatedAt: string;
-    items: BuildChangelogItem[];
-    message?: string;
-}
+// Редактирование changelog:
+// 1) Добавляй новые записи в начало массива.
+// 2) Используй только типы: Добавлено, Обновлено, Исправлено.
+// 3) Формат даты: ДД.ММ (например, 08.02).
+const MANUAL_BUILD_CHANGELOG_ITEMS: Array<{ date: string; type: ChangelogType; text: string }> = [
+    { date: '08.02', type: 'Добавлено', text: 'функция копирования планов для быстрого переноса в другой период без ручного заполнения.' },
+    { date: '08.02', type: 'Обновлено', text: 'повышена стабильность и скорость работы приложения.' },
+    { date: '08.02', type: 'Обновлено', text: 'интерфейс упрощен, ключевые действия вынесены на удобные позиции.' },
+    { date: '08.02', type: 'Обновлено', text: 'карточки приведены к единому формату (просмотр, редактирование, создание).' },
+    { date: '08.02', type: 'Обновлено', text: 'улучшена мобильная версия, уменьшено количество лишних касаний.' },
+    { date: '07.02', type: 'Обновлено', text: 'раздел «Справочники» приведен к единому и более аккуратному виду.' },
+    { date: '07.02', type: 'Обновлено', text: 'повышена читаемость текста и подписей на основных экранах.' },
+    { date: '07.02', type: 'Исправлено', text: 'некорректное отображение текста в отдельных блоках.' }
+];
+
+const CHANGELOG_TYPE_STYLES: Record<ChangelogType, string> = {
+    Добавлено: 'bg-emerald-100 text-emerald-700',
+    Обновлено: 'bg-blue-100 text-blue-700',
+    Исправлено: 'bg-amber-100 text-amber-700'
+};
 
 // Period options
 const PERIODS = [
     { value: 7, label: '7 дней', shortLabel: '7д' },
     { value: 30, label: '30 дней', shortLabel: '30д' },
     { value: 90, label: 'Квартал', shortLabel: '3М' },
-    { value: 365, label: 'Год', shortLabel: '1Р' }
+    { value: 365, label: 'Год', shortLabel: '1Г' }
 ] as const;
 
 type PeriodValue = typeof PERIODS[number]['value'];
@@ -79,23 +86,18 @@ type PeriodValue = typeof PERIODS[number]['value'];
 export default function ActivityContent({ user }: ActivityContentProps) {
     const [events, setEvents] = useState<ActivityEvent[]>([]);
     const [totalUsers, setTotalUsers] = useState(0);
-    const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
 
     // AI Analysis
     const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [showAiPanel, setShowAiPanel] = useState(false);
-    const [buildChangelog, setBuildChangelog] = useState<BuildChangelogItem[]>([]);
-    const [buildChangelogInfo, setBuildChangelogInfo] = useState<{ generatedAt?: string; message?: string }>({});
 
     // Period and filters
     const [selectedPeriod, setSelectedPeriod] = useState<PeriodValue>(7);
-    const [selectedDepartment, setSelectedDepartment] = useState<string>('');
 
     // Panel width for resizing
-    const [panelWidth, setPanelWidth] = useState(320);
+    const [panelWidth, setPanelWidth] = useState(480);
     const isResizingRef = React.useRef(false);
     const panelRef = React.useRef<HTMLDivElement>(null);
 
@@ -147,7 +149,6 @@ export default function ActivityContent({ user }: ActivityContentProps) {
     const loadData = useCallback(async () => {
         try {
             const eventsData = await getActivityFeed(user.user_id, user.role || 'employee', user.department_id || null, {
-                departmentId: selectedDepartment || undefined,
                 daysBack: selectedPeriod,
                 limit: 500
             });
@@ -163,8 +164,6 @@ export default function ActivityContent({ user }: ActivityContentProps) {
                 usersQuery = usersQuery.eq('user_id', user.user_id);
             } else if (user.role === 'head') {
                 usersQuery = usersQuery.eq('department_id', user.department_id);
-            } else if (selectedDepartment) {
-                usersQuery = usersQuery.eq('department_id', selectedDepartment);
             }
 
             const { count } = await usersQuery;
@@ -173,9 +172,8 @@ export default function ActivityContent({ user }: ActivityContentProps) {
             logger.error('Error loading activity:', error);
         } finally {
             setLoading(false);
-            setRefreshing(false);
         }
-    }, [user.user_id, user.role, user.department_id, selectedDepartment, selectedPeriod]);
+    }, [user.user_id, user.role, user.department_id, selectedPeriod]);
 
     const analyzeWithAI = async () => {
         setAiLoading(true);
@@ -183,11 +181,10 @@ export default function ActivityContent({ user }: ActivityContentProps) {
         try {
             const [aiEvents, aiContext] = await Promise.all([
                 getActivityFeed(user.user_id, user.role || 'employee', user.department_id || null, {
-                    departmentId: selectedDepartment || undefined,
                     daysBack: selectedPeriod,
                     limit: 200
                 }),
-                getAIContext(user.user_id, user.role || 'employee', user.department_id || null, selectedPeriod, selectedDepartment || undefined)
+                getAIContext(user.user_id, user.role || 'employee', user.department_id || null, selectedPeriod)
             ]);
 
             const response = await fetch('/api/ai/activity-analysis', {
@@ -224,47 +221,8 @@ export default function ActivityContent({ user }: ActivityContentProps) {
     };
 
     useEffect(() => {
-        if (isChief) {
-            getDepartmentsForFilter().then(setDepartments);
-        }
-    }, [isChief]);
-
-    useEffect(() => {
-        let mounted = true;
-
-        const loadBuildChangelog = async () => {
-            try {
-                const response = await fetch('/api/build/changelog', { cache: 'no-store' });
-                if (!response.ok) return;
-
-                const data = (await response.json()) as BuildChangelogResponse;
-                if (!mounted) return;
-
-                setBuildChangelog(Array.isArray(data.items) ? data.items : []);
-                setBuildChangelogInfo({
-                    generatedAt: data.generatedAt,
-                    message: data.message
-                });
-            } catch (error: unknown) {
-                logger.error('Error loading build changelog:', error);
-            }
-        };
-
-        loadBuildChangelog();
-        return () => {
-            mounted = false;
-        };
-    }, []);
-
-    useEffect(() => {
         loadData();
     }, [loadData]);
-
-    const handleRefresh = () => {
-        setRefreshing(true);
-        setAiAnalysis(null);
-        loadData();
-    };
 
     // Resize handlers
     const handleMouseDown = () => {
@@ -276,7 +234,7 @@ export default function ActivityContent({ user }: ActivityContentProps) {
     const handleMouseMove = (e: MouseEvent) => {
         if (!isResizingRef.current) return;
         const newWidth = e.clientX - (panelRef.current?.getBoundingClientRect().left || 0);
-        if (newWidth >= 280 && newWidth <= 450) {
+        if (newWidth >= 280 && newWidth <= 600) {
             setPanelWidth(newWidth);
         }
     };
@@ -290,127 +248,117 @@ export default function ActivityContent({ user }: ActivityContentProps) {
     // Left panel - Stats & AI
     const leftPanel = (
         <div className="flex flex-col h-full">
-            {/* Header with department filter */}
+            {!isMobile && (
+                <nav
+                    className="flex-shrink-0 bg-gradient-to-b from-indigo-50/50 to-transparent border-b border-indigo-200"
+                    role="navigation"
+                    aria-label="Выбор периода"
+                >
+                    <div className="px-2 sm:px-4 pt-2">
+                        <div className="flex gap-0.5 items-end">
+                            {PERIODS.map(({ value, label, shortLabel }) => (
+                                <button
+                                    type="button"
+                                    key={value}
+                                    onClick={() => handlePeriodChange(value)}
+                                    aria-label={`Период: ${label}`}
+                                    aria-current={selectedPeriod === value ? 'true' : undefined}
+                                    className={cn(
+                                        "flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium rounded-t-lg transition-all border-t border-l border-r",
+                                        "focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2",
+                                        selectedPeriod === value
+                                            ? "bg-white border-indigo-300 text-indigo-700 shadow-sm -mb-px"
+                                            : "bg-indigo-50/70 border-indigo-200/50 text-gray-500 hover:bg-indigo-100/70"
+                                    )}
+                                >
+                                    <span className="hidden xs:inline">{label}</span>
+                                    <span className="xs:hidden">{shortLabel}</span>
+                                </button>
+                            ))}
+                            <div className="flex-1" />
+                        </div>
+                    </div>
+                </nav>
+            )}
+
+            {/* Header */}
             <div className="flex-shrink-0 p-3 sm:p-4 border-b border-gray-100 bg-white/50">
                 <div className="flex items-center gap-2 mb-3">
                     <BarChart2 className="h-5 w-5 text-indigo-600" aria-hidden="true" />
                     <h2 className="text-base sm:text-lg font-bold text-slate-800">Статистика</h2>
                 </div>
 
-                {/* Department filter for chief */}
-                {isChief && departments.length > 0 && (
-                    <div className="relative">
-                        <select
-                            value={selectedDepartment}
-                            onChange={(e) => setSelectedDepartment(e.target.value)}
-                            aria-label="Фильтр по отделу"
-                            className="w-full appearance-none pl-3 pr-8 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-200 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                        >
-                            <option value="">Все отделы</option>
-                            {departments.map(d => (
-                                <option key={d.id} value={d.id}>{d.name}</option>
-                            ))}
-                        </select>
-                        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" aria-hidden="true" />
-                    </div>
-                )}
             </div>
 
             {/* Stats cards */}
             <div className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-4">
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 gap-3">
-                    {/* Hours */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-3 hover:shadow-sm transition-shadow">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center">
-                                <Clock className="h-3.5 w-3.5 text-blue-600" aria-hidden="true" />
+                {/* Stats Summary Card */}
+                <div className="bg-white rounded-xl border border-slate-200 p-2.5">
+                    <div className="grid grid-cols-4 gap-2">
+                        <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <div className="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center">
+                                    <Clock className="h-2.5 w-2.5 text-blue-600" aria-hidden="true" />
+                                </div>
+                                <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Часов</span>
                             </div>
-                            <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Часов</span>
+                            <div className="text-2xl font-bold text-slate-800 leading-none">{stats.totalHours}</div>
+                            <div className="text-2xs font-medium text-emerald-600 mt-1">+{stats.todayHours} сегодня</div>
                         </div>
-                        <div className="text-xl font-bold text-slate-800">{stats.totalHours}</div>
-                        <div className="text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded w-fit mt-1">
-                            +{stats.todayHours} сегодня
-                        </div>
-                    </div>
 
-                    {/* Tasks */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-3 hover:shadow-sm transition-shadow">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                        <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <div className="w-5 h-5 rounded-md bg-emerald-100 flex items-center justify-center">
+                                    <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" aria-hidden="true" />
+                                </div>
+                                <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Задач</span>
                             </div>
-                            <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Задач</span>
+                            <div className="text-2xl font-bold text-slate-800 leading-none">{stats.totalTasks}</div>
+                            <div className="text-2xs font-medium text-emerald-600 mt-1">+{stats.todayTasks} сегодня</div>
                         </div>
-                        <div className="text-xl font-bold text-slate-800">{stats.totalTasks}</div>
-                        <div className="text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded w-fit mt-1">
-                            +{stats.todayTasks} сегодня
-                        </div>
-                    </div>
 
-                    {/* Active users */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-3 hover:shadow-sm transition-shadow">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center">
-                                <Users className="h-3.5 w-3.5 text-purple-600" aria-hidden="true" />
+                        <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <div className="w-5 h-5 rounded-md bg-purple-100 flex items-center justify-center">
+                                    <Users className="h-2.5 w-2.5 text-purple-600" aria-hidden="true" />
+                                </div>
+                                <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Активных</span>
                             </div>
-                            <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Активных</span>
+                            <div className="text-2xl font-bold text-slate-800 leading-none">{stats.activeUsers}</div>
+                            <div className="text-2xs text-slate-500 mt-1">
+                                из <span className="font-bold text-slate-700">{stats.totalUsers}</span>
+                            </div>
                         </div>
-                        <div className="text-xl font-bold text-slate-800">{stats.activeUsers}</div>
-                        <div className="text-xs text-slate-500 mt-1">
-                            из <span className="font-bold text-slate-700">{stats.totalUsers}</span>
-                        </div>
-                    </div>
 
-                    {/* Average */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-3 hover:shadow-sm transition-shadow">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center">
-                                <TrendingUp className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+                        <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <div className="w-5 h-5 rounded-md bg-amber-100 flex items-center justify-center">
+                                    <TrendingUp className="h-2.5 w-2.5 text-amber-600" aria-hidden="true" />
+                                </div>
+                                <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Среднее</span>
                             </div>
-                            <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Среднее</span>
+                            <div className="text-2xl font-bold text-slate-800 leading-none">
+                                {stats.activeUsers > 0 ? (stats.totalHours / stats.activeUsers).toFixed(1) : '0'}
+                            </div>
+                            <div className="text-2xs text-slate-500 mt-1">час/чел</div>
                         </div>
-                        <div className="text-xl font-bold text-slate-800">
-                            {stats.activeUsers > 0 ? (stats.totalHours / stats.activeUsers).toFixed(1) : '0'}
-                        </div>
-                        <div className="text-xs text-slate-500 mt-1">час/чел</div>
                     </div>
                 </div>
 
                 {/* Build changelog */}
                 <div className="bg-white rounded-xl border border-slate-200 p-3">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                            Краткий changelog билда
-                        </h3>
-                        {buildChangelogInfo.generatedAt && (
-                            <span className="text-2xs text-slate-400">
-                                {new Date(buildChangelogInfo.generatedAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                        )}
-                    </div>
-
-                    {buildChangelog.length > 0 ? (
-                        <ul className="space-y-2">
-                            {buildChangelog.map((item) => (
-                                <li key={item.hash} className="rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="text-2xs font-semibold text-indigo-600">{item.shortHash}</span>
-                                        <span className="text-2xs text-slate-400">
-                                            {item.date ? new Date(item.date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : ''}
-                                        </span>
-                                    </div>
-                                    <div className="mt-1 text-xs font-medium text-slate-700 leading-tight">
-                                        {item.message}
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="text-xs text-slate-500">
-                            {buildChangelogInfo.message || 'Нет данных по изменениям билда.'}
-                        </p>
-                    )}
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Что нового</h3>
+                    <ul className="rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2 space-y-1.5">
+                        {MANUAL_BUILD_CHANGELOG_ITEMS.map((item, idx) => (
+                            <li key={`${item.date}-${idx}`} className="text-xs text-slate-700 leading-relaxed">
+                                <span className="font-semibold">{item.date}</span>
+                                <span className={`ml-2 inline-flex rounded px-1.5 py-0.5 text-2xs font-semibold ${CHANGELOG_TYPE_STYLES[item.type]}`}>
+                                    {item.type}
+                                </span>
+                                <span className="ml-2">{item.text}</span>
+                            </li>
+                        ))}
+                    </ul>
                 </div>
 
                 {/* AI Analysis Panel */}
@@ -601,15 +549,6 @@ export default function ActivityContent({ user }: ActivityContentProps) {
                                 </button>
                             ))}
                             <div className="flex-1" />
-                            <button
-                                type="button"
-                                onClick={handleRefresh}
-                                disabled={refreshing}
-                                aria-label="Обновить данные"
-                                className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors mb-0.5"
-                            >
-                                <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} aria-hidden="true" />
-                            </button>
                         </div>
                     </div>
                 </nav>
@@ -647,53 +586,13 @@ export default function ActivityContent({ user }: ActivityContentProps) {
 
     // Desktop layout
     return (
-        <div className="flex flex-col h-full">
-            {/* Period tabs */}
-            <nav
-                className="flex-shrink-0 bg-gradient-to-b from-indigo-50/50 to-transparent border-b border-indigo-200"
-                role="navigation"
-                aria-label="Выбор периода"
-            >
-                <div className="px-2 sm:px-4 pt-2">
-                    <div className="flex gap-0.5 items-end">
-                        {PERIODS.map(({ value, label }) => (
-                            <button
-                                type="button"
-                                key={value}
-                                onClick={() => handlePeriodChange(value)}
-                                aria-label={`Период: ${label}`}
-                                aria-current={selectedPeriod === value ? 'true' : undefined}
-                                className={cn(
-                                    "flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-t-lg transition-all border-t border-l border-r",
-                                    "focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2",
-                                    selectedPeriod === value
-                                        ? "bg-white border-indigo-300 text-indigo-700 shadow-sm -mb-px"
-                                        : "bg-indigo-50/70 border-indigo-200/50 text-gray-500 hover:bg-indigo-100/70"
-                                )}
-                            >
-                                {label}
-                            </button>
-                        ))}
-                        <div className="flex-1" />
-                        <button
-                            type="button"
-                            onClick={handleRefresh}
-                            disabled={refreshing}
-                            aria-label="Обновить данные"
-                            className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors mb-0.5"
-                        >
-                            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} aria-hidden="true" />
-                        </button>
-                    </div>
-                </div>
-            </nav>
-
+        <div className="flex flex-col h-full bg-mesh-indigo">
             {/* Two-panel content */}
             <div className="flex-1 flex overflow-hidden">
                 {/* Left panel - Stats */}
                 <div
                     ref={panelRef}
-                    className="glass-panel flex flex-col relative z-10 overflow-hidden bg-white/80"
+                    className="glass-panel flex flex-col relative z-10 overflow-hidden"
                     style={{ width: panelWidth }}
                 >
                     {leftPanel}
@@ -713,11 +612,12 @@ export default function ActivityContent({ user }: ActivityContentProps) {
                 </div>
 
                 {/* Right panel - Feed */}
-                <div className="flex-1 overflow-hidden bg-indigo-50/30 p-4">
+                <div className="flex-1 overflow-y-auto relative z-0 bg-indigo-50/30 p-4">
                     {rightPanel}
                 </div>
             </div>
         </div>
     );
 }
+
 

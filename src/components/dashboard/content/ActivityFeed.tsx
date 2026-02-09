@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { ActivityEvent } from '@/lib/services/activity.service';
 import { Activity, Clock, CheckCircle2, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -8,7 +8,7 @@ const EVENT_CONFIG = {
         icon: CheckCircle2,
         color: 'text-green-600',
         bgColor: 'bg-green-100',
-        label: 'Задача выполнена'
+        label: 'Задача создана'
     },
     task_completed: {
         icon: CheckCircle2,
@@ -60,7 +60,6 @@ export function ActivityFeed({ events, loading }: ActivityFeedProps) {
         return name.split(' ').map(w => w[0]?.toUpperCase() || '').join('').slice(0, 2) || '??';
     };
 
-    // Grouping
     const groupedEvents = events.reduce((acc, event) => {
         const dateKey = new Date(event.event_time).toDateString();
         if (!acc[dateKey]) acc[dateKey] = [];
@@ -104,7 +103,6 @@ export function ActivityFeed({ events, loading }: ActivityFeedProps) {
                                     return (
                                         <div key={event.activity_id} className="group px-6 py-4 hover:bg-gradient-to-r hover:from-blue-50/30 hover:to-indigo-50/30 transition-all duration-200">
                                             <div className="flex gap-4">
-                                                {/* Avatar */}
                                                 <div className="flex-shrink-0 mt-1">
                                                     {event.user_photo ? (
                                                         <img
@@ -119,7 +117,6 @@ export function ActivityFeed({ events, loading }: ActivityFeedProps) {
                                                     )}
                                                 </div>
 
-                                                {/* Content */}
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between gap-4 mb-1">
                                                         <div className="flex items-center gap-2 min-w-0">
@@ -135,10 +132,9 @@ export function ActivityFeed({ events, loading }: ActivityFeedProps) {
                                                         </span>
                                                     </div>
 
-                                                    {/* Activity Type Badge */}
                                                     <div className="flex items-center gap-1.5 mb-2">
-                                                        <div className={cn("p-1 rounded-md", config.bgColor)}>
-                                                            <Icon className={cn("h-3 w-3", config.color)} />
+                                                        <div className={cn('p-1 rounded-md', config.bgColor)}>
+                                                            <Icon className={cn('h-3 w-3', config.color)} />
                                                         </div>
                                                         <span className="text-xs font-semibold text-slate-600">{config.label}</span>
                                                     </div>
@@ -147,7 +143,6 @@ export function ActivityFeed({ events, loading }: ActivityFeedProps) {
                                                         {event.event_description}
                                                     </p>
 
-                                                    {/* Tags */}
                                                     {((event.spent_hours ?? 0) > 0 || event.plan_name) && (
                                                         <div className="mt-3 flex items-center gap-2 flex-wrap">
                                                             {(event.spent_hours ?? 0) > 0 && (

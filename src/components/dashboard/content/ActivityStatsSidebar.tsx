@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Clock, CheckCircle2, Users, TrendingUp, Brain, Loader2, ThumbsUp, AlertTriangle, RefreshCw, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -41,13 +41,10 @@ export function ActivityStatsSidebar({
     hasEvents,
     selectedPeriodLabel
 }: ActivityStatsSidebarProps) {
-
     return (
         <div className="space-y-6">
-            {/* Stats Grid - Vertical Layout for Sidebar */}
             {stats && (
                 <div className="grid grid-cols-2 gap-4">
-                    {/* Hours */}
                     <div className="glass-card p-4 rounded-3xl border border-white/40 bg-white/60 backdrop-blur-xl shadow-sm hover:shadow-md transition-all duration-300 group">
                         <div className="flex items-center gap-3 mb-2">
                             <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform duration-300">
@@ -63,7 +60,6 @@ export function ActivityStatsSidebar({
                         </div>
                     </div>
 
-                    {/* Tasks */}
                     <div className="glass-card p-4 rounded-3xl border border-white/40 bg-white/60 backdrop-blur-xl shadow-sm hover:shadow-md transition-all duration-300 group">
                         <div className="flex items-center gap-3 mb-2">
                             <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform duration-300">
@@ -79,7 +75,6 @@ export function ActivityStatsSidebar({
                         </div>
                     </div>
 
-                    {/* Active */}
                     <div className="glass-card p-4 rounded-3xl border border-white/40 bg-white/60 backdrop-blur-xl shadow-sm hover:shadow-md transition-all duration-300 group">
                         <div className="flex items-center gap-3 mb-2">
                             <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform duration-300">
@@ -95,7 +90,6 @@ export function ActivityStatsSidebar({
                         </div>
                     </div>
 
-                    {/* Average */}
                     <div className="glass-card p-4 rounded-3xl border border-white/40 bg-white/60 backdrop-blur-xl shadow-sm hover:shadow-md transition-all duration-300 group">
                         <div className="flex items-center gap-3 mb-2">
                             <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform duration-300">
@@ -113,7 +107,6 @@ export function ActivityStatsSidebar({
                 </div>
             )}
 
-            {/* AI Analysis Panel */}
             {canSeeAI && (
                 <div className="glass-card rounded-3xl border border-amber-200/50 bg-amber-50/40 backdrop-blur-md overflow-hidden shadow-sm">
                     <div className="px-6 py-4 flex items-center justify-between gap-4 border-b border-amber-100/50">
@@ -141,9 +134,9 @@ export function ActivityStatsSidebar({
                                     }}
                                     disabled={!hasEvents}
                                     className={cn(
-                                        "px-3 py-1.5 text-xs font-bold rounded-xl transition-all shadow-sm",
-                                        "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-amber-500/25 hover:scale-[1.02]",
-                                        !hasEvents && "opacity-50 cursor-not-allowed"
+                                        'px-3 py-1.5 text-xs font-bold rounded-xl transition-all shadow-sm',
+                                        'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-amber-500/25 hover:scale-[1.02]',
+                                        !hasEvents && 'opacity-50 cursor-not-allowed'
                                     )}
                                 >
                                     Анализ
@@ -165,7 +158,7 @@ export function ActivityStatsSidebar({
                                     onClick={() => setShowAiPanel(!showAiPanel)}
                                     className="p-2 text-amber-600 hover:bg-amber-100/50 rounded-xl transition-colors"
                                 >
-                                    <ChevronDown className={cn("h-4 w-4 transition-transform", showAiPanel && "rotate-180")} />
+                                    <ChevronDown className={cn('h-4 w-4 transition-transform', showAiPanel && 'rotate-180')} />
                                 </button>
                             )}
                         </div>
@@ -192,10 +185,10 @@ export function ActivityStatsSidebar({
                                                     <div
                                                         key={idx}
                                                         className={cn(
-                                                            "flex items-start gap-3 p-3 rounded-2xl border transition-all",
-                                                            insight.type === 'positive' && "bg-green-50/50 border-green-100 text-green-800",
-                                                            insight.type === 'warning' && "bg-amber-50/50 border-amber-100 text-amber-800",
-                                                            insight.type === 'neutral' && "bg-slate-50/50 border-slate-100 text-slate-700"
+                                                            'flex items-start gap-3 p-3 rounded-2xl border transition-all',
+                                                            insight.type === 'positive' && 'bg-green-50/50 border-green-100 text-green-800',
+                                                            insight.type === 'warning' && 'bg-amber-50/50 border-amber-100 text-amber-800',
+                                                            insight.type === 'neutral' && 'bg-slate-50/50 border-slate-100 text-slate-700'
                                                         )}
                                                     >
                                                         {insight.type === 'positive' && <ThumbsUp className="h-4 w-4 mt-0.5 flex-shrink-0" />}
