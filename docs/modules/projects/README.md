@@ -1,162 +1,56 @@
-# Модуль "Проекти"
+﻿# Модуль проектов
 
-> Дата створення: 2026-02-06
+> Последнее обновление: 2026-02-11
 
-## Призначення
+## 1. Назначение
 
-Модуль "Проекти" дозволяє тегувати задачі зовнішніми проектами/замовленнями для групування та звітності.
+Проекты — опциональные теги задач для внешних и внутренних инициатив.
 
-**Проект** - це робота за зовнішнім замовленням, яка може охоплювати декілька департаментів.
+Цели модуля:
 
-## Архітектура
+- вести справочник проектов
+- связывать проекты с департаментами (M:N)
+- давать выбор проекта в форме задачи
 
-### База даних
+## 2. Модель данных
 
-```
-projects                        -- Довідник проектів
-    project_id (PK)
-    project_name
-    description
-    is_active (default true)
-    created_by (FK user_profiles)
-    created_at
-    updated_at
+- `projects`
+- `project_departments`
+- `daily_tasks.project_id` (опциональный FK)
+- `v_projects_with_departments` (модель чтения)
 
-project_departments             -- M:N зв'язок з департаментами
-    project_id (FK)
-    department_id (FK)
-    PRIMARY KEY (project_id, department_id)
+См. также:
 
-daily_tasks
-    project_id (FK, optional)   -- Опціональна прив'язка задачі до проекту
-```
+- `docs/database/SCHEMA.md`
+- `docs/database/TABLES_USAGE.md`
 
-### View
+## 3. Основной код
 
-`v_projects_with_departments` - агрегує дані з department_ids та department_names масивами.
+- hooks: `src/hooks/useProjects.ts`
+  - `useProjects()`
+  - `useProjectsForTask(userDepartmentId)`
+- UI справочников:
+  - `src/components/dashboard/content/references/ProjectsReferenceContent.tsx`
+- интеграция в форму задач:
+  - `src/components/dashboard/Tasks/AddTaskModal.tsx`
 
-## Компоненти
+## 4. Функциональное поведение
 
-### UI Компоненти
+1. CRUD проектов в разделе справочников
+2. один проект может быть связан с несколькими департаментами
+3. Выпадающий список в задаче показывает активные проекты, отфильтрованные по департаменту пользователя
+4. `project_id` в задаче остается необязательным
 
-| Компонент | Файл | Опис |
-|-----------|------|------|
-| ProjectsReferenceContent | `ReferencesContent.tsx` | Two-panel layout для CRUD проектів |
-| Project Form | Inline в правій панелі | Форма створення/редагування |
-| Project Dropdown | `AddTaskModal.tsx` | Вибір проекту при створенні задачі |
+## 5. Модель доступа
 
-### Хуки
+- чтение: авторизованные пользователи
+- создание/изменение/удаление: ограничение в UI по ролям (`chief`, `head`)
+- доступ на стороне БД подчиняется текущей RLS и миграциям
 
-| Хук | Файл | Опис |
-|-----|------|------|
-| `useProjects` | `src/hooks/useProjects.ts` | CRUD операції з проектами |
-| `useProjectsForTask` | `src/hooks/useProjects.ts` | Отримання проектів для dropdown (фільтр по департаменту) |
+## 6. Миграции
 
-### Типи
+- `supabase/migrations/20260206_add_projects.sql`
+- `supabase/migrations/20260206_fix_projects_rls.sql`
 
-```typescript
-// src/types/projects.ts
 
-interface Project {
-  project_id: string;
-  project_name: string;
-  description: string | null;
-  is_active: boolean;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
 
-interface ProjectWithDepartments extends Project {
-  department_ids: string[];
-  department_names: string[];
-}
-
-interface ProjectOption {
-  project_id: string;
-  project_name: string;
-  description: string | null;
-}
-```
-
-## Логіка доступу
-
-### Перегляд
-- Всі авторизовані користувачі можуть переглядати проекти
-
-### Управління (CRUD)
-- Тільки `chief` та `head` можуть створювати/редагувати проекти
-- Перевірка ролі на рівні UI
-
-### Фільтрація для задач
-- В AddTaskModal відображаються тільки активні проекти
-- Фільтрація по департаменту користувача (M:N зв'язок)
-
-## Використання
-
-### Створення проекту
-
-1. Перейти до **Справочники** → **Проекти**
-2. Натиснути "Додати"
-3. Заповнити форму в правій панелі:
-   - Назва (обов'язково)
-   - Опис (опціонально)
-   - Вибрати департаменти (checkbox list)
-   - Активний (checkbox)
-4. Натиснути "Створити"
-
-### Прив'язка задачі до проекту
-
-1. При створенні/редагуванні задачі в AddTaskModal
-2. Вибрати проект з dropdown "Проект (опціонально)"
-3. Зберегти задачу
-
-### Фільтрація задач по проекту
-
-> TODO: Реалізувати фільтрацію в звітах
-
-## RLS Policies
-
-```sql
--- Всі можуть читати
-CREATE POLICY "Projects viewable by all authenticated" ON projects
-  FOR SELECT TO authenticated USING (true);
-
--- Всі можуть редагувати (перевірка ролей на UI)
-CREATE POLICY "Projects full access" ON projects
-  FOR ALL TO authenticated, anon
-  USING (true) WITH CHECK (true);
-```
-
-**Примітка:** RLS policies спрощені тому що `auth.uid()` не працює з Azure AD авторизацією.
-
-## Міграції
-
-| Файл | Опис |
-|------|------|
-| `20260206_add_projects.sql` | Основна міграція - таблиці, view, trigger, RLS |
-| `20260206_fix_projects_rls.sql` | Фікс RLS для Azure AD |
-
-## Типові помилки
-
-### Помилка створення проекту (пустий об'єкт {})
-
-**Причина:** RLS policy блокує INSERT
-**Рішення:** Виконати `20260206_fix_projects_rls.sql`
-
-### Dropdown проектів не відображається
-
-**Причина:**
-1. Не передано `userDepartmentId` в AddTaskModal
-2. Немає активних проектів для департаменту користувача
-
-**Рішення:**
-1. Переконатись що `userDepartmentId={user.department_id}` передається
-2. Створити проект з прив'язкою до потрібного департаменту
-
-## Майбутні покращення
-
-- [ ] Фільтрація задач по проекту в WorkLogViewer
-- [ ] Звітність по проектах
-- [ ] Статистика годин по проектах
-- [ ] Архівування проектів (soft delete)
