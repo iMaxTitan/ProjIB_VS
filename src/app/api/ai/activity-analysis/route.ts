@@ -6,19 +6,6 @@ import logger from '@/lib/logger';
 const AI_ROUTE_LIMIT = 20;
 const AI_ROUTE_WINDOW_MS = 60_000;
 
-interface ActivityEvent {
-  activity_id: string;
-  event_type: 'task_created' | 'task_completed' | 'plan_created';
-  event_time: string;
-  user_id: string;
-  user_name: string;
-  department_name: string;
-  event_description: string;
-  spent_hours: number | null;
-  plan_name: string;
-  process_name: string | null;
-}
-
 interface ActivityStats {
   totalHours: number;
   totalTasks: number;
@@ -70,7 +57,6 @@ interface AIContext {
 }
 
 interface RequestBody {
-  events: ActivityEvent[];
   stats: ActivityStats | null;
   context?: AIContext;
   userRole: string;
@@ -97,27 +83,10 @@ const SYSTEM_PROMPT = `Ты аналитик активности команды
 - Указывай тренды в процентах, если есть данные сравнения.
 - Не добавляй markdown и пояснения вне JSON.`;
 
-function mockAnalysis(events: ActivityEvent[], stats: ActivityStats | null, context?: AIContext): AIAnalysis {
-  const userStats: Record<string, { hours: number; tasks: number; name: string; dept: string }> = {};
-
-  for (const e of events) {
-    if (!userStats[e.user_id]) {
-      userStats[e.user_id] = { hours: 0, tasks: 0, name: e.user_name, dept: e.department_name };
-    }
-    userStats[e.user_id].tasks += 1;
-    userStats[e.user_id].hours += e.spent_hours || 0;
-  }
-
-  const users = Object.values(userStats);
-  const avgHours = users.length > 0 ? users.reduce((s, u) => s + u.hours, 0) / users.length : 0;
+function mockAnalysis(stats: ActivityStats | null, context?: AIContext): AIAnalysis {
   const top = (context?.topPerformers || [])
     .slice(0, 5)
     .map(p => `${p.name} (${p.department}): ${p.hours}ч, ${p.tasks} задач`);
-
-  const topFallback = users
-    .sort((a, b) => b.hours - a.hours)
-    .slice(0, 5)
-    .map(u => `${u.name} (${u.dept}): ${u.hours.toFixed(1)}ч, ${u.tasks} задач`);
 
   const insights: AIAnalysis['insights'] = [];
   if (context) {
@@ -133,11 +102,9 @@ function mockAnalysis(events: ActivityEvent[], stats: ActivityStats | null, cont
     insights.push({ type: 'warning', text: `Активны ${stats.activeUsers} из ${stats.totalUsers} сотрудников` });
   }
 
-  const vague = events.filter(e => e.event_description.trim().length < 20);
-  const concerns: string[] = [];
-  if (vague.length > Math.ceil(events.length * 0.3)) {
-    concerns.push(`Много неконкретных описаний задач: ${vague.length}`);
-  }
+  const avgHours = context
+    ? context.current.avgHoursPerUser
+    : (stats && stats.activeUsers > 0 ? stats.totalHours / stats.activeUsers : 0);
 
   const summary = stats
     ? `За период: ${stats.totalHours}ч, ${stats.totalTasks} задач, активны ${stats.activeUsers} из ${stats.totalUsers}. Средняя нагрузка: ${avgHours.toFixed(1)}ч/сотрудника.`
@@ -146,8 +113,8 @@ function mockAnalysis(events: ActivityEvent[], stats: ActivityStats | null, cont
   return {
     summary,
     insights,
-    topPerformers: top.length > 0 ? top : topFallback,
-    concerns,
+    topPerformers: top,
+    concerns: [],
   };
 }
 
@@ -190,9 +157,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body: RequestBody = await request.json();
-    const { events, stats, context, userRole, daysBack } = body;
+    const { stats, context, userRole, daysBack } = body;
 
-    if (!events || events.length === 0) {
+    if (!context && (!stats || stats.totalTasks === 0)) {
       return NextResponse.json({
         analysis: {
           summary: 'Нет данных для анализа за выбранный период.',
@@ -221,10 +188,6 @@ ${context.departmentStats.map(d => `- ${d.name}: ${d.hours}ч, ${d.tasks} зад
 ${context.topPerformers.map((p, i) => `${i + 1}. ${p.name} (${p.department}): ${p.hours}ч, ${p.tasks} задач`).join('\n')}`
       : '';
 
-    const sampleEvents = events.slice(0, 30).map(e =>
-      `- ${e.user_name} [${e.department_name}] ${e.spent_hours || 0}ч: ${e.event_description}`
-    ).join('\n');
-
     const prompt = `Проанализируй активность команды ИБ за ${periodName}.
 Период: ${context?.periodInfo?.startDate || ''} - ${context?.periodInfo?.endDate || ''}
 Роль запросившего: ${userRole}
@@ -234,21 +197,17 @@ ${context.topPerformers.map((p, i) => `${i + 1}. ${p.name} (${p.department}): ${
 - Всего задач: ${stats?.totalTasks || 0}
 - Активных сотрудников: ${stats?.activeUsers || 0} из ${stats?.totalUsers || 0}
 - Сегодня: ${stats?.todayHours || 0}ч, ${stats?.todayTasks || 0} задач
-${contextBlock}
-
-Примеры событий:
-${sampleEvents}`;
+${contextBlock}`;
 
     let analysis: AIAnalysis;
 
     try {
-      let aiResponse: string;
       if (!hasConfiguredAIProvider()) {
-        analysis = mockAnalysis(events, stats, context);
+        analysis = mockAnalysis(stats, context);
         return NextResponse.json({ analysis });
       }
 
-      aiResponse = await generateAIText({
+      const aiResponse = await generateAIText({
         systemPrompt: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: prompt }],
         maxTokens: 1000,
@@ -266,7 +225,7 @@ ${sampleEvents}`;
       analysis = normalizeAnalysis(JSON.parse(jsonMatch[0]));
     } catch (aiError: unknown) {
       logger.error('AI error, using fallback:', aiError);
-      analysis = mockAnalysis(events, stats, context);
+      analysis = mockAnalysis(stats, context);
     }
 
     return NextResponse.json({ analysis });

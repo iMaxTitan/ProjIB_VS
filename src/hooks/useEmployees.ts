@@ -1,8 +1,9 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
-import { SupabaseUserInfo, UserStatus } from '@/types/supabase';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { employeesQueryOptions } from '@/lib/queries/reference-queries';
+import { SupabaseUserInfo } from '@/types/supabase';
 
 export type StatusFilter = 'all' | 'active' | 'vacation' | 'absent';
 
@@ -35,62 +36,35 @@ interface UseEmployeesReturn {
 }
 
 export function useEmployees(): UseEmployeesReturn {
-  const [employees, setEmployees] = useState<SupabaseUserInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { data: employees = [], isLoading: loading, error: queryError } = useQuery(employeesQueryOptions);
+  const error = queryError ? (queryError instanceof Error ? queryError.message : String(queryError)) : null;
+
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedDepartments, setExpandedDepartments] = useState<Record<string, boolean>>({});
 
-  // Загрузка сотрудников
-  const fetchEmployees = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const { data, error: fetchError } = await supabase
-        .from('v_user_details')
-        .select('*');
-
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      if (data) {
-        const employeesWithStatus = data.map(emp => ({
-          ...emp,
-          status: emp.status || 'active'
-        }));
-        setEmployees(employeesWithStatus);
-
-        // По умолчанию сворачиваем все отделы
+  // Инициализация expandedDepartments при первом получении данных
+  useEffect(() => {
+    if (employees.length > 0) {
+      setExpandedDepartments(prev => {
         const depts: Record<string, boolean> = {};
-        employeesWithStatus.forEach(emp => {
+        employees.forEach(emp => {
           if (emp.department_name) {
             depts[emp.department_name] = false;
           }
         });
-        setExpandedDepartments(prev => {
-          // Сохраняем существующие состояния
-          const merged = { ...depts };
-          Object.keys(prev).forEach(key => {
-            if (key in merged) {
-              merged[key] = prev[key];
-            }
-          });
-          return merged;
+        // Сохраняем существующие состояния
+        const merged = { ...depts };
+        Object.keys(prev).forEach(key => {
+          if (key in merged) {
+            merged[key] = prev[key];
+          }
         });
-      }
-    } catch (err: unknown) {
-      setError('Не удалось загрузить данные о сотрудниках');
-    } finally {
-      setLoading(false);
+        return merged;
+      });
     }
-  }, []);
-
-  useEffect(() => {
-    fetchEmployees();
-  }, [fetchEmployees]);
+  }, [employees]);
 
   // Фильтрация сотрудников
   const filteredEmployees = useMemo(() => {
@@ -130,13 +104,10 @@ export function useEmployees(): UseEmployeesReturn {
     // Сортировка сотрудников внутри отделов: сначала начальники, потом по имени
     Object.keys(grouped).forEach(dept => {
       grouped[dept].sort((a, b) => {
-        // Сначала по роли
         const roleOrder = { chief: 0, head: 1, employee: 2 };
         const roleA = roleOrder[a.role as keyof typeof roleOrder] ?? 2;
         const roleB = roleOrder[b.role as keyof typeof roleOrder] ?? 2;
         if (roleA !== roleB) return roleA - roleB;
-
-        // Потом по имени
         return (a.full_name || '').localeCompare(b.full_name || '', 'ru');
       });
     });
@@ -177,18 +148,26 @@ export function useEmployees(): UseEmployeesReturn {
     setExpandedDepartments(all);
   }, [departments]);
 
-  // Обработчик добавления/обновления сотрудника
+  // Оптимистичное обновление
   const handleEmployeeUpserted = useCallback((employee: SupabaseUserInfo) => {
-    setEmployees(prev => {
-      const existingIndex = prev.findIndex(emp => emp.user_id === employee.user_id);
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = employee;
-        return updated;
+    queryClient.setQueryData<SupabaseUserInfo[]>(
+      ['employees'],
+      (prev) => {
+        if (!prev) return [employee];
+        const existingIndex = prev.findIndex(emp => emp.user_id === employee.user_id);
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = employee;
+          return updated;
+        }
+        return [...prev, employee];
       }
-      return [...prev, employee];
-    });
-  }, []);
+    );
+  }, [queryClient]);
+
+  const refreshEmployees = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['employees'] });
+  }, [queryClient]);
 
   return {
     employees,
@@ -205,8 +184,7 @@ export function useEmployees(): UseEmployeesReturn {
     toggleDepartment,
     expandAll,
     collapseAll,
-    refreshEmployees: fetchEmployees,
+    refreshEmployees,
     handleEmployeeUpserted,
   };
 }
-

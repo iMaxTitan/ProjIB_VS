@@ -67,6 +67,6 @@ export const SHAREPOINT_SCOPES = sharePointScopes;
 export const ROUTES = {
   LOGIN: '/login',
   CALLBACK: '/auth/callback',
-  DASHBOARD: '/dashboard',
+  DASHBOARD: '/',
   HOME: '/'
 };

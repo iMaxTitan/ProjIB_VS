@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { UserInfo } from '@/types/azure';
 import { logout } from '@/lib/auth';
 import { usePresence } from '@/hooks/usePresence';
+import { useAuthRefresh } from '@/hooks/useAuthRefresh';
 import ActiveUsersList from '@/components/ActiveUsersList';
 import logger from '@/lib/logger';
 
@@ -17,6 +19,8 @@ export default function DashboardHeader({ user, onLogout }: DashboardHeaderProps
 
   // Отслеживаем активных пользователей
   const activeUsers = usePresence(user);
+  // JWT refresh — отвязан от presence
+  useAuthRefresh(!!user);
 
   // Функция для получения инициалов пользователя (если нет фото)
   const getInitials = (name: string) => {
@@ -116,9 +120,12 @@ export default function DashboardHeader({ user, onLogout }: DashboardHeaderProps
                     className="p-0.5 bg-white/20 backdrop-blur-sm rounded-full hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
                   >
                     {getUserPhoto() ? (
-                      <img
+                      <Image
                         src={getUserPhoto() as string}
                         alt={user.displayName}
+                        width={32}
+                        height={32}
+                        unoptimized
                         className="h-8 w-8 rounded-full object-cover"
                       />
                     ) : (
@@ -132,7 +139,7 @@ export default function DashboardHeader({ user, onLogout }: DashboardHeaderProps
                   <div
                     ref={menuRef}
                     onMouseLeave={handleMouseLeave}
-                    className={`absolute right-0 w-48 mt-2 py-2 bg-white rounded-lg shadow-xl z-10 transform transition-all duration-200 ease-in-out ${menuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
+                    className={`absolute right-0 w-48 mt-2 py-2 bg-white rounded-lg shadow-xl z-10 transform transition-[transform,opacity] duration-200 ease-in-out ${menuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
                   >
                     <div className="px-4 py-2 border-b border-gray-100">
                       <p className="text-sm font-medium text-gray-700">{user.displayName}</p>
@@ -160,4 +167,3 @@ export default function DashboardHeader({ user, onLogout }: DashboardHeaderProps
     </header>
   );
 }
-

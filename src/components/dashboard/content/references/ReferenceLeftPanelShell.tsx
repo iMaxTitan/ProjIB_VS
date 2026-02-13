@@ -2,13 +2,13 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { Spinner } from '@/components/ui/Spinner';
 
 interface ReferenceLeftPanelShellProps {
   tabsSlot?: React.ReactNode;
   loading: boolean;
   error: string | null;
   isEmpty: boolean;
-  loadingColorClass?: string;
   emptyState: React.ReactNode;
   body: React.ReactNode;
   footer: React.ReactNode;
@@ -20,7 +20,6 @@ export default function ReferenceLeftPanelShell({
   loading,
   error,
   isEmpty,
-  loadingColorClass = 'border-indigo-500',
   emptyState,
   body,
   footer,
@@ -33,7 +32,7 @@ export default function ReferenceLeftPanelShell({
       <div className={cn('flex-1 overflow-y-auto overscroll-contain p-2 sm:p-3', bodyClassName)}>
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className={cn('animate-spin rounded-full h-8 w-8 border-b-2', loadingColorClass)} />
+            <Spinner />
           </div>
         ) : error ? (
           <div className="text-center py-12 text-red-500">

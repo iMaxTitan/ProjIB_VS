@@ -4,7 +4,8 @@ import { useState, useCallback, useEffect } from 'react';
 import {
   getCompaniesWithInfrastructure,
   getCompanyInfrastructureHistory,
-  manageInfrastructure
+  manageInfrastructure,
+  updateCompanyDetails as updateCompanyDetailsService
 } from '@/lib/services/infrastructure.service';
 import type {
   CompanyWithInfrastructure,
@@ -34,6 +35,13 @@ export interface UseInfrastructureResult {
   loadHistory: (companyId: string) => Promise<void>;
   saveInfrastructure: (params: InfrastructureParams) => Promise<boolean>;
   deleteInfrastructure: (infrastructureId: string, userId: string) => Promise<boolean>;
+  updateCompanyDetails: (companyId: string, data: {
+    company_full_name?: string | null;
+    director?: string | null;
+    contract_number?: string | null;
+    contract_date?: string | null;
+    rate_per_hour?: number | null;
+  }) => Promise<boolean>;
 }
 
 export function useInfrastructure(): UseInfrastructureResult {
@@ -145,6 +153,29 @@ export function useInfrastructure(): UseInfrastructureResult {
     }
   }, [refresh, loadHistory, selectedCompanyId]);
 
+  // Обновление реквизитов предприятия
+  const updateCompanyDetails = useCallback(async (
+    companyId: string,
+    data: {
+      company_full_name?: string | null;
+      director?: string | null;
+      contract_number?: string | null;
+      contract_date?: string | null;
+      rate_per_hour?: number | null;
+    }
+  ): Promise<boolean> => {
+    try {
+      setError(null);
+      await updateCompanyDetailsService(companyId, data);
+      await refresh();
+      return true;
+    } catch (err: unknown) {
+      logger.error('Ошибка при обновлении реквизитов:', err);
+      setError(getErrorMessage(err, 'Ошибка обновления реквизитов'));
+      return false;
+    }
+  }, [refresh]);
+
   // Начальная загрузка
   useEffect(() => {
     refresh();
@@ -162,7 +193,8 @@ export function useInfrastructure(): UseInfrastructureResult {
     selectCompany,
     loadHistory,
     saveInfrastructure,
-    deleteInfrastructure
+    deleteInfrastructure,
+    updateCompanyDetails
   };
 }
 

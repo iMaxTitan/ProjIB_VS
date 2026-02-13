@@ -1,6 +1,7 @@
 ﻿import React, { useState, useRef, useCallback } from 'react';
 import { Upload, FileText, X, Loader2, CheckCircle, AlertCircle, Sparkles } from 'lucide-react';
 import { GraphSharePointService } from '@/services/graph';
+import { extractDocumentNumberFromText } from '@/lib/utils/document-number';
 import { getErrorMessage } from '@/lib/utils/error-message';
 import logger from '@/lib/logger';
 
@@ -17,29 +18,24 @@ interface TaskFileUploadProps {
 
 type UploadStatus = 'idle' | 'uploading' | 'extracting' | 'success' | 'error';
 
-// Извлечь номер СЗ из текста документа
-const extractDocumentNumberFromText = (text: string): string | null => {
-  // Форматы номеров СЗ:
-  // "Регистрационный № 123/2026", "Регистрационный №123"
-  // "СЗ-123/2026", "СЗ №123", "№ СЗ-123"
-  const patterns = [
-    /Регистрацион(?:ный|ний)\s*№\s*:?\s*([^\n\r,;]+)/i,
-    /СЗ[-\s]*№?\s*:?\s*([^\n\r,;]+)/i,
-    /№\s*СЗ[-\s]*:?\s*([^\n\r,;]+)/i,
-    /Служебн(?:ая|а)\s+записк(?:а|а)\s*№?\s*:?\s*([^\n\r,;]+)/i,
-  ];
+/** Извлечь текст из .doc через серверный API (word-extractor) */
+async function extractTextFromDoc(file: File): Promise<{ text: string; documentNumber: string | null }> {
+  const formData = new FormData();
+  formData.append('file', file);
 
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match) {
-      // Очищаем от лишних пробелов и двоеточий в начале
-      let result = match[1].trim();
-      result = result.replace(/^[:\s]+/, ''); // Убираем : и пробелы в начале
-      return result.substring(0, 50); // Ограничиваем длину
-    }
+  const response = await fetch('/api/files/extract-text', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) throw new Error('Слишком много запросов. Подождите минуту.');
+    if (response.status === 413) throw new Error('Файл слишком большой (макс. 20MB).');
+    throw new Error('Ошибка извлечения текста');
   }
-  return null;
-};
+
+  return response.json();
+}
 
 const TaskFileUpload: React.FC<TaskFileUploadProps> = ({
   documentNumber,
@@ -81,24 +77,33 @@ const TaskFileUpload: React.FC<TaskFileUploadProps> = ({
     let folderDocNumber = documentNumber;
 
     try {
-      // Шаг 1: извлекаем текст из DOCX (если это Word)
-      if (isDocx && onTextExtracted) {
+      // Шаг 1: извлекаем текст из Word-документа
+      if ((isDocx || isDoc) && onTextExtracted) {
         setStatus('extracting');
         logger.log('[FileUpload] Начинаем извлечение текста из:', file.name);
         try {
-          const text = await GraphSharePointService.extractTextFromFile(file);
+          let text: string | null = null;
+          let docNum: string | null = null;
+
+          if (isDoc) {
+            // .doc → серверный API (word-extractor)
+            const result = await extractTextFromDoc(file);
+            text = result.text || null;
+            docNum = result.documentNumber;
+          } else {
+            // .docx → клиентский парсинг (JSZip)
+            text = await GraphSharePointService.extractTextFromFile(file);
+            if (text) docNum = extractDocumentNumberFromText(text);
+          }
+
           logger.log('[FileUpload] Результат извлечения:', text ? `${text.length} символов` : 'пусто');
           if (text && text.length > 0) {
             setExtractedText(text);
             onTextExtracted(text);
 
-            // Автоматически извлекаем номер СЗ из текста
-            const docNum = extractDocumentNumberFromText(text);
             if (docNum) {
               logger.log('[FileUpload] Найден номер СЗ:', docNum);
-              // Используем извлеченный номер для папки
               folderDocNumber = docNum;
-              // Уведомляем родительский компонент
               if (onDocumentNumberExtracted) {
                 onDocumentNumberExtracted(docNum);
               }
@@ -112,10 +117,6 @@ const TaskFileUpload: React.FC<TaskFileUploadProps> = ({
           setExtractionFailed(true);
           // Продолжаем загрузку, даже если извлечение не удалось
         }
-      } else if (isDoc) {
-        // Старый формат .doc не поддерживается
-        setExtractionFailed(true);
-        logger.warn('[FileUpload] Формат .doc не поддерживает извлечение текста');
       }
 
       // Шаг 2: загружаем файл в SharePoint (используем извлеченный номер СЗ)
@@ -146,7 +147,7 @@ const TaskFileUpload: React.FC<TaskFileUploadProps> = ({
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  }, [documentNumber, taskId, completedAt, onUploadComplete, onTextExtracted]);
+  }, [documentNumber, taskId, completedAt, onUploadComplete, onTextExtracted, onDocumentNumberExtracted]);
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -329,7 +330,7 @@ const TaskFileUpload: React.FC<TaskFileUploadProps> = ({
           <div className="flex items-center gap-2 text-amber-700">
             <AlertCircle className="w-4 h-4" />
             <span className="text-xs">
-              Не удалось извлечь текст. Возможно, файл в формате .doc (используйте .docx) или защищен.
+              Не удалось извлечь текст. Возможно, файл поврежден или защищен паролем.
             </span>
           </div>
         </div>

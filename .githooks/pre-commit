@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+
+echo "[pre-commit] Running UTF-8 encoding check..."
+npm run check:encoding
+status=$?
+
+if [ $status -ne 0 ]; then
+  echo "[pre-commit] Commit blocked: non-UTF-8 files detected."
+  exit $status
+fi
+
+echo "[pre-commit] Encoding check passed."
+exit 0
+

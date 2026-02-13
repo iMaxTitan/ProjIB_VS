@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
-import { AnnualPlan, QuarterlyPlan, PlanStatus } from '@/types/planning';
+import { AnnualPlan, QuarterlyPlan, MonthlyPlan, PlanStatus } from '@/types/planning';
 import { UserInfo } from '@/types/azure';
 
 export function usePlanFilters(
     annualPlans: AnnualPlan[],
     quarterlyPlans: QuarterlyPlan[],
+    monthlyPlans: MonthlyPlan[],
     selectedYear: number | null,
     selectedQuarter: number | null,
     user?: UserInfo | null
@@ -12,7 +13,7 @@ export function usePlanFilters(
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<PlanStatus | null>(null);
 
-    // Head видит только планы своего отдела для квартальных
+    // Head видит только планы своего отдела для квартальных и месячных
     const isHead = user?.role === 'head';
     const userDepartmentId = user?.department_id;
 
@@ -54,12 +55,22 @@ export function usePlanFilters(
         });
     }, [quarterlyPlans, isHead, userDepartmentId, selectedYear, selectedQuarter, searchQuery, statusFilter, annualPlanIdsForYear]);
 
+    // Фильтрация месячных планов (мемоизирована)
+    // Head видит только месячные планы своего отдела
+    const filteredMonthlyPlans = useMemo(() => {
+        return monthlyPlans.filter(plan => {
+            const matchesDepartment = !isHead || !userDepartmentId || plan.department_id === userDepartmentId;
+            return matchesDepartment;
+        });
+    }, [monthlyPlans, isHead, userDepartmentId]);
+
     return {
         searchQuery,
         setSearchQuery,
         statusFilter,
         setStatusFilter,
         filteredAnnualPlans,
-        filteredQuarterlyPlans
+        filteredQuarterlyPlans,
+        filteredMonthlyPlans
     };
 }

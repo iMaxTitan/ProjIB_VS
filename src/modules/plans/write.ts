@@ -56,7 +56,7 @@ export async function manageMonthlyPlan(params: MonthlyPlanParams) {
   const {
     monthlyPlanId, quarterlyId, measureId, year, month,
     description, plannedHours, status, assignees, userId,
-    action = 'create'
+    distributionType, action = 'create'
   } = params;
 
   const isCreate = !monthlyPlanId || monthlyPlanId === 'new';
@@ -72,6 +72,22 @@ export async function manageMonthlyPlan(params: MonthlyPlanParams) {
   }
 
   if (isCreate) {
+    // Check for existing plan with same measure in this period (unique constraint guard)
+    if (measureId && quarterlyId) {
+      const { data: existing } = await supabase
+        .from('monthly_plans')
+        .select('monthly_plan_id')
+        .eq('quarterly_id', quarterlyId)
+        .eq('measure_id', measureId)
+        .eq('year', year)
+        .eq('month', month)
+        .maybeSingle();
+
+      if (existing) {
+        throw new Error('Мероприятие уже добавлено в этом месяце. Выберите другое.');
+      }
+    }
+
     const { data, error } = await supabase
       .from('monthly_plans')
       .insert({
@@ -82,7 +98,8 @@ export async function manageMonthlyPlan(params: MonthlyPlanParams) {
         description,
         planned_hours: plannedHours || 0,
         status,
-        created_by: userId
+        created_by: userId,
+        distribution_type: distributionType || 'even',
       })
       .select()
       .single();
@@ -100,6 +117,7 @@ export async function manageMonthlyPlan(params: MonthlyPlanParams) {
         description,
         planned_hours: plannedHours || 0,
         status,
+        distribution_type: distributionType || 'even',
         updated_at: new Date().toISOString()
       })
       .eq('monthly_plan_id', monthlyPlanId);

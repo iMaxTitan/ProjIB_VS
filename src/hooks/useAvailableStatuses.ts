@@ -30,7 +30,6 @@ interface UseAvailableStatusesOptions {
 export function useAvailableStatuses({
   user,
   currentStatus,
-  isEditMode = true,
   planType,
 }: UseAvailableStatusesOptions): PlanStatusInfo[] {
   return useMemo(() => {
@@ -53,7 +52,7 @@ export function useAvailableStatuses({
 
     // Фильтруем по допустимым переходам
     return statusList.filter(s => availableStatuses.has(s.value));
-  }, [user?.role, currentStatus, planType, isEditMode]);
+  }, [user?.role, currentStatus, planType]);
 }
 
 /**

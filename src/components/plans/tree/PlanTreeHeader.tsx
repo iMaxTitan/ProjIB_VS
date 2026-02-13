@@ -104,7 +104,7 @@ export default function PlanTreeHeader({
                         type="button"
                         onClick={() => onCreatePlan('annual')}
                         aria-label="Создать годовой план"
-                        className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-100/50 rounded-t-lg transition-all active:scale-95"
+                        className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-100/50 rounded-t-lg transition-colors active:scale-95"
                     >
                         <Plus className="h-3.5 w-3.5" />
                     </button>

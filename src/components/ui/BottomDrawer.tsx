@@ -364,7 +364,7 @@ export function BottomDrawer({
             aria-label="Потяните вниз для закрытия"
           >
             <div className={cn(
-              "w-10 h-1 rounded-full transition-all duration-200",
+              "w-10 h-1 rounded-full transition-[transform,opacity] duration-200",
               isDragging ? "w-14 bg-gray-400" : "bg-gray-300"
             )} />
           </div>

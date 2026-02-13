@@ -1,20 +1,22 @@
 import { supabase } from '@/lib/supabase';
 import type { DeleteCheckResult } from './types';
 
-export async function canDeleteAnnualPlan(annualId: string, userId: string): Promise<DeleteCheckResult> {
-  // Проверяем создателя
-  const { data: plan, error: planError } = await supabase
-    .from('annual_plans')
-    .select('user_id')
-    .eq('annual_id', annualId)
-    .single();
+export async function canDeleteAnnualPlan(annualId: string, userId: string, userRole?: string | null): Promise<DeleteCheckResult> {
+  // Шеф может удалять любые планы, остальные — только свои
+  if (userRole !== 'chief') {
+    const { data: plan, error: planError } = await supabase
+      .from('annual_plans')
+      .select('user_id')
+      .eq('annual_id', annualId)
+      .single();
 
-  if (planError || !plan) {
-    return { canDelete: false, reason: 'План не найден' };
-  }
+    if (planError || !plan) {
+      return { canDelete: false, reason: 'План не найден' };
+    }
 
-  if (plan.user_id !== userId) {
-    return { canDelete: false, reason: 'Удалить план может только его автор' };
+    if (plan.user_id !== userId) {
+      return { canDelete: false, reason: 'Удалить план может только его автор' };
+    }
   }
 
   // Проверяем наличие квартальных планов
@@ -37,8 +39,8 @@ export async function canDeleteAnnualPlan(annualId: string, userId: string): Pro
 /**
  * Удаление годового плана
  */
-export async function deleteAnnualPlan(annualId: string, userId: string): Promise<{ success: boolean; error?: string }> {
-  const check = await canDeleteAnnualPlan(annualId, userId);
+export async function deleteAnnualPlan(annualId: string, userId: string, userRole?: string | null): Promise<{ success: boolean; error?: string }> {
+  const check = await canDeleteAnnualPlan(annualId, userId, userRole);
   if (!check.canDelete) {
     return { success: false, error: check.reason };
   }
@@ -59,20 +61,32 @@ export async function deleteAnnualPlan(annualId: string, userId: string): Promis
  * Проверка возможности удаления квартального плана
  * Удалить можно только если нет связанных месячных планов
  */
-export async function canDeleteQuarterlyPlan(quarterlyId: string, userId: string): Promise<DeleteCheckResult> {
-  // Проверяем создателя
-  const { data: plan, error: planError } = await supabase
-    .from('quarterly_plans')
-    .select('created_by')
-    .eq('quarterly_id', quarterlyId)
-    .single();
+export async function canDeleteQuarterlyPlan(quarterlyId: string, userId: string, userRole?: string | null): Promise<DeleteCheckResult> {
+  // Шеф может удалять любые планы, остальные — только свои
+  if (userRole !== 'chief') {
+    const { data: plan, error: planError } = await supabase
+      .from('quarterly_plans')
+      .select('annual_plan_id')
+      .eq('quarterly_id', quarterlyId)
+      .single();
 
-  if (planError || !plan) {
-    return { canDelete: false, reason: 'План не найден' };
-  }
+    if (planError || !plan) {
+      return { canDelete: false, reason: 'План не найден' };
+    }
 
-  if (plan.created_by !== userId) {
-    return { canDelete: false, reason: 'Удалить план может только его автор' };
+    const { data: annualPlan, error: annualPlanError } = await supabase
+      .from('annual_plans')
+      .select('user_id')
+      .eq('annual_id', plan.annual_plan_id)
+      .single();
+
+    if (annualPlanError || !annualPlan) {
+      return { canDelete: false, reason: 'Родительский годовой план не найден' };
+    }
+
+    if (annualPlan.user_id !== userId) {
+      return { canDelete: false, reason: 'Удалить план может только его автор' };
+    }
   }
 
   // Проверяем наличие месячных планов
@@ -95,8 +109,8 @@ export async function canDeleteQuarterlyPlan(quarterlyId: string, userId: string
 /**
  * Удаление квартального плана
  */
-export async function deleteQuarterlyPlan(quarterlyId: string, userId: string): Promise<{ success: boolean; error?: string }> {
-  const check = await canDeleteQuarterlyPlan(quarterlyId, userId);
+export async function deleteQuarterlyPlan(quarterlyId: string, userId: string, userRole?: string | null): Promise<{ success: boolean; error?: string }> {
+  const check = await canDeleteQuarterlyPlan(quarterlyId, userId, userRole);
   if (!check.canDelete) {
     return { success: false, error: check.reason };
   }
@@ -117,20 +131,22 @@ export async function deleteQuarterlyPlan(quarterlyId: string, userId: string): 
  * Проверка возможности удаления месячного плана
  * При удалении также удаляются все связанные задачи
  */
-export async function canDeleteMonthlyPlan(monthlyPlanId: string, userId: string): Promise<DeleteCheckResult> {
-  // Проверяем создателя
-  const { data: plan, error: planError } = await supabase
-    .from('monthly_plans')
-    .select('created_by')
-    .eq('monthly_plan_id', monthlyPlanId)
-    .single();
+export async function canDeleteMonthlyPlan(monthlyPlanId: string, userId: string, userRole?: string | null): Promise<DeleteCheckResult> {
+  // Шеф может удалять любые планы, остальные — только свои
+  if (userRole !== 'chief') {
+    const { data: plan, error: planError } = await supabase
+      .from('monthly_plans')
+      .select('created_by')
+      .eq('monthly_plan_id', monthlyPlanId)
+      .single();
 
-  if (planError || !plan) {
-    return { canDelete: false, reason: 'План не найден' };
-  }
+    if (planError || !plan) {
+      return { canDelete: false, reason: 'План не найден' };
+    }
 
-  if (plan.created_by !== userId) {
-    return { canDelete: false, reason: 'Удалить план может только его автор' };
+    if (plan.created_by !== userId) {
+      return { canDelete: false, reason: 'Удалить план может только его автор' };
+    }
   }
 
   // Считаем задачи (для информации)
@@ -145,8 +161,8 @@ export async function canDeleteMonthlyPlan(monthlyPlanId: string, userId: string
 /**
  * Удаление месячного плана (вместе со связанными задачами)
  */
-export async function deleteMonthlyPlan(monthlyPlanId: string, userId: string): Promise<{ success: boolean; error?: string; deletedTasks?: number }> {
-  const check = await canDeleteMonthlyPlan(monthlyPlanId, userId);
+export async function deleteMonthlyPlan(monthlyPlanId: string, userId: string, userRole?: string | null): Promise<{ success: boolean; error?: string; deletedTasks?: number }> {
+  const check = await canDeleteMonthlyPlan(monthlyPlanId, userId, userRole);
   if (!check.canDelete) {
     return { success: false, error: check.reason };
   }

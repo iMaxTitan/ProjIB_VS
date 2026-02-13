@@ -9,6 +9,7 @@ import {
   FileText,
   BarChart3,
   BookOpen,
+  PieChart,
   type LucideIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -27,27 +28,28 @@ interface NavItem {
 
 // Пункты меню для руководителя (chief)
 const chiefNavItems: NavItem[] = [
-  { label: 'Активность', path: '/dashboard', icon: Zap },
-  { label: 'Планы', path: '/dashboard/plans', icon: Calendar },
-  { label: 'Отчеты', path: '/dashboard/reports', icon: FileText },
-  { label: 'KPI', path: '/dashboard/kpi', icon: BarChart3 },
-  { label: 'Справочники', path: '/dashboard/references', icon: BookOpen }
+  { label: 'Активность', path: '/', icon: Zap },
+  { label: 'Планы', path: '/plans', icon: Calendar },
+  { label: 'Отчеты', path: '/reports', icon: FileText },
+  { label: 'Сводная', path: '/summary', icon: PieChart },
+  { label: 'KPI', path: '/kpi', icon: BarChart3 },
+  { label: 'Справочники', path: '/references', icon: BookOpen }
 ];
 
 // Пункты меню для начальника отдела (head)
 const headNavItems: NavItem[] = [
-  { label: 'Активность', path: '/dashboard', icon: Zap },
-  { label: 'Планы', path: '/dashboard/plans', icon: Calendar },
-  { label: 'Отчеты', path: '/dashboard/reports', icon: FileText },
-  { label: 'KPI', path: '/dashboard/kpi', icon: BarChart3 },
-  { label: 'Справочники', path: '/dashboard/references', icon: BookOpen }
+  { label: 'Активность', path: '/', icon: Zap },
+  { label: 'Планы', path: '/plans', icon: Calendar },
+  { label: 'Отчеты', path: '/reports', icon: FileText },
+  { label: 'Сводная', path: '/summary', icon: PieChart },
+  { label: 'KPI', path: '/kpi', icon: BarChart3 },
+  { label: 'Справочники', path: '/references', icon: BookOpen }
 ];
 
 // Пункты меню для сотрудника (employee)
 const employeeNavItems: NavItem[] = [
-  { label: 'Активность', path: '/dashboard', icon: Zap },
-  { label: 'Планы', path: '/dashboard/plans', icon: Calendar },
-  { label: 'KPI', path: '/dashboard/kpi', icon: BarChart3 }
+  { label: 'Активность', path: '/', icon: Zap },
+  { label: 'Планы', path: '/plans', icon: Calendar }
 ];
 
 const navigationItems: Record<UserRole, Array<NavItem>> = {
@@ -92,7 +94,7 @@ export default function HorizontalNav({ role, currentPath, onNavigate }: Horizon
                 aria-label={`Перейти к разделу: ${item.label}`}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium rounded-t-lg transition-all duration-base border-t border-l border-r relative whitespace-nowrap',
+                  'flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium rounded-t-lg transition-[transform,background-color] duration-base border-t border-l border-r relative whitespace-nowrap',
                   'focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:z-20',
                   isActive
                     ? 'bg-white border-indigo-300 text-indigo-700 shadow-sm z-10 -mb-px'

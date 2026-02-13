@@ -29,6 +29,7 @@ export function Modal({
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const hasSetInitialFocus = useRef(false);
   const onCloseRef = useRef(onClose);
+  const backdropPressStartedRef = useRef(false);
 
   // Keep onClose ref updated
   useEffect(() => {
@@ -117,10 +118,20 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
+  const handleBackdropMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    backdropPressStartedRef.current = e.target === e.currentTarget;
+  };
+
+  const handleBackdropMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    const isBackdropRelease = e.target === e.currentTarget;
+    if (backdropPressStartedRef.current && isBackdropRelease) {
       onClose();
     }
+    backdropPressStartedRef.current = false;
+  };
+
+  const handleBackdropMouseLeave = () => {
+    backdropPressStartedRef.current = false;
   };
 
   const isGradient = headerVariant === 'gradient-indigo';
@@ -128,7 +139,9 @@ export function Modal({
   const modalContent = (
     <div
       className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-modal-backdrop animate-fade-in px-4 py-4"
-      onClick={handleBackdropClick}
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
+      onMouseLeave={handleBackdropMouseLeave}
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
@@ -162,8 +175,8 @@ export function Modal({
                 onClick={onClose}
                 className={
                   isGradient
-                    ? 'p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-all backdrop-blur-sm'
-                    : 'p-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 transition-all'
+                    ? 'p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-[transform,opacity] backdrop-blur-sm'
+                    : 'p-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 transition-[transform,opacity]'
                 }
                 aria-label="Закрыть модальное окно"
               >
@@ -244,14 +257,14 @@ export function ModalFooter({
       <button
         type="button"
         onClick={onCancel}
-        className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition-all"
+        className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition-[transform,opacity]"
         disabled={loading}
       >
         Отмена
       </button>
       <button
         type="submit"
-        className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition-all shadow-sm"
+        className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition-[transform,opacity] shadow-sm"
         disabled={loading}
       >
         {loading ? (

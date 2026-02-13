@@ -12,8 +12,8 @@ const app = next({
 });
 const handle = app.getRequestHandler();
 
-const certPath = path.join(__dirname, 'certs/cert.pem');
-const keyPath = path.join(__dirname, 'certs/key.pem');
+const certPath = path.join(__dirname, 'certificates/localhost.pem');
+const keyPath = path.join(__dirname, 'certificates/localhost-key.pem');
 
 const httpsOptions = {
   key: fs.readFileSync(keyPath),

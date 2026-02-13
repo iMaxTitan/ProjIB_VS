@@ -1,6 +1,5 @@
-import React from 'react';
-import KPIContent from '@/components/dashboard/content/KPIContent';
+import { redirect } from 'next/navigation';
 
-export default function KPIPage() {
-  return <KPIContent />;
+export default function DashboardKpiRedirectPage() {
+  redirect('/');
 }

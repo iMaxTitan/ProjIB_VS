@@ -178,9 +178,18 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
   // Автогенерация при загрузке документа
   useEffect(() => {
-    if (documentText && documentText.length > 50 && !aiLoading && !description) {
-      handleAIGenerate();
-    }
+    if (!documentText || documentText.length <= 50 || aiLoading || description) return;
+
+    let cancelled = false;
+    const generate = async () => {
+      if (!cancelled) {
+        handleAIGenerate();
+      }
+    };
+    generate();
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentText]);
 
   if (!isOpen) return null;
@@ -249,7 +258,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     try {
       const userMessage = description.trim()
         ? `Улучши описание: ${description}`
-        : 'сгенерируй';
+        : 'згенеруй';
 
       const response = await fetch('/api/ai/task-assistant', {
         method: 'POST',
@@ -319,7 +328,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-all backdrop-blur-sm disabled:opacity-50"
+            className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-colors backdrop-blur-sm disabled:opacity-50"
             aria-label="Отмена"
             disabled={loading}
           >
@@ -328,7 +337,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
           <button
             type="button"
             onClick={() => formRef.current?.requestSubmit()}
-            className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-all backdrop-blur-sm disabled:opacity-50"
+            className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-colors backdrop-blur-sm disabled:opacity-50"
             aria-label="Сохранить"
             disabled={loading || !!hoursWarning}
           >
@@ -364,7 +373,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 onClick={handleAIGenerate}
                 disabled={loading || aiLoading}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all",
+                  "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
                   "bg-gradient-to-r from-purple-500 to-indigo-500 text-white",
                   "hover:from-purple-600 hover:to-indigo-600 hover:shadow-md",
                   "disabled:opacity-50 disabled:cursor-not-allowed",
@@ -377,7 +386,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             </div>
             <textarea
               className={cn(
-                "w-full px-3 py-2.5 text-xs border rounded-xl resize-none transition-all",
+                "w-full px-3 py-2.5 text-xs border rounded-xl resize-none transition-colors",
                 "placeholder:text-gray-400",
                 "focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400",
                 "disabled:bg-gray-50 disabled:text-gray-500"
@@ -411,14 +420,15 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 <input
                   type="number"
                   className={cn(
-                    "w-full px-2 py-2.5 sm:py-2 text-sm text-center border rounded-xl transition-all",
+                    "w-full px-2 py-2.5 sm:py-2 text-sm text-center border rounded-xl transition-colors",
                     "focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400",
                     hoursWarning ? 'border-amber-300 bg-amber-50' : 'border-gray-200'
                   )}
                   value={spentHours}
                   onChange={e => setSpentHours(Number(e.target.value))}
+                  onFocus={e => e.target.select()}
                   min={0}
-                  max={8}
+                  max={40}
                   step={0.5}
                   disabled={loading}
                   aria-label="Количество часов"
@@ -433,7 +443,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 <input
                   type="date"
                   className={cn(
-                    "w-full px-2 py-2.5 sm:py-2 text-sm border border-gray-200 rounded-xl transition-all",
+                    "w-full px-2 py-2.5 sm:py-2 text-sm border border-gray-200 rounded-xl transition-colors",
                     "focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                   )}
                   value={taskDate || ''}
@@ -453,7 +463,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
               <input
                 type="text"
                 className={cn(
-                  "w-full px-3 py-2.5 sm:py-2 text-sm border border-gray-200 rounded-xl transition-all",
+                  "w-full px-3 py-2.5 sm:py-2 text-sm border border-gray-200 rounded-xl transition-colors",
                   "placeholder:text-gray-400",
                   "focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                 )}
@@ -475,7 +485,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
               </label>
               <select
                 className={cn(
-                  "w-full px-3 py-2.5 sm:py-2 text-sm border border-gray-200 rounded-xl transition-all",
+                  "w-full px-3 py-2.5 sm:py-2 text-sm border border-gray-200 rounded-xl transition-colors",
                   "focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400",
                   "bg-white",
                   !projectId && "text-gray-400"
@@ -538,6 +548,5 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
 };
 
 export default AddTaskModal;
-
 
 

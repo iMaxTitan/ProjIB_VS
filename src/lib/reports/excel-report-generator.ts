@@ -134,19 +134,50 @@ export class ExcelReportGenerator {
       let quarterlyPlans: QuarterlyPlanReportItem[] = [];
       if (quarterlyIds.length > 0) {
         const { data } = await supabase
-          .from('v_quarterly_reports')
-          .select('*')
+          .from('quarterly_plans')
+          .select(`
+            quarterly_id,
+            quarter,
+            goal,
+            expected_result,
+            status,
+            processes (process_name)
+          `)
           .in('quarterly_id', quarterlyIds);
 
-        quarterlyPlans = (data || []).map(qp => ({
-          quarterly_id: qp.quarterly_id,
-          quarter: qp.quarter,
-          goal: qp.goal || '',
-          expected_result: qp.expected_result || '',
-          status: qp.status || '',
-          process_name: qp.process_name || '',
-          completion_percentage: qp.completion_percentage || 0
-        }));
+        // Compute completion_percentage from monthly plans per quarterly_id
+        const qCompletion = new Map<string, { planned: number; completed: number }>();
+        for (const mp of (monthlyPlans || [])) {
+          if (!mp.quarterly_id) continue;
+          const cur = qCompletion.get(mp.quarterly_id) || { planned: 0, completed: 0 };
+          cur.planned += 1;
+          if (mp.status === 'completed') cur.completed += 1;
+          qCompletion.set(mp.quarterly_id, cur);
+        }
+
+        type QpRow = {
+          quarterly_id: string;
+          quarter: number;
+          goal: string | null;
+          expected_result: string | null;
+          status: string | null;
+          processes?: { process_name?: string | null } | { process_name?: string | null }[] | null;
+        };
+
+        quarterlyPlans = ((data || []) as QpRow[]).map(qp => {
+          const processRel = Array.isArray(qp.processes) ? qp.processes[0] : qp.processes;
+          const counts = qCompletion.get(qp.quarterly_id) || { planned: 0, completed: 0 };
+          const pct = counts.planned > 0 ? Math.round((counts.completed / counts.planned) * 100) : 0;
+          return {
+            quarterly_id: qp.quarterly_id,
+            quarter: qp.quarter,
+            goal: qp.goal || '',
+            expected_result: qp.expected_result || '',
+            status: qp.status || '',
+            process_name: processRel?.process_name || '',
+            completion_percentage: pct,
+          };
+        });
       }
 
       // Получаем задачи за период (daily_tasks)

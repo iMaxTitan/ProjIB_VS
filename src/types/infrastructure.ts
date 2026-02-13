@@ -6,6 +6,11 @@
 export interface Company {
   company_id: string;
   company_name: string;
+  company_full_name?: string | null;
+  director?: string | null;
+  contract_number?: string | null;
+  contract_date?: string | null;
+  rate_per_hour?: number | null;
 }
 
 // Запись инфраструктуры за месяц
@@ -20,6 +25,12 @@ export interface CompanyInfrastructure {
   notes?: string | null;
   created_at?: string;
   created_by?: string | null;
+  // Снапшот реквизитов предприятия на момент записи
+  company_full_name?: string | null;
+  director?: string | null;
+  contract_number?: string | null;
+  contract_date?: string | null;
+  rate_per_hour?: number | null;
 }
 
 // Компания с текущей инфраструктурой (из view v_companies_with_infrastructure)
@@ -33,6 +44,7 @@ export interface CompanyWithInfrastructure extends Company {
   notes?: string | null;
   infrastructure_updated_at?: string | null;
   created_by?: string | null;
+  // company_full_name, director, contract_number, contract_date, rate_per_hour наследуются из Company
 
   // Вычисляемые поля
   has_servers: boolean;
@@ -56,6 +68,12 @@ export interface InfrastructureHistory {
   notes?: string | null;
   created_at: string;
   created_by_name?: string | null;
+  // Снапшот реквизитов
+  company_full_name?: string | null;
+  director?: string | null;
+  contract_number?: string | null;
+  contract_date?: string | null;
+  rate_per_hour?: number | null;
 }
 
 // Параметры для создания/обновления инфраструктуры
@@ -70,54 +88,21 @@ export interface InfrastructureParams {
   coefficient?: number | null; // Ручной коэффициент трудоемкости (0-1)
   notes?: string;
   userId: string;
+  // Снапшот реквизитов предприятия
+  companyFullName?: string | null;
+  director?: string | null;
+  contractNumber?: string | null;
+  contractDate?: string | null;
+  ratePerHour?: number | null;
 }
 
-// Типы распределения трудозатрат
-export type WorkloadDistributionType = 'ATBi7' | 'ATBi5' | 'ATB7' | 'ATB3' | 'custom';
+// Типы распределения часов по предприятиям
+export type HourDistributionType = 'by_servers' | 'by_workstations' | 'even';
 
-// Информация о типе распределения
-export interface WorkloadDistributionInfo {
-  type: WorkloadDistributionType;
-  label: string;
-  description: string;
-  participantsCount: number;
-}
-
-// Компании, которые исключаются из ATBi5 (по имени)
-export const EXCLUDED_COMPANIES_ATBi5 = ['КФ Квитень', 'МФ Фаворит'];
-
-// Типы распределения с метаданными
-export const WORKLOAD_DISTRIBUTION_TYPES: WorkloadDistributionInfo[] = [
-  {
-    type: 'ATBi7',
-    label: 'ATBi7',
-    description: 'Все 7 предприятий по доле компьютеров',
-    participantsCount: 7,
-  },
-  {
-    type: 'ATBi5',
-    label: 'ATBi5',
-    description: '5 предприятий (без КФК и МФФ) по доле компьютеров',
-    participantsCount: 5,
-  },
-  {
-    type: 'ATB7',
-    label: 'ATB7',
-    description: 'Поровну на все 7 предприятий (1/7)',
-    participantsCount: 7,
-  },
-  {
-    type: 'ATB3',
-    label: 'ATB3',
-    description: 'Поровну на 3 предприятия с серверами (1/3)',
-    participantsCount: 3,
-  },
-  {
-    type: 'custom',
-    label: 'Вручную',
-    description: 'Выбор предприятий вручную',
-    participantsCount: 0,
-  },
+export const HOUR_DISTRIBUTION_TYPES: { type: HourDistributionType; label: string; description: string }[] = [
+  { type: 'by_servers', label: 'По серверам', description: 'Пропорционально количеству серверов' },
+  { type: 'by_workstations', label: 'По раб. станциям', description: 'Пропорционально количеству рабочих станций' },
+  { type: 'even', label: 'Поровну', description: 'Равномерно по всем выбранным предприятиям' },
 ];
 
 // Названия месяцев (рус)

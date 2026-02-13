@@ -1,16 +1,18 @@
 ﻿'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Check, Clock3, Layers, Pencil, Settings2, Target, Trash2, X } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Clock3, Layers, Settings2, Target } from 'lucide-react';
 import { UserInfo } from '@/types/azure';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { Measure, MeasureCategory } from '../kpi/types';
+import { measuresQueryOptions, processesQueryOptions, type MeasureKpiRow } from '@/lib/queries/reference-queries';
+import logger from '@/lib/logger';
 import ReferenceLeftPanelShell from './ReferenceLeftPanelShell';
-import ReferenceGroupHeader from './ReferenceGroupHeader';
 import ReferenceEmptyState from './ReferenceEmptyState';
 import ReferenceDetailsEmptyState from './ReferenceDetailsEmptyState';
-import ReferencesTwoPanelLayout from './ReferencesTwoPanelLayout';
+import { TwoPanelLayout, GradientDetailCard, GroupHeader, DetailSection, ReferenceListItem } from '../shared';
 
 // Measures constants
 const CATEGORY_LABELS: Record<MeasureCategory, string> = {
@@ -51,10 +53,36 @@ function decodeMojibake(value: string): string {
 
 // Measures content with two-panel layout
 export default function MeasuresReferenceContent({ user, tabsSlot }: { user: UserInfo; tabsSlot?: React.ReactNode }) {
-  const [measures, setMeasures] = useState<Measure[]>([]);
-  const [processes, setProcesses] = useState<Process[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  // Данные из кеша (staleTime: Infinity)
+  const { data: rawMeasures = [], isLoading: measuresLoading, error: measuresError } = useQuery(measuresQueryOptions);
+  const { data: processes = [], isLoading: processesLoading } = useQuery(processesQueryOptions);
+
+  const measures = useMemo<Measure[]>(() =>
+    rawMeasures.map(m => ({
+      measure_id: m.entity_id,
+      process_id: m.process_id,
+      name: m.entity_name,
+      description: m.description ?? undefined,
+      service_name: m.service_name ?? undefined,
+      service_prompt: m.service_prompt ?? undefined,
+      category: (m.category as MeasureCategory) || 'operational',
+      target_value: m.target_value ?? 0,
+      target_period: (m.target_period as 'year' | 'quarter' | 'month') || 'year',
+      is_active: true,
+      process_name: m.process_name,
+      actual_value: m.actual_value ?? undefined,
+      plans_count: m.plans_count ?? undefined,
+      total_hours: m.total_hours ?? undefined,
+    })),
+    [rawMeasures]
+  );
+
+  const loading = measuresLoading || processesLoading;
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const error = mutationError || (measuresError ? (measuresError instanceof Error ? measuresError.message : String(measuresError)) : null);
+
   const [selectedMeasure, setSelectedMeasure] = useState<Measure | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [detailsMode, setDetailsMode] = useState<'view' | 'create'>('view');
@@ -89,54 +117,17 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    service_name: '',
+    service_prompt: '',
     process_id: '',
     category: 'operational' as MeasureCategory,
     target_value: 0,
     target_period: 'year' as 'year' | 'quarter' | 'month'
   });
 
-  // Fetch data
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data: measuresData, error: measuresError } = await supabase
-        .from('v_kpi_operational')
-        .select('*');
-
-      if (measuresError) throw measuresError;
-
-      const { data: processesData, error: processesError } = await supabase
-        .from('processes')
-        .select('process_id, process_name')
-        .order('process_name');
-
-      if (processesError) throw processesError;
-
-      setMeasures(measuresData?.map(m => ({
-        measure_id: m.entity_id,
-        process_id: m.process_id,
-        name: m.entity_name,
-        description: m.description,
-        category: m.category,
-        target_value: m.target_value,
-        target_period: m.target_period,
-        is_active: true,
-        process_name: m.process_name,
-        actual_value: m.actual_value,
-        plans_count: m.plans_count,
-        total_hours: m.total_hours
-      })) || []);
-      setProcesses(processesData || []);
-    } catch (err: unknown) {
-      setError('\u041e\u0448\u0438\u0431\u043a\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438: ' + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const refreshData = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['measures'] });
+  }, [queryClient]);
 
   // Sync selectedMeasure with updated measures list and keep its process expanded
   useEffect(() => {
@@ -149,14 +140,19 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
         setExpandedProcesses(prev => ({ ...prev, [processKey]: true }));
       }
     }
-  }, [measures, getProcessKey]);
+  }, [measures, selectedMeasure, getProcessKey]);
 
   // Filter measures
   const filteredMeasures = measures;
 
-  // Group by process
+  // Group by process (include empty processes so users can add measures to them)
   const measuresByProcess = useMemo(() => {
     const grouped: Record<string, Measure[]> = {};
+
+    // Initialize all known processes as empty groups
+    processes.forEach(p => {
+      grouped[`id:${p.process_id}`] = [];
+    });
 
     filteredMeasures.forEach(m => {
       const processKey = getProcessKey(m);
@@ -179,7 +175,7 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
     });
 
     return sortedGrouped;
-  }, [filteredMeasures, getProcessKey, getProcessLabel]);
+  }, [filteredMeasures, processes, getProcessKey, getProcessLabel]);
 
   // Get process keys list
   const processKeys = useMemo(() => Object.keys(measuresByProcess), [measuresByProcess]);
@@ -214,6 +210,8 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
     setFormData({
       name: '',
       description: '',
+      service_name: '',
+      service_prompt: '',
       process_id: processId,
       category: 'operational',
       target_value: 0,
@@ -229,6 +227,8 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
     setFormData({
       name: measure.name,
       description: measure.description || '',
+      service_name: measure.service_name || '',
+      service_prompt: measure.service_prompt || '',
       process_id: measure.process_id || '',
       category: measure.category,
       target_value: measure.target_value,
@@ -246,6 +246,8 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
         p_measure_id: selectedMeasure.measure_id,
         p_name: formData.name,
         p_description: formData.description || null,
+        p_service_name: formData.service_name || null,
+        p_service_prompt: formData.service_prompt || null,
         p_process_id: formData.process_id || null,
         p_category: formData.category,
         p_target_value: formData.target_value,
@@ -257,9 +259,9 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
       if (data && !data.success) throw new Error(data.error || 'Ошибка сохранения');
 
       setIsEditing(false);
-      await fetchData();
+      await refreshData();
     } catch (err: unknown) {
-      setError('Ошибка сохранения: ' + (err instanceof Error ? err.message : String(err)));
+      setMutationError('Ошибка сохранения: ' + (err instanceof Error ? err.message : String(err)));
     }
   };
 
@@ -270,6 +272,8 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
         p_measure_id: null,
         p_name: formData.name,
         p_description: formData.description || null,
+        p_service_name: formData.service_name || null,
+        p_service_prompt: formData.service_prompt || null,
         p_process_id: formData.process_id || null,
         p_category: formData.category,
         p_target_value: formData.target_value,
@@ -285,9 +289,9 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
       setDetailsMode('view');
       setSelectedMeasure(null);
       setIsDrawerOpen(false);
-      await fetchData();
+      await refreshData();
     } catch (err: unknown) {
-      setError('Ошибка сохранения: ' + (err instanceof Error ? err.message : String(err)));
+      setMutationError('Ошибка сохранения: ' + (err instanceof Error ? err.message : String(err)));
     }
   };
 
@@ -296,6 +300,8 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
     setFormData({
       name: selectedMeasure.name,
       description: selectedMeasure.description || '',
+      service_name: selectedMeasure.service_name || '',
+      service_prompt: selectedMeasure.service_prompt || '',
       process_id: selectedMeasure.process_id || '',
       category: selectedMeasure.category,
       target_value: selectedMeasure.target_value,
@@ -318,12 +324,16 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
         throw new Error(data.error || '\u041e\u0448\u0438\u0431\u043a\u0430 \u0443\u0434\u0430\u043b\u0435\u043d\u0438\u044f');
       }
 
-      setMeasures(prev => prev.filter(m => m.measure_id !== measureId));
+      // Оптимистичное удаление из кеша
+      queryClient.setQueryData<MeasureKpiRow[]>(
+        ['measures'],
+        (prev) => prev ? prev.filter(m => m.entity_id !== measureId) : []
+      );
       if (selectedMeasure?.measure_id === measureId) {
         setSelectedMeasure(null);
       }
     } catch (err: unknown) {
-      setError('\u041e\u0448\u0438\u0431\u043a\u0430 \u0443\u0434\u0430\u043b\u0435\u043d\u0438\u044f: ' + (err instanceof Error ? err.message : String(err)));
+      logger.error('Ошибка удаления:', err);
     }
   };
 
@@ -334,7 +344,6 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
       loading={loading}
       error={error}
       isEmpty={processKeys.length === 0}
-      loadingColorClass="border-purple-500"
       bodyClassName="space-y-2"
       emptyState={<ReferenceEmptyState icon={<Target className="h-12 w-12" aria-hidden="true" />} text="Мероприятия не найдены" />}
       body={processKeys.map((processKey) => {
@@ -348,7 +357,8 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
 
         return (
           <div key={processKey} className="space-y-1">
-            <ReferenceGroupHeader
+            <GroupHeader
+              tone="purple"
               title={processTitle}
               count={processMeasures.length}
               expanded={isExpanded}
@@ -356,16 +366,6 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
               onAdd={canEdit ? () => openNewForm(processIdForCreate) : undefined}
               toggleAriaLabel={`${isExpanded ? 'Свернуть' : 'Развернуть'} процесс ${processTitle}`}
               addAriaLabel={`Добавить мероприятие в процесс ${processTitle}`}
-              containerClassName={cn(
-                'overflow-hidden bg-gradient-to-r from-purple-100/80 to-purple-50/80 border border-purple-200/50',
-                'hover:from-purple-200/80 hover:to-purple-100/80',
-                'focus:outline-none focus:ring-2 focus:ring-purple-500',
-                'transition-all'
-              )}
-              chevronClassName="text-purple-400"
-              titleClassName="text-purple-700"
-              countClassName="text-purple-400 bg-white/60"
-              addButtonClassName="border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100"
             />
 
             {isExpanded && (
@@ -378,20 +378,12 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
                   const colors = CATEGORY_COLORS[measure.category] || CATEGORY_COLORS.operational;
 
                   return (
-                    <button
+                    <ReferenceListItem
                       key={measure.measure_id}
-                      type="button"
+                      tone="purple"
+                      isSelected={isSelected}
                       onClick={() => handleSelectMeasure(measure)}
-                      aria-label={`Выбрать ${measure.name}`}
-                      aria-current={isSelected ? 'true' : undefined}
-                      className={cn(
-                        'w-full p-2.5 rounded-lg border text-left transition-all group',
-                        'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1',
-                        'active:scale-[0.98]',
-                        isSelected
-                          ? 'bg-purple-50 border-purple-300 shadow-sm'
-                          : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'
-                      )}
+                      ariaLabel={`Выбрать ${measure.name}`}
                     >
                       <div className="flex items-start gap-2">
                         <div className={cn('w-2 h-2 rounded-full flex-shrink-0 mt-1', colors.bg.replace('-100', '-500'))} />
@@ -412,7 +404,7 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
                           </div>
                         </div>
                       </div>
-                    </button>
+                    </ReferenceListItem>
                   );
                 })}
               </div>
@@ -435,66 +427,17 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
   const modeLabel = isCreateMode ? 'Создать' : isEditing ? 'Редактирование' : 'Просмотр';
 
   const rightPanel = selectedMeasure || isCreateMode ? (
-    <div className="p-4">
-      <div className="rounded-3xl shadow-glass border border-white/30 overflow-hidden glass-card max-w-3xl animate-scale">
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-purple-400/80 to-indigo-400/80 text-white backdrop-blur-md">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <span className="inline-flex items-center text-sm px-2.5 py-1 rounded-full font-semibold bg-white/20 text-white backdrop-blur-sm">
-                {modeLabel}
-              </span>
-            </div>
-            {canEdit && (
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {editingMode ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={isCreateMode ? handleCloseDetails : handleCancelEdit}
-                      aria-label="Отменить редактирование"
-                      className="p-2 hover:bg-white/20 rounded-xl transition-all text-white/80 hover:text-white"
-                    >
-                      <X className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={isCreateMode ? handleCreateInline : handleSaveEdit}
-                      aria-label="Сохранить"
-                      className="p-2 hover:bg-white/20 rounded-xl transition-all text-white"
-                    >
-                      <Check className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => selectedMeasure && openEditForm(selectedMeasure)}
-                      aria-label="Редактировать"
-                      className="p-2 hover:bg-white/20 rounded-xl transition-all text-white/90 hover:text-white"
-                    >
-                      <Pencil className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    {selectedMeasure && (
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(selectedMeasure.measure_id)}
-                        aria-label="Удалить"
-                        className="p-2 hover:bg-red-500/25 rounded-xl transition-all text-white/90 hover:text-white"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="p-4 sm:p-6 space-y-5">
-          <section>
-            <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Название</h4>
+    <GradientDetailCard
+      modeLabel={modeLabel}
+      isEditing={editingMode}
+      canEdit={canEdit}
+      gradientClassName="from-purple-400/80 to-indigo-400/80"
+      onEdit={selectedMeasure ? () => openEditForm(selectedMeasure) : undefined}
+      onSave={isCreateMode ? handleCreateInline : handleSaveEdit}
+      onCancel={isCreateMode ? handleCloseDetails : handleCancelEdit}
+      onDelete={selectedMeasure ? () => handleDelete(selectedMeasure.measure_id) : undefined}
+    >
+          <DetailSection title="Название" colorScheme="purple">
             {editingMode ? (
               <input
                 type="text"
@@ -504,14 +447,13 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
                 placeholder="Название"
               />
             ) : (
-              <p className="text-sm text-slate-700 bg-white/60 rounded-xl border border-gray-100 p-3">
+              <div className="glass-card p-3 rounded-2xl text-slate-700 bg-white/40 leading-snug">
                 {selectedMeasure?.name || 'Без названия'}
-              </p>
+              </div>
             )}
-          </section>
+          </DetailSection>
 
-          <section>
-            <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Описание</h4>
+          <DetailSection title="Описание" colorScheme="purple">
             {editingMode ? (
               <textarea
                 value={formData.description}
@@ -521,14 +463,47 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
                 placeholder="Описание"
               />
             ) : (
-              <p className="text-sm text-slate-700 bg-white/60 rounded-xl border border-gray-100 p-3">
+              <div className="glass-card p-3 rounded-2xl text-slate-700 bg-white/40 leading-snug">
                 {selectedMeasure?.description || 'Без описания'}
-              </p>
+              </div>
             )}
-          </section>
+          </DetailSection>
 
-          <section>
-            <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">Параметры мероприятия</h4>
+          <DetailSection title="Услуга" colorScheme="purple">
+            {editingMode ? (
+              <input
+                type="text"
+                value={formData.service_name}
+                onChange={(e) => setFormData((prev) => ({ ...prev, service_name: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                placeholder="Назва послуги"
+                aria-label="Назва послуги"
+              />
+            ) : (
+              <div className="glass-card p-3 rounded-2xl text-slate-700 bg-white/40 leading-snug">
+                {selectedMeasure?.service_name || 'Не вказана'}
+              </div>
+            )}
+          </DetailSection>
+
+          <DetailSection title="Промт услуги" colorScheme="purple">
+            {editingMode ? (
+              <textarea
+                value={formData.service_prompt}
+                onChange={(e) => setFormData((prev) => ({ ...prev, service_prompt: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                rows={4}
+                placeholder="Інструкція для AI при генерації звітів"
+                aria-label="Промт услуги для AI"
+              />
+            ) : (
+              <div className="glass-card p-3 rounded-2xl text-slate-700 bg-white/40 leading-snug whitespace-pre-wrap">
+                {selectedMeasure?.service_prompt || 'Не задано'}
+              </div>
+            )}
+          </DetailSection>
+
+          <DetailSection title="Параметры мероприятия" colorScheme="purple">
             {editingMode ? (
               <div className="space-y-3">
                 <select
@@ -569,10 +544,9 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
                 )}
               </div>
             )}
-          </section>
+          </DetailSection>
 
-          <section>
-            <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Часы</h4>
+          <DetailSection title="Часы" colorScheme="purple">
             {editingMode ? (
               <div className="grid grid-cols-2 gap-3">
                 <input
@@ -580,6 +554,7 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
                   min="0"
                   value={formData.target_value}
                   onChange={(e) => setFormData((prev) => ({ ...prev, target_value: parseInt(e.target.value, 10) || 0 }))}
+                  onFocus={(e) => e.target.select()}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   placeholder="План часов"
                 />
@@ -603,11 +578,9 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
                 </span>
               </div>
             )}
-          </section>
+          </DetailSection>
 
-        </div>
-      </div>
-    </div>
+    </GradientDetailCard>
   ) : (
     <ReferenceDetailsEmptyState
       icon={<Target className="h-16 w-16" aria-hidden="true" />}
@@ -618,13 +591,12 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
 
   return (
     <>
-      <ReferencesTwoPanelLayout
+      <TwoPanelLayout
         leftPanel={leftPanel}
         rightPanel={rightPanel}
         isDrawerOpen={isDrawerOpen}
         onDrawerClose={handleCloseDetails}
         rightPanelClassName={cn('overscroll-contain', (selectedMeasure || isCreateMode) ? 'bg-purple-50/30' : 'bg-transparent')}
-        mobileDrawerContentClassName="p-3 pb-6"
         resizerClassName="hover:bg-purple-300/50 active:bg-purple-400/50"
       />
     </>
@@ -632,4 +604,3 @@ export default function MeasuresReferenceContent({ user, tabsSlot }: { user: Use
 }
 
 // Projects content with two-panel layout
-

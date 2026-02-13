@@ -1,16 +1,32 @@
 import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { AnnualPlan, QuarterlyPlan, MonthlyPlan, PlanStatus } from '@/types/planning';
-import { UserInfo } from '@/types/azure';
 import { getErrorMessage } from '@/lib/utils/error-message';
 import logger from '@/lib/logger';
 import {
-  aggregateHoursByMonthlyPlan,
+  buildHoursMapFromView,
   buildMeasuresMap,
   mapMonthlyPlansWithHierarchy,
 } from '@/modules/plans/monthly-mappers';
+import { measuresQueryOptions } from '@/lib/queries/reference-queries';
 
-export const usePlans = (user: UserInfo) => {
+type QuarterlyBaseRow = {
+  quarterly_id: string;
+  annual_plan_id: string | null;
+  department_id: string | null;
+  quarter: number;
+  goal: string;
+  expected_result: string;
+  status: PlanStatus;
+  process_id?: string | null;
+  departments?: { department_name?: string | null } | { department_name?: string | null }[] | null;
+  processes?: { process_name?: string | null } | { process_name?: string | null }[] | null;
+};
+
+export const usePlans = () => {
+  const queryClient = useQueryClient();
+
   // Состояния для данных
   const [annualPlans, setAnnualPlans] = useState<AnnualPlan[]>([]);
   const [quarterlyPlans, setQuarterlyPlans] = useState<QuarterlyPlan[]>([]);
@@ -36,26 +52,27 @@ export const usePlans = (user: UserInfo) => {
       return;
     }
 
-    const [monthlyResult, tasksResult, measuresResult] = await Promise.all([
+    const [monthlyResult, measuresData] = await Promise.all([
       supabase
         .from('monthly_plans')
         .select('*')
         .in('quarterly_id', quarterlyIds)
         .order('month', { ascending: true }),
-      supabase
-        .from('daily_tasks')
-        .select('monthly_plan_id, spent_hours'),
-      supabase
-        .from('v_kpi_operational')
-        .select('entity_id, entity_name, process_id, process_name')
+      queryClient.ensureQueryData(measuresQueryOptions),
     ]);
 
     if (monthlyResult.error) throw monthlyResult.error;
-    if (tasksResult.error) throw tasksResult.error;
-    if (measuresResult.error) throw measuresResult.error;
 
-    const measuresMap = buildMeasuresMap(measuresResult.data || []);
-    const hoursMap = aggregateHoursByMonthlyPlan(tasksResult.data || []);
+    // Use v_monthly_plan_hours view instead of raw daily_tasks (~120 rows vs ~21K)
+    const planIds = (monthlyResult.data || []).map(r => r.monthly_plan_id);
+    const { data: hoursData, error: hoursErr } = await supabase
+      .from('v_monthly_plan_hours')
+      .select('monthly_plan_id, total_spent_hours, tasks_count')
+      .in('monthly_plan_id', planIds);
+    if (hoursErr) throw hoursErr;
+
+    const measuresMap = buildMeasuresMap(measuresData);
+    const hoursMap = buildHoursMapFromView(hoursData || []);
     const plans = mapMonthlyPlansWithHierarchy({
       monthlyRows: monthlyResult.data || [],
       quarterlyPlans: quarterlySource,
@@ -102,6 +119,73 @@ export const usePlans = (user: UserInfo) => {
     return allData;
   };
 
+  const normalizeRelation = <T,>(value: T | T[] | null | undefined): T | undefined => {
+    if (!value) return undefined;
+    return Array.isArray(value) ? value[0] : value;
+  };
+
+  const mapQuarterlyRows = useCallback((rows: QuarterlyBaseRow[]): QuarterlyPlan[] => {
+    return rows.map((row) => {
+      const department = normalizeRelation(row.departments);
+      const process = normalizeRelation(row.processes);
+      return {
+        quarterly_id: row.quarterly_id,
+        annual_plan_id: row.annual_plan_id,
+        department_id: row.department_id,
+        department_name: department?.department_name || undefined,
+        quarter: row.quarter,
+        goal: row.goal,
+        expected_result: row.expected_result,
+        status: row.status,
+        process_id: row.process_id || undefined,
+        process_name: process?.process_name || undefined,
+      };
+    });
+  }, []);
+
+  const fetchQuarterlyPlansByAnnualIds = useCallback(async (annualIds: string[]): Promise<QuarterlyPlan[]> => {
+    const tableResult = await supabase
+      .from('quarterly_plans')
+      .select(`
+        quarterly_id,
+        annual_plan_id,
+        department_id,
+        quarter,
+        goal,
+        expected_result,
+        status,
+        process_id,
+        departments (department_name),
+        processes (process_name)
+      `)
+      .in('annual_plan_id', annualIds)
+      .order('quarter', { ascending: true });
+
+    if (tableResult.error) throw tableResult.error;
+    return mapQuarterlyRows((tableResult.data || []) as QuarterlyBaseRow[]);
+  }, [mapQuarterlyRows]);
+
+  const fetchAllQuarterlyPlansFromBase = useCallback(async (): Promise<QuarterlyPlan[]> => {
+    const tableResult = await supabase
+      .from('quarterly_plans')
+      .select(`
+        quarterly_id,
+        annual_plan_id,
+        department_id,
+        quarter,
+        goal,
+        expected_result,
+        status,
+        process_id,
+        departments (department_name),
+        processes (process_name)
+      `)
+      .order('quarter', { ascending: true });
+
+    if (tableResult.error) throw tableResult.error;
+    return mapQuarterlyRows((tableResult.data || []) as QuarterlyBaseRow[]);
+  }, [mapQuarterlyRows]);
+
   // Загрузка только годовых планов как начальной точки
   const fetchAnnualPlans = useCallback(async () => {
     try {
@@ -127,17 +211,6 @@ export const usePlans = (user: UserInfo) => {
   // Загрузка квартальных планов для конкретного года
   const fetchQuarterlyPlans = useCallback(async (year: number) => {
     try {
-      // Ищем ID годового плана по году (или передаем ID напрямую)
-      // Если мы фильтруем по году, нам нужно найти annual_id для этого года
-      // Но v_quarterly_plans имеет annual_plan_id. 
-      // Вариант 1: Загрузить по annual_plan_id (как сейчас).
-      // Вариант 2: Загрузить по году через join (сложнее).
-      // Оставим загрузку по annual_plan_id, но интерфейс должен это поддерживать.
-
-      // Однако PlansPageNew выбирает "год".
-      // Нам нужно найти plan с этим годом.
-
-      // 1. Находим все AnnualPlans для заданного года
       const annualids = annualPlans
         .filter(p => p.year === year)
         .map(p => p.annual_id);
@@ -147,43 +220,23 @@ export const usePlans = (user: UserInfo) => {
         return;
       }
 
-      // 2. Загружаем QuarterlyPlans для ВСЕХ этих AnnualPlans
-      const { data, error } = await supabase
-        .from('v_quarterly_plans')
-        .select('*')
-        .in('annual_plan_id', annualids)
-        .order('quarter', { ascending: true });
-
-      if (error) throw error;
-
-      // Важно: Мы должны не заменять ВСЕ квартальные планы, а добавлять/обновлять их для этого года?
-      // Если мы заменим, то при переключении года "исчезнут" другие.
-      // Для дерева это ОК, если дерево показывает только выбранный год.
-      // Но если дерево показывает ВСЕ годы...
-      // Спецификация говорит: "Выбор Года загружает только Годовые планы этого года".
-      // Значит, дерево тоже фильтруется.
-      setQuarterlyPlans(data || []);
+      const plans = await fetchQuarterlyPlansByAnnualIds(annualids);
+      setQuarterlyPlans(plans);
     } catch (error: unknown) {
       logger.error('Ошибка при загрузке квартальных планов:', error);
       setError(getErrorMessage(error));
     }
-  }, [annualPlans]);
+  }, [annualPlans, fetchQuarterlyPlansByAnnualIds]);
 
   // Загрузка квартальных планов по ID годового плана (прямая загрузка)
   const fetchQuarterlyPlansByAnnualId = useCallback(async (annualId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('v_quarterly_plans')
-        .select('*')
-        .eq('annual_plan_id', annualId)
-        .order('quarter', { ascending: true });
-
-      if (error) throw error;
-      setQuarterlyPlans(data || []);
+      const plans = await fetchQuarterlyPlansByAnnualIds([annualId]);
+      setQuarterlyPlans(plans);
     } catch (error: unknown) {
       setError(getErrorMessage(error));
     }
-  }, []);
+  }, [fetchQuarterlyPlansByAnnualIds]);
 
   // Загрузка месячных планов для выбранного квартала
   const fetchMonthlyPlans = useCallback(async (quarter: number) => {
@@ -215,10 +268,9 @@ export const usePlans = (user: UserInfo) => {
       setLoading(true);
 
       // Загружаем все планы параллельно
-      const [annualData, quarterlyData, monthlyRawData, dailyTasksData, measuresData] = await Promise.all([
+      const [annualData, quarterlyData, monthlyRawData, measuresData, hoursResult] = await Promise.all([
         fetchAllWithPagination<AnnualPlan>('v_annual_plans', 'year', false),
-        fetchAllWithPagination<QuarterlyPlan>('v_quarterly_plans', 'quarter', true),
-        // Месячные планы без join
+        fetchAllQuarterlyPlansFromBase(),
         supabase
           .from('monthly_plans')
           .select('*')
@@ -227,26 +279,17 @@ export const usePlans = (user: UserInfo) => {
             if (error) throw error;
             return data || [];
           }),
-        // Загружаем все daily_tasks для агрегации spent_hours
+        queryClient.ensureQueryData(measuresQueryOptions),
+        // v_monthly_plan_hours: all pre-aggregated rows (~120 instead of ~21K daily_tasks)
         supabase
-          .from('daily_tasks')
-          .select('monthly_plan_id, spent_hours')
-          .then(({ data, error }) => {
-            if (error) throw error;
-            return data || [];
-          }),
-        // Загружаем мероприятия через view (работает с RLS)
-        supabase
-          .from('v_kpi_operational')
-          .select('entity_id, entity_name, process_id, process_name')
-          .then(({ data, error }) => {
-            if (error) throw error;
-            return data || [];
-          })
+          .from('v_monthly_plan_hours')
+          .select('monthly_plan_id, total_spent_hours, tasks_count'),
       ]);
 
+      if (hoursResult.error) throw hoursResult.error;
+
       const measuresMap = buildMeasuresMap(measuresData);
-      const hoursMap = aggregateHoursByMonthlyPlan(dailyTasksData);
+      const hoursMap = buildHoursMapFromView(hoursResult.data || []);
       const monthlyData = mapMonthlyPlansWithHierarchy({
         monthlyRows: monthlyRawData,
         quarterlyPlans: quarterlyData,
@@ -264,7 +307,7 @@ export const usePlans = (user: UserInfo) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchAllQuarterlyPlansFromBase]);
 
   // Обработчики кликов по планам
   const handleAnnualPlanClick = useCallback((planId: string) => {
@@ -330,6 +373,8 @@ export const usePlans = (user: UserInfo) => {
 };
 
 export default usePlans;
+
+
 
 
 

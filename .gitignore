@@ -35,3 +35,10 @@ CLAUDE.local.md
 certificates
 supabase/.temp/
 nul
+
+# Playwright
+tests/.auth/
+playwright-report/
+test-results/
+blob-report/
+.env.test

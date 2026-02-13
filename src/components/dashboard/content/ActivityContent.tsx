@@ -1,6 +1,7 @@
 ﻿'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { UserInfo } from '@/types/azure';
 import {
     Clock,
@@ -13,17 +14,17 @@ import {
     ThumbsUp,
     Loader2,
     Brain,
-    GripVertical,
-    BarChart2
+    BarChart2,
+    Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useMediaQuery';
-import { BottomDrawer } from '@/components/ui/BottomDrawer';
 import { ActivityFeed } from './ActivityFeed';
+import DashboardTopTabs, { DashboardTopTabItem } from './shared/DashboardTopTabs';
+import TwoPanelLayout from './shared/TwoPanelLayout';
 import {
     getActivityFeed,
     getAIContext,
-    ActivityEvent,
 } from '@/lib/services/activity.service';
 import { supabase } from '@/lib/supabase';
 import logger from '@/lib/logger';
@@ -56,15 +57,20 @@ type ChangelogType = 'Добавлено' | 'Обновлено' | 'Исправ
 // 1) Добавляй новые записи в начало массива.
 // 2) Используй только типы: Добавлено, Обновлено, Исправлено.
 // 3) Формат даты: ДД.ММ (например, 08.02).
+// 4) Максимум 12 записей — при добавлении новых удаляй старые с конца.
 const MANUAL_BUILD_CHANGELOG_ITEMS: Array<{ date: string; type: ChangelogType; text: string }> = [
-    { date: '08.02', type: 'Добавлено', text: 'функция копирования планов для быстрого переноса в другой период без ручного заполнения.' },
-    { date: '08.02', type: 'Обновлено', text: 'повышена стабильность и скорость работы приложения.' },
-    { date: '08.02', type: 'Обновлено', text: 'интерфейс упрощен, ключевые действия вынесены на удобные позиции.' },
-    { date: '08.02', type: 'Обновлено', text: 'карточки приведены к единому формату (просмотр, редактирование, создание).' },
-    { date: '08.02', type: 'Обновлено', text: 'улучшена мобильная версия, уменьшено количество лишних касаний.' },
-    { date: '07.02', type: 'Обновлено', text: 'раздел «Справочники» приведен к единому и более аккуратному виду.' },
-    { date: '07.02', type: 'Обновлено', text: 'повышена читаемость текста и подписей на основных экранах.' },
-    { date: '07.02', type: 'Исправлено', text: 'некорректное отображение текста в отдельных блоках.' }
+    { date: '12.02', type: 'Добавлено', text: 'посада співробітника (текстове поле) у довідник співробітників.' },
+    { date: '12.02', type: 'Добавлено', text: 'поле «Послуга» у довідник заходів.' },
+    { date: '12.02', type: 'Добавлено', text: 'групування місячних планів за процесами (згорнуті за замовчуванням).' },
+    { date: '12.02', type: 'Добавлено', text: 'опис заходу (read-only) у деталях місячного плану.' },
+    { date: '12.02', type: 'Добавлено', text: 'звіт по підприємствах: групування за заходами з AI-примітками замість плоского списку задач.' },
+    { date: '12.02', type: 'Добавлено', text: 'PDF офіційного формату: шапка «Додаток до Акту», реквізити договору, автоматичний розрахунок сум (нормо-година × години).' },
+    { date: '12.02', type: 'Добавлено', text: 'реквізити підприємств у PDF: номер договору, дата та ставка беруться з БД (снапшот за період).' },
+    { date: '12.02', type: 'Обновлено', text: 'стандартизовано імена PDF файлів: українська мова, кирилиця, таймстамп.' },
+    { date: '11.02', type: 'Исправлено', text: 'корректный подсчёт часов на плашках планов (ранее могли занижаться при большом количестве задач).' },
+    { date: '11.02', type: 'Исправлено', text: 'улучшена диагностика входа: при ошибке авторизации теперь показывается точная причина (например, пользователь не найден в ReportIB).' },
+    { date: '11.02', type: 'Добавлено', text: 'тип распределения часов по предприятиям: по серверам, по рабочим станциям или поровну.' },
+    { date: '11.02', type: 'Обновлено', text: 'предприятия в месячном плане автоматически подбираются по инфраструктуре за период.' },
 ];
 
 const CHANGELOG_TYPE_STYLES: Record<ChangelogType, string> = {
@@ -77,17 +83,18 @@ const CHANGELOG_TYPE_STYLES: Record<ChangelogType, string> = {
 const PERIODS = [
     { value: 7, label: '7 дней', shortLabel: '7д' },
     { value: 30, label: '30 дней', shortLabel: '30д' },
-    { value: 90, label: 'Квартал', shortLabel: '3М' },
-    { value: 365, label: 'Год', shortLabel: '1Г' }
 ] as const;
 
 type PeriodValue = typeof PERIODS[number]['value'];
 
-export default function ActivityContent({ user }: ActivityContentProps) {
-    const [events, setEvents] = useState<ActivityEvent[]>([]);
-    const [totalUsers, setTotalUsers] = useState(0);
-    const [loading, setLoading] = useState(true);
+const PERIOD_TAB_ITEMS: DashboardTopTabItem<string>[] = PERIODS.map(p => ({
+    id: String(p.value),
+    label: p.label,
+    shortLabel: p.shortLabel,
+    tone: 'indigo' as const,
+}));
 
+export default function ActivityContent({ user }: ActivityContentProps) {
     // AI Analysis
     const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
@@ -96,18 +103,43 @@ export default function ActivityContent({ user }: ActivityContentProps) {
     // Period and filters
     const [selectedPeriod, setSelectedPeriod] = useState<PeriodValue>(7);
 
-    // Panel width for resizing
-    const [panelWidth, setPanelWidth] = useState(480);
-    const isResizingRef = React.useRef(false);
-    const panelRef = React.useRef<HTMLDivElement>(null);
-
-    // Mobile drawer
+    // Mobile drawer (for TwoPanelLayout)
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     const isMobile = useIsMobile();
     const isChief = user.role === 'chief';
     const isHead = user.role === 'head';
     const canSeeAI = isChief || isHead;
+
+    // Activity feed data via TanStack Query (staleTime: 2 min)
+    const { data: activityData, isLoading: loading } = useQuery({
+        queryKey: ['activity-feed', user.user_id, user.role, user.department_id, selectedPeriod],
+        queryFn: async () => {
+            const eventsData = await getActivityFeed(user.user_id, user.role || 'employee', user.department_id || null, {
+                daysBack: selectedPeriod,
+                limit: 500
+            });
+
+            let usersQuery = supabase
+                .from('user_profiles')
+                .select('user_id', { count: 'exact' })
+                .eq('status', 'active');
+
+            if (user.role === 'employee') {
+                usersQuery = usersQuery.eq('user_id', user.user_id);
+            } else if (user.role === 'head') {
+                usersQuery = usersQuery.eq('department_id', user.department_id);
+            }
+
+            const { count } = await usersQuery;
+            return { events: eventsData, totalUsers: count || 0 };
+        },
+        staleTime: 2 * 60 * 1000,
+        refetchOnMount: true,
+    });
+
+    const events = useMemo(() => activityData?.events ?? [], [activityData?.events]);
+    const totalUsers = activityData?.totalUsers ?? 0;
 
     // Calculate stats from events
     const stats = useMemo<ActivityStats>(() => {
@@ -146,52 +178,18 @@ export default function ActivityContent({ user }: ActivityContentProps) {
         };
     }, [events, totalUsers]);
 
-    const loadData = useCallback(async () => {
-        try {
-            const eventsData = await getActivityFeed(user.user_id, user.role || 'employee', user.department_id || null, {
-                daysBack: selectedPeriod,
-                limit: 500
-            });
-
-            setEvents(eventsData);
-
-            let usersQuery = supabase
-                .from('user_profiles')
-                .select('user_id', { count: 'exact' })
-                .eq('status', 'active');
-
-            if (user.role === 'employee') {
-                usersQuery = usersQuery.eq('user_id', user.user_id);
-            } else if (user.role === 'head') {
-                usersQuery = usersQuery.eq('department_id', user.department_id);
-            }
-
-            const { count } = await usersQuery;
-            setTotalUsers(count || 0);
-        } catch (error: unknown) {
-            logger.error('Error loading activity:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [user.user_id, user.role, user.department_id, selectedPeriod]);
-
     const analyzeWithAI = async () => {
         setAiLoading(true);
         setAiAnalysis(null);
         try {
-            const [aiEvents, aiContext] = await Promise.all([
-                getActivityFeed(user.user_id, user.role || 'employee', user.department_id || null, {
-                    daysBack: selectedPeriod,
-                    limit: 200
-                }),
-                getAIContext(user.user_id, user.role || 'employee', user.department_id || null, selectedPeriod)
-            ]);
+            const aiContext = await getAIContext(
+                user.user_id, user.role || 'employee', user.department_id || null, selectedPeriod
+            );
 
             const response = await fetch('/api/ai/activity-analysis', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    events: aiEvents.slice(0, 100),
                     stats,
                     context: aiContext,
                     userRole: user.role,
@@ -211,6 +209,7 @@ export default function ActivityContent({ user }: ActivityContentProps) {
     };
 
     const handlePeriodChange = (period: PeriodValue) => {
+        if (period === selectedPeriod) return;
         setSelectedPeriod(period);
         setAiAnalysis(null);
     };
@@ -220,66 +219,15 @@ export default function ActivityContent({ user }: ActivityContentProps) {
         return period?.label || `${days} дней`;
     };
 
-    useEffect(() => {
-        loadData();
-    }, [loadData]);
-
-    // Resize handlers
-    const handleMouseDown = () => {
-        isResizingRef.current = true;
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-        if (!isResizingRef.current) return;
-        const newWidth = e.clientX - (panelRef.current?.getBoundingClientRect().left || 0);
-        if (newWidth >= 280 && newWidth <= 600) {
-            setPanelWidth(newWidth);
-        }
-    };
-
-    const handleMouseUp = () => {
-        isResizingRef.current = false;
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-    };
-
     // Left panel - Stats & AI
     const leftPanel = (
         <div className="flex flex-col h-full">
-            {!isMobile && (
-                <nav
-                    className="flex-shrink-0 bg-gradient-to-b from-indigo-50/50 to-transparent border-b border-indigo-200"
-                    role="navigation"
-                    aria-label="Выбор периода"
-                >
-                    <div className="px-2 sm:px-4 pt-2">
-                        <div className="flex gap-0.5 items-end">
-                            {PERIODS.map(({ value, label, shortLabel }) => (
-                                <button
-                                    type="button"
-                                    key={value}
-                                    onClick={() => handlePeriodChange(value)}
-                                    aria-label={`Период: ${label}`}
-                                    aria-current={selectedPeriod === value ? 'true' : undefined}
-                                    className={cn(
-                                        "flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium rounded-t-lg transition-all border-t border-l border-r",
-                                        "focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2",
-                                        selectedPeriod === value
-                                            ? "bg-white border-indigo-300 text-indigo-700 shadow-sm -mb-px"
-                                            : "bg-indigo-50/70 border-indigo-200/50 text-gray-500 hover:bg-indigo-100/70"
-                                    )}
-                                >
-                                    <span className="hidden xs:inline">{label}</span>
-                                    <span className="xs:hidden">{shortLabel}</span>
-                                </button>
-                            ))}
-                            <div className="flex-1" />
-                        </div>
-                    </div>
-                </nav>
-            )}
+            <DashboardTopTabs
+                selected={String(selectedPeriod)}
+                items={PERIOD_TAB_ITEMS}
+                onSelect={(id) => handlePeriodChange(Number(id) as PeriodValue)}
+                ariaLabel="Выбор периода"
+            />
 
             {/* Header */}
             <div className="flex-shrink-0 p-3 sm:p-4 border-b border-gray-100 bg-white/50">
@@ -302,8 +250,16 @@ export default function ActivityContent({ user }: ActivityContentProps) {
                                 </div>
                                 <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Часов</span>
                             </div>
-                            <div className="text-2xl font-bold text-slate-800 leading-none">{stats.totalHours}</div>
-                            <div className="text-2xs font-medium text-emerald-600 mt-1">+{stats.todayHours} сегодня</div>
+                            {loading ? (
+                                <div className="h-7 w-12 rounded bg-slate-200 animate-pulse mt-0.5" />
+                            ) : (
+                                <div className="text-2xl font-bold text-slate-800 leading-none">{stats.totalHours}</div>
+                            )}
+                            {loading ? (
+                                <div className="h-3 w-16 rounded bg-slate-100 animate-pulse mt-1.5" />
+                            ) : (
+                                <div className="text-2xs font-medium text-emerald-600 mt-1">+{stats.todayHours} сегодня</div>
+                            )}
                         </div>
 
                         <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2">
@@ -313,8 +269,16 @@ export default function ActivityContent({ user }: ActivityContentProps) {
                                 </div>
                                 <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Задач</span>
                             </div>
-                            <div className="text-2xl font-bold text-slate-800 leading-none">{stats.totalTasks}</div>
-                            <div className="text-2xs font-medium text-emerald-600 mt-1">+{stats.todayTasks} сегодня</div>
+                            {loading ? (
+                                <div className="h-7 w-10 rounded bg-slate-200 animate-pulse mt-0.5" />
+                            ) : (
+                                <div className="text-2xl font-bold text-slate-800 leading-none">{stats.totalTasks}</div>
+                            )}
+                            {loading ? (
+                                <div className="h-3 w-16 rounded bg-slate-100 animate-pulse mt-1.5" />
+                            ) : (
+                                <div className="text-2xs font-medium text-emerald-600 mt-1">+{stats.todayTasks} сегодня</div>
+                            )}
                         </div>
 
                         <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2">
@@ -324,10 +288,18 @@ export default function ActivityContent({ user }: ActivityContentProps) {
                                 </div>
                                 <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Активных</span>
                             </div>
-                            <div className="text-2xl font-bold text-slate-800 leading-none">{stats.activeUsers}</div>
-                            <div className="text-2xs text-slate-500 mt-1">
-                                из <span className="font-bold text-slate-700">{stats.totalUsers}</span>
-                            </div>
+                            {loading ? (
+                                <div className="h-7 w-8 rounded bg-slate-200 animate-pulse mt-0.5" />
+                            ) : (
+                                <div className="text-2xl font-bold text-slate-800 leading-none">{stats.activeUsers}</div>
+                            )}
+                            {loading ? (
+                                <div className="h-3 w-10 rounded bg-slate-100 animate-pulse mt-1.5" />
+                            ) : (
+                                <div className="text-2xs text-slate-500 mt-1">
+                                    из <span className="font-bold text-slate-700">{stats.totalUsers}</span>
+                                </div>
+                            )}
                         </div>
 
                         <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2">
@@ -337,28 +309,20 @@ export default function ActivityContent({ user }: ActivityContentProps) {
                                 </div>
                                 <span className="text-2xs font-bold uppercase tracking-wider text-slate-500">Среднее</span>
                             </div>
-                            <div className="text-2xl font-bold text-slate-800 leading-none">
-                                {stats.activeUsers > 0 ? (stats.totalHours / stats.activeUsers).toFixed(1) : '0'}
-                            </div>
-                            <div className="text-2xs text-slate-500 mt-1">час/чел</div>
+                            {loading ? (
+                                <div className="h-7 w-10 rounded bg-slate-200 animate-pulse mt-0.5" />
+                            ) : (
+                                <div className="text-2xl font-bold text-slate-800 leading-none">
+                                    {stats.activeUsers > 0 ? (stats.totalHours / stats.activeUsers).toFixed(1) : '0'}
+                                </div>
+                            )}
+                            {loading ? (
+                                <div className="h-3 w-12 rounded bg-slate-100 animate-pulse mt-1.5" />
+                            ) : (
+                                <div className="text-2xs text-slate-500 mt-1">час/чел</div>
+                            )}
                         </div>
                     </div>
-                </div>
-
-                {/* Build changelog */}
-                <div className="bg-white rounded-xl border border-slate-200 p-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Что нового</h3>
-                    <ul className="rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2 space-y-1.5">
-                        {MANUAL_BUILD_CHANGELOG_ITEMS.map((item, idx) => (
-                            <li key={`${item.date}-${idx}`} className="text-xs text-slate-700 leading-relaxed">
-                                <span className="font-semibold">{item.date}</span>
-                                <span className={`ml-2 inline-flex rounded px-1.5 py-0.5 text-2xs font-semibold ${CHANGELOG_TYPE_STYLES[item.type]}`}>
-                                    {item.type}
-                                </span>
-                                <span className="ml-2">{item.text}</span>
-                            </li>
-                        ))}
-                    </ul>
                 </div>
 
                 {/* AI Analysis Panel */}
@@ -388,7 +352,7 @@ export default function ActivityContent({ user }: ActivityContentProps) {
                                         disabled={events.length === 0}
                                         aria-label="Запустить AI-анализ"
                                         className={cn(
-                                            "px-2.5 py-1 text-xs font-bold rounded-lg transition-all",
+                                            "px-2.5 py-1 text-xs font-bold rounded-lg transition-[background-color,box-shadow]",
                                             "bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-md",
                                             events.length === 0 && "opacity-50 cursor-not-allowed"
                                         )}
@@ -498,6 +462,22 @@ export default function ActivityContent({ user }: ActivityContentProps) {
                         )}
                     </div>
                 )}
+
+                {/* Build changelog */}
+                <div className="bg-white rounded-xl border border-slate-200 p-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Что нового</h3>
+                    <ul className="rounded-lg border border-slate-100 bg-slate-50/60 px-2.5 py-2 space-y-1.5">
+                        {MANUAL_BUILD_CHANGELOG_ITEMS.map((item, idx) => (
+                            <li key={`${item.date}-${idx}`} className="text-xs text-slate-700 leading-relaxed">
+                                <span className="font-semibold">{item.date}</span>
+                                <span className={`ml-2 inline-flex rounded px-1.5 py-0.5 text-2xs font-semibold ${CHANGELOG_TYPE_STYLES[item.type]}`}>
+                                    {item.type}
+                                </span>
+                                <span className="ml-2">{item.text}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
             </div>
         </div>
     );
@@ -509,115 +489,28 @@ export default function ActivityContent({ user }: ActivityContentProps) {
         </div>
     );
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <RefreshCw className="h-8 w-8 animate-spin text-indigo-500" aria-hidden="true" />
-            </div>
-        );
-    }
+    return (
+        <>
+            <TwoPanelLayout
+                leftPanel={leftPanel}
+                rightPanel={rightPanel}
+                isDrawerOpen={isDrawerOpen}
+                onDrawerClose={() => setIsDrawerOpen(false)}
+                initialWidth={480}
+                rightPanelClassName="bg-indigo-50/30 p-4"
+            />
 
-    // Mobile layout
-    if (isMobile) {
-        return (
-            <div className="flex flex-col h-full">
-                {/* Period tabs */}
-                <nav
-                    className="flex-shrink-0 bg-gradient-to-b from-indigo-50/50 to-transparent border-b border-indigo-200"
-                    role="navigation"
-                    aria-label="Выбор периода"
-                >
-                    <div className="px-2 sm:px-4 pt-2">
-                        <div className="flex gap-0.5 items-end">
-                            {PERIODS.map(({ value, label, shortLabel }) => (
-                                <button
-                                    type="button"
-                                    key={value}
-                                    onClick={() => handlePeriodChange(value)}
-                                    aria-label={`Период: ${label}`}
-                                    aria-current={selectedPeriod === value ? 'true' : undefined}
-                                    className={cn(
-                                        "flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg transition-all border-t border-l border-r",
-                                        "focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2",
-                                        selectedPeriod === value
-                                            ? "bg-white border-indigo-300 text-indigo-700 shadow-sm -mb-px"
-                                            : "bg-indigo-50/70 border-indigo-200/50 text-gray-500 hover:bg-indigo-100/70"
-                                    )}
-                                >
-                                    <span className="hidden xs:inline">{label}</span>
-                                    <span className="xs:hidden">{shortLabel}</span>
-                                </button>
-                            ))}
-                            <div className="flex-1" />
-                        </div>
-                    </div>
-                </nav>
-
-                {/* Content */}
-                <div className="flex-1 overflow-hidden bg-indigo-50/30 p-3">
-                    {rightPanel}
-                </div>
-
-                {/* FAB for stats */}
+            {/* FAB — открыть ленту на мобильном */}
+            {isMobile && (
                 <button
                     type="button"
                     onClick={() => setIsDrawerOpen(true)}
-                    aria-label="Открыть статистику"
+                    aria-label="Открыть ленту событий"
                     className="fixed bottom-6 right-6 z-50 p-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full shadow-lg shadow-indigo-500/30 transition-transform active:scale-95"
                 >
-                    <BarChart2 className="h-6 w-6" aria-hidden="true" />
+                    <Activity className="h-6 w-6" aria-hidden="true" />
                 </button>
-
-                {/* Stats Drawer */}
-                <BottomDrawer
-                    isOpen={isDrawerOpen}
-                    onClose={() => setIsDrawerOpen(false)}
-                    height="auto"
-                    showCloseButton={true}
-                    showDragHandle={true}
-                >
-                    <div className="min-h-[50vh] bg-slate-50">
-                        {leftPanel}
-                    </div>
-                </BottomDrawer>
-            </div>
-        );
-    }
-
-    // Desktop layout
-    return (
-        <div className="flex flex-col h-full bg-mesh-indigo">
-            {/* Two-panel content */}
-            <div className="flex-1 flex overflow-hidden">
-                {/* Left panel - Stats */}
-                <div
-                    ref={panelRef}
-                    className="glass-panel flex flex-col relative z-10 overflow-hidden"
-                    style={{ width: panelWidth }}
-                >
-                    {leftPanel}
-
-                    {/* Resize handle */}
-                    <div
-                        className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-300/50 active:bg-indigo-400/50 transition-colors group"
-                        onMouseDown={handleMouseDown}
-                        aria-label="Изменить ширину панели"
-                        role="separator"
-                        aria-orientation="vertical"
-                    >
-                        <div className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <GripVertical className="h-6 w-6 text-gray-400/50" aria-hidden="true" />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Right panel - Feed */}
-                <div className="flex-1 overflow-y-auto relative z-0 bg-indigo-50/30 p-4">
-                    {rightPanel}
-                </div>
-            </div>
-        </div>
+            )}
+        </>
     );
 }
-
-

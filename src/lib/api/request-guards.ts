@@ -6,6 +6,14 @@ type RateLimitResult = {
   retryAfterSec: number;
 };
 
+interface JwtPayload {
+  exp?: number;
+  iss?: string;
+  aud?: string;
+  oid?: string;
+  sub?: string;
+}
+
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
 function pruneExpired(now: number): void {
@@ -14,6 +22,34 @@ function pruneExpired(now: number): void {
       buckets.delete(key);
     }
   }
+}
+
+function decodeJwtPayload(token: string): JwtPayload | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    return JSON.parse(atob(padded)) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeIssuer(value: string): string {
+  return value.trim().toLowerCase().replace(/\/+$/, '');
+}
+
+function isAllowedIssuer(issuer: string, tenantId: string): boolean {
+  const normalizedIssuer = normalizeIssuer(issuer);
+  const normalizedTenant = tenantId.trim().toLowerCase();
+  const allowedIssuers = new Set([
+    `https://login.microsoftonline.com/${normalizedTenant}/v2.0`,
+    `https://login.microsoftonline.com/${normalizedTenant}`,
+    `https://sts.windows.net/${normalizedTenant}`,
+  ]);
+
+  return allowedIssuers.has(normalizedIssuer);
 }
 
 export function getRequesterKey(request: NextRequest): string {
@@ -28,17 +64,41 @@ export function isRequestAuthorized(request: NextRequest): boolean {
   const hasAuthToken = Boolean(authToken && authToken !== 'undefined' && authToken !== 'null');
   if (!hasAuthToken || !authToken) return false;
 
-  try {
-    const parts = authToken.split('.');
-    if (parts.length !== 3) return false;
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-    const payload = JSON.parse(atob(padded)) as { exp?: number };
-    if (!payload.exp) return true;
-    return payload.exp * 1000 > Date.now();
-  } catch {
-    return false;
+  const payload = decodeJwtPayload(authToken);
+  if (!payload) return false;
+
+  // Token must be non-expired.
+  if (!payload.exp) return false;
+  if (payload.exp * 1000 <= Date.now()) return false;
+
+  // Validate tenant issuer, allowing common Azure AD variants.
+  const tenantId = process.env.NEXT_PUBLIC_AZURE_AD_TENANT_ID;
+  if (tenantId && payload.iss) {
+    if (!isAllowedIssuer(payload.iss, tenantId)) return false;
   }
+
+  // Note: audience check is intentionally omitted because tokens can be issued
+  // for Microsoft Graph scopes rather than the app client_id.
+  return true;
+}
+
+/** Extracts Azure AD oid from JWT token in cookie. NOTE: This is NOT the DB user_id! */
+export function getAzureOidFromToken(request: NextRequest): string | null {
+  const authToken = request.cookies.get('auth_token')?.value;
+  if (!authToken) return null;
+
+  const payload = decodeJwtPayload(authToken);
+  if (!payload) return null;
+
+  return payload.oid || payload.sub || null;
+}
+
+/** @deprecated Use getDbUserId — this returns Azure AD oid, not DB user_id */
+export const getUserIdFromToken = getAzureOidFromToken;
+
+/** Extracts DB user_id from httpOnly cookie set at login (/api/auth/token) */
+export function getDbUserId(request: NextRequest): string | null {
+  return request.cookies.get('x-user-id')?.value || null;
 }
 
 export function checkRateLimit(

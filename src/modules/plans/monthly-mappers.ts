@@ -13,9 +13,10 @@ type MeasureRow = {
   process_name: string;
 };
 
-type DailyTaskHoursRow = {
+type ViewHoursRow = {
   monthly_plan_id: string;
-  spent_hours: number | null;
+  total_spent_hours: number;
+  tasks_count: number;
 };
 
 type MonthlyRow = {
@@ -44,21 +45,18 @@ export function buildMeasuresMap(rows: MeasureRow[]): Map<string, MeasureLookup>
   return measuresMap;
 }
 
-export function aggregateHoursByMonthlyPlan(
-  rows: DailyTaskHoursRow[]
+/** Build hours map from v_monthly_plan_hours view (pre-aggregated by DB) */
+export function buildHoursMapFromView(
+  rows: ViewHoursRow[]
 ): Map<string, { total_spent_hours: number; tasks_count: number }> {
-  const hoursMap = new Map<string, { total_spent_hours: number; tasks_count: number }>();
-
+  const map = new Map<string, { total_spent_hours: number; tasks_count: number }>();
   for (const row of rows) {
-    const planId = row.monthly_plan_id;
-    const hours = Number(row.spent_hours) || 0;
-    const current = hoursMap.get(planId) || { total_spent_hours: 0, tasks_count: 0 };
-    current.total_spent_hours += hours;
-    current.tasks_count += 1;
-    hoursMap.set(planId, current);
+    map.set(row.monthly_plan_id, {
+      total_spent_hours: Number(row.total_spent_hours) || 0,
+      tasks_count: Number(row.tasks_count) || 0,
+    });
   }
-
-  return hoursMap;
+  return map;
 }
 
 export function mapMonthlyPlansWithHierarchy(params: {

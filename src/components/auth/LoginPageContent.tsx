@@ -3,6 +3,7 @@
 import LoginForm from './LoginForm';
 import LoginHeader from './LoginHeader';
 import LoginContainer from './LoginContainer';
+import { Spinner } from '@/components/ui/Spinner';
 
 interface LoginPageContentProps {
   isLoading: boolean;
@@ -15,7 +16,7 @@ export default function LoginPageContent({ isLoading, error, onLogin, showLoginB
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <Spinner size="lg" />
       </div>
     );
   }

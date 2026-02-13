@@ -1,6 +1,7 @@
 import { GraphUser } from '@/types/graph-types';
 import { GraphAuthService } from './auth-service';
 import { logger } from '@/lib/logger';
+import { resizeBase64Photo } from '@/lib/utils/photo-resize';
 
 /**
  * Класс для работы с пользователями через Microsoft Graph API
@@ -81,57 +82,14 @@ export class GraphUsersService {
       // Получаем фото как Blob
       const photoBlob = await response.blob();
 
-      // Конвертируем Blob в base64 и сжимаем
-      return new Promise((resolve) => {
+      // Конвертируем Blob в base64 и сжимаем (max 200×200, JPEG 0.7)
+      const base64 = await new Promise<string>((resolve) => {
         const reader = new FileReader();
-        reader.onloadend = function () {
-          const base64String = reader.result as string;
-
-          // Создаем изображение для изменения размера
-          const img = new Image();
-          img.src = base64String;
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-
-            // Максимальный размер 200x200
-            const MAX_WIDTH = 200;
-            const MAX_HEIGHT = 200;
-            let width = img.width;
-            let height = img.height;
-
-            if (width > height) {
-              if (width > MAX_WIDTH) {
-                height *= MAX_WIDTH / width;
-                width = MAX_WIDTH;
-              }
-            } else {
-              if (height > MAX_HEIGHT) {
-                width *= MAX_HEIGHT / height;
-                height = MAX_HEIGHT;
-              }
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-
-            if (ctx) {
-              ctx.drawImage(img, 0, 0, width, height);
-              // Возвращаем сжатое изображение в формате JPEG с качеством 0.7
-              resolve(canvas.toDataURL('image/jpeg', 0.7));
-            } else {
-              // Если не удалось получить контекст, возвращаем оригинал
-              resolve(base64String);
-            }
-          };
-
-          img.onerror = () => {
-            // Если не удалось загрузить изображение, возвращаем оригинал
-            resolve(base64String);
-          };
-        };
+        reader.onloadend = () => resolve(reader.result as string);
         reader.readAsDataURL(photoBlob);
       });
+
+      return resizeBase64Photo(base64);
     } catch (error: unknown) {
       logger.error('Ошибка при получении фото пользователя:', error);
       return null;

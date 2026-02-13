@@ -15,6 +15,7 @@ export type SupabaseUserInfo = {
   department_code: string | null; // Код отдела
   status: UserStatus | null;     // Статус пользователя
   last_seen_at: string | null;    // Последний раз в сети (HTTP пульс)
+  position: string | null;        // Должность
 };
 
 // Данные участника проекта
@@ -56,6 +57,7 @@ export type Database = {
           updated_at: string;
           last_seen_at: string | null;
           status: UserStatus;
+          position: string | null;
         };
         Insert: Omit<Database['public']['Tables']['user_profiles']['Row'], 'user_id' | 'created_at' | 'updated_at'>;
         Update: Partial<Omit<Database['public']['Tables']['user_profiles']['Row'], 'user_id' | 'created_at' | 'updated_at'>>;

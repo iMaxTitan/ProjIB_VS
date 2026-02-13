@@ -3,6 +3,7 @@ import { ExcelReportGenerator } from '@/lib/reports/excel-report-generator';
 import { GraphSharePointService } from '@/services/graph/sharepoint-service';
 import { supabase } from '@/lib/supabase';
 import logger from '@/lib/logger';
+import { isRequestAuthorized, getRequesterKey, checkRateLimit } from '@/lib/api/request-guards';
 
 /**
  * Секретный ключ для защиты cron endpoint.
@@ -67,14 +68,20 @@ async function logReportGeneration(
  * - departmentId?: string (опционально, для фильтрации по отделу)
  * - uploadToSharePoint?: boolean (по умолчанию true)
  */
+const REPORT_RATE_LIMIT = 5;
+const REPORT_RATE_WINDOW_MS = 60_000;
+
 export async function POST(request: NextRequest) {
   try {
-    // Проверяем авторизацию через cookie
-    const authStatus = request.cookies.get('auth-status');
-    if (authStatus?.value !== 'authenticated') {
+    if (!isRequestAuthorized(request)) {
+      return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
+    }
+
+    const rateLimit = checkRateLimit(getRequesterKey(request), REPORT_RATE_LIMIT, REPORT_RATE_WINDOW_MS);
+    if (!rateLimit.allowed) {
       return NextResponse.json(
-        { error: 'Не авторизован' },
-        { status: 401 }
+        { error: 'Too Many Requests' },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSec) } }
       );
     }
 

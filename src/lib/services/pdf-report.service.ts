@@ -9,21 +9,12 @@
 import PDFDocument from 'pdfkit';
 import path from 'path';
 import fs from 'fs';
-import { CompanyReportData, EmployeeReportData, MONTH_NAMES_UK, formatHours } from './monthly-report.service';
+import { CompanyReportData, EmployeeReportData, QuarterlyPlanPDFData, QuarterlyReportPDFData, MONTH_NAMES_UK, formatHours } from './monthly-report.service';
 import logger from '@/lib/logger';
 import {
-  groupTasksByProcess,
-  prepareProcessDataForAI,
   DEFAULT_EXECUTOR,
-  TaskDataForAI,
-  ProcessGroup,
-  ContractTaskLike
+  DEFAULT_CONTRACT,
 } from './contract-services';
-
-// Конфигурация AI
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const AI_PROVIDER = process.env.AI_PROVIDER || 'anthropic';
 
 // Конфигурация PDF
 const PDF_CONFIG = {
@@ -48,285 +39,52 @@ const FONTS_DIR = path.join(process.cwd(), 'public', 'fonts');
 const FONT_REGULAR = path.join(FONTS_DIR, 'Roboto-Regular.ttf');
 const FONT_BOLD = path.join(FONTS_DIR, 'Roboto-Bold.ttf');
 
-/**
- * Проверяет наличие шрифтов
- */
 function checkFonts(): { regular: boolean; bold: boolean } {
-  const regular = fs.existsSync(FONT_REGULAR);
-  const bold = fs.existsSync(FONT_BOLD);
-  logger.log(`[PDF] Шрифти: regular=${regular}, bold=${bold}`);
-  return { regular, bold };
+  return {
+    regular: fs.existsSync(FONT_REGULAR),
+    bold: fs.existsSync(FONT_BOLD),
+  };
 }
 
-/**
- * Генерирует название месяца в родительном падеже
- */
-function getMonthGenitive(month: number): string {
-  const months = [
-    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
-  ];
-  return months[month - 1] || '';
-}
-
-/**
- * Форматирует дату как "31 декабря 2025 г."
- */
-function formatDateUkrainian(date: Date): string {
-  const day = date.getDate();
-  const month = getMonthGenitive(date.getMonth() + 1);
-  const year = date.getFullYear();
-  return `${day} ${month} ${year} р.`;
-}
-
-/**
- * Рисует горизонтальную линию таблицы
- */
-function drawTableLine(doc: PDFKit.PDFDocument, y: number, startX: number, width: number) {
-  doc.moveTo(startX, y)
-    .lineTo(startX + width, y)
+function drawTableLine(doc: PDFKit.PDFDocument, y: number, x: number, width: number): void {
+  doc
+    .moveTo(x, y)
+    .lineTo(x + width, y)
+    .strokeColor('#000000')
+    .lineWidth(0.5)
     .stroke();
 }
 
-/**
- * Рисует вертикальные линии таблицы
- */
-function drawTableVerticals(doc: PDFKit.PDFDocument, startY: number, endY: number, startX: number, cols: number[]) {
+function drawTableVerticals(
+  doc: PDFKit.PDFDocument,
+  startY: number,
+  endY: number,
+  startX: number,
+  colWidths: number[]
+): void {
   let x = startX;
-  doc.moveTo(x, startY).lineTo(x, endY).stroke();
+  doc.moveTo(x, startY).lineTo(x, endY).strokeColor('#000000').lineWidth(0.5).stroke();
 
-  for (const width of cols) {
+  for (const width of colWidths) {
     x += width;
-    doc.moveTo(x, startY).lineTo(x, endY).stroke();
+    doc.moveTo(x, startY).lineTo(x, endY).strokeColor('#000000').lineWidth(0.5).stroke();
   }
 }
 
-const AI_SYSTEM_PROMPT = `Ты профессиональный копирайтер для официальных документов в сфере информационной безопасности.
-Твоя задача - создать ДЕТАЛЬНЫЕ, РАЗВЕРНУТЫЕ описания выполненных работ для официальных актов между предприятиями.
-
-ВАЖНЫЕ ПРАВИЛА:
-1. Пиши официально-деловым стилем, но показывай ЦЕННОСТЬ и ЭКСПЕРТНОСТЬ оказанных услуг
-2. Используй русский язык
-3. Каждое описание должно быть ДЕТАЛЬНЫМ - 4-6 абзацев, 400-600 слов
-4. Описывай РЕЗУЛЬТАТЫ и ДОСТИЖЕНИЯ ("Обеспечена надежная защита...", "Достигнут высокий уровень...")
-5. Используй конкретные цифры: количество проверок, выявленных угроз, обработанных событий
-6. Структура опису:
-   - Абзац 1: Общий обзор направления работ и их важности
-   - Абзац 2: Конкретные выполненные работы и их объем
-   - Абзац 3: Достигнутые результаты и улучшения
-   - Абзац 4: Выявленные проблемы и принятые меры (если есть)
-   - Абзац 5: Выводы и рекомендации
-7. НЕ придумывай факты, которых нет в данных
-8. Начинай каждый абзац с новой строки
-9. Подчеркивай профессионализм команды и качество услуг
-
-Формат ответа - JSON-массив:
-[{"serviceId": 1, "text": "Детальное описание на несколько абзацев..."}]`;
-
-/**
- * Вызывает AI для форматирования описаний
- */
-async function callAIForDescriptions(services: TaskDataForAI[], companyName: string): Promise<Map<number, string>> {
-  const result = new Map<number, string>();
-
-  if (services.length === 0) return result;
-
-  const prompt = `Создай ДЕТАЛЬНЫЕ описания выполненных работ для официального акта.
-
-ЗАМОВНИК: ${companyName}
-
-ПЕРЕЧЕНЬ УСЛУГ И ВЫПОЛНЕННЫХ РАБОТ:
-
-${services.map((s, i) => `
-═══════════════════════════════════════════════════════
-${i + 1}. ПОСЛУГА ID=${s.serviceId}: "${s.serviceName}"
-═══════════════════════════════════════════════════════
-   • Общий объем: ${s.taskCount} задач
-   • Трудозатраты: ${s.totalHours.toFixed(1)} человеко-часов
-   • Привлечено специалистов: ${s.employees.length} (${s.employees.slice(0, 5).join(', ')}${s.employees.length > 5 ? '...' : ''})
-
-   ПРИМЕРЫ ВЫПОЛНЕННЫХ РАБОТ:
-   ${s.taskDescriptions.slice(0, 10).map((d, j) => `   ${j + 1}. ${d}`).join('\n') || '   - данные отсутствуют'}
-`).join('\n')}
-
-ТРЕБОВАНИЯ К ОПИСАНИЯМ:
-- Каждое описание должно быть 4-6 абзацев (400-600 слов)
-- Показать ценность и профессионализм выполненных работ
-- Использовать конкретные цифры из предоставленных данных
-
-JSON-ответ:`;
-
-  try {
-    let aiResponse = '';
-
-    if (AI_PROVIDER === 'anthropic' && ANTHROPIC_API_KEY) {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-3-haiku-20240307',
-          max_tokens: 8000,
-          system: AI_SYSTEM_PROMPT,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        aiResponse = data.content?.[0]?.text || '';
-      }
-    } else if (OPENAI_API_KEY) {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: AI_SYSTEM_PROMPT },
-            { role: 'user', content: prompt }
-          ],
-          max_tokens: 8000,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        aiResponse = data.choices?.[0]?.message?.content || '';
-      }
-    }
-
-    if (aiResponse) {
-      const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        for (const item of parsed) {
-          if (item.serviceId !== undefined && item.text) {
-            result.set(item.serviceId, item.text);
-          }
-        }
-      }
-    }
-  } catch (error: unknown) {
-    logger.warn('[PDF] Ошибка AI:', error);
-  }
-
-  return result;
+function formatDateUkrainian(date: Date): string {
+  return date.toLocaleDateString('uk-UA');
 }
 
-/**
- * Генерирует базовое описание (fallback) - короткое
- */
-function generateBasicDescription(tasks: ContractTaskLike[], serviceName: string): string {
-  const taskCount = tasks.length;
-  const totalHours = tasks.reduce((sum, t) => sum + (t.spent_hours || 0), 0);
-  const employees = new Set(tasks.map(t => t.employee_name).filter(Boolean));
+// Українські назви місяців (називний та родовий відмінки)
+const MONTHS_UA = [
+  'січень', 'лютий', 'березень', 'квітень', 'травень', 'червень',
+  'липень', 'серпень', 'вересень', 'жовтень', 'листопад', 'грудень'
+];
+const MONTHS_UA_GEN = [
+  'січня', 'лютого', 'березня', 'квітня', 'травня', 'червня',
+  'липня', 'серпня', 'вересня', 'жовтня', 'листопада', 'грудня'
+];
 
-  // Выбираем глагол в зависимости от типа услуги
-  let verb = 'Виконано роботи';
-  const lowerName = serviceName.toLowerCase();
-
-  if (lowerName.includes('моніторинг')) {
-    verb = 'Обеспечен непрерывный мониторинг';
-  } else if (lowerName.includes('аудит')) {
-    verb = 'Проведено комплексний аудит';
-  } else if (lowerName.includes('аналіз')) {
-    verb = 'Выполнен детальный анализ';
-  } else if (lowerName.includes('консульт')) {
-    verb = 'Предоставлены экспертные консультации';
-  }
-
-  return `${verb}. Обработано ${taskCount} задач, привлечено ${employees.size} специалистов.`;
-}
-
-/**
- * Генерирует ДЕТАЛЬНОЕ описание (fallback) - для развернутого раздела
- */
-function generateDetailedDescription(tasks: ContractTaskLike[], serviceName: string, totalHours: number, employeesCount: number): string {
-  const taskCount = tasks.length;
-  const descriptions = tasks.slice(0, 5).map(t => t.description).filter(Boolean);
-  const lowerName = serviceName.toLowerCase();
-
-  // Базовые шаблоны для разных типов процессов
-  let intro = '';
-  let workDone = '';
-  let results = '';
-  let conclusion = '';
-
-  if (lowerName.includes('моніторинг') && lowerName.includes('інцидент')) {
-    intro = `В отчетном периоде обеспечен непрерывный мониторинг событий информационной безопасности в информационно-коммуникационных системах Заказчика. Служба кибербезопасности осуществляла круглосуточное наблюдение за состоянием защищенности информационных ресурсов и оперативно реагировала на выявленные угрозы.`;
-    workDone = `В течение отчетного периода обработан значительный объем событий безопасности. Общие трудозатраты составили ${totalHours.toFixed(1)} человеко-часов. К выполнению работ было привлечено ${employeesCount} квалифицированных специалистов с опытом работы в сфере кибербезопасности.`;
-    results = `По результатам мониторинга своевременно выявлены и классифицированы потенциальные угрозы. Обеспечено оперативное информирование ответственных лиц Заказчика о критических событиях. Приняты необходимые меры по нейтрализации выявленных угроз и минимизации возможных последствий.`;
-    conclusion = `В целом уровень защищенности информационных систем Заказчика поддерживался на надлежащем уровне. Рекомендовано продолжить мониторинг и усилить внимание к новым типам угроз.`;
-  } else if (lowerName.includes('управління') && lowerName.includes('документац')) {
-    intro = `В отчетном периоде выполнен комплекс работ по управлению документацией системы управления информационной безопасностью (СУИБ). Работы направлены на обеспечение актуальности, полноты и соответствия нормативной базы требованиям действующего законодательства и международных стандартов.`;
-    workDone = `Выполнены анализ и актуализация внутренних нормативных документов. Общий объем трудозатрат составил ${totalHours.toFixed(1)} человеко-часов. В работах участвовало ${employeesCount} специалистов.`;
-    results = `Актуализированы документы политики информационной безопасности. Обновлены инструкции и регламенты в соответствии с изменениями в инфраструктуре и организационной структуре. Обеспечено соответствие документации требованиям стандарта ISO 27001.`;
-    conclusion = `Документация СУИБ приведена в соответствие с текущим состоянием информационной безопасности организации.`;
-  } else if (lowerName.includes('ризик')) {
-    intro = `В отчетном периоде выполнены работы по управлению рисками информационной безопасности. Проведены оценка и анализ рисков, связанных с обработкой информации в информационных системах Заказчика.`;
-    workDone = `Выполнены идентификация и оценка рисков информационной безопасности. Общий объем работ составил ${totalHours.toFixed(1)} человеко-часов с привлечением ${employeesCount} специалистов.`;
-    results = `Сформирован актуальный реестр рисков. Определены приоритетные направления для внедрения защитных мер. Разработаны рекомендации по минимизации выявленных рисков.`;
-    conclusion = `Уровень рисков информационной безопасности остается контролируемым. Рекомендовано продолжить мониторинг и периодический пересмотр оценки рисков.`;
-  } else if (lowerName.includes('навчання') || lowerName.includes('обізнаності')) {
-    intro = `В отчетном периоде проведены мероприятия по повышению осведомленности персонала Заказчика в сфере информационной безопасности. Работы направлены на формирование культуры кибербезопасности и снижение рисков, связанных с человеческим фактором.`;
-    workDone = `Подготовлены и проведены обучающие мероприятия для сотрудников. Общий объем работ составил ${totalHours.toFixed(1)} человеко-часов. К подготовке и проведению обучения привлечено ${employeesCount} специалистов.`;
-    results = `Повышен уровень осведомленности персонала об актуальных киберугрозах. Сформированы навыки распознавания фишинговых атак и других методов социальной инженерии.`;
-    conclusion = `Рекомендовано продолжить регулярное проведение обучающих мероприятий и тестирование осведомленности персонала.`;
-  } else {
-    intro = `В отчетном периоде выполнен комплекс работ по направлению "${serviceName}". Работы направлены на обеспечение надлежащего уровня информационной безопасности информационно-коммуникационных систем Заказчика.`;
-    workDone = `Общий объем выполненных работ составил ${totalHours.toFixed(1)} человеко-часов. К выполнению работ привлечено ${employeesCount} квалифицированных специалистов службы кибербезопасности.`;
-    results = `Обеспечено выполнение запланированных задач в полном объеме. Достигнуты установленные показатели качества и своевременности выполнения работ.`;
-    conclusion = `Общее состояние информационной безопасности в рамках данного направления оценивается как удовлетворительное.`;
-  }
-
-  // Добавляем примеры работ, если есть
-  let examples = '';
-  if (descriptions.length > 0) {
-    examples = `\n\nСреди выполненных работ: ${descriptions.slice(0, 3).join('; ')}.`;
-  }
-
-  return `${intro}\n\n${workDone}${examples}\n\n${results}\n\n${conclusion}`;
-}
-
-/**
- * Генерирует базовое описание (старый формат)
- */
-function generateBasicDescriptionOld(tasks: ContractTaskLike[], serviceName: string): string {
-  const taskCount = tasks.length;
-  const totalHours = tasks.reduce((sum, t) => sum + (t.spent_hours || 0), 0);
-  const employees = new Set(tasks.map(t => t.employee_name).filter(Boolean));
-
-  // Выбираем глагол в зависимости от типа услуги
-  let verb = 'Виконано роботи';
-  const lowerName = serviceName.toLowerCase();
-
-  if (lowerName.includes('моніторинг')) {
-    verb = 'Обеспечен непрерывный мониторинг';
-  } else if (lowerName.includes('аудит')) {
-    verb = 'Проведено комплексний аудит';
-  } else if (lowerName.includes('аналіз')) {
-    verb = 'Выполнен детальный анализ';
-  } else if (lowerName.includes('консульт')) {
-    verb = 'Предоставлены экспертные консультации';
-  } else if (lowerName.includes('перевірк')) {
-    verb = 'Выполнена проверка';
-  } else if (lowerName.includes('захист')) {
-    verb = 'Обеспечена надежная защита';
-  } else if (lowerName.includes('виявлення')) {
-    verb = 'Проведены выявление и анализ';
-  } else if (lowerName.includes('навчання') || lowerName.includes('обізнаності')) {
-    verb = 'Организованы мероприятия по повышению осведомленности';
-  }
-
-  return `${verb}. Обработано ${taskCount} задач, привлечено ${employees.size} специалистов.`;
-}
 
 /**
  * Генерирует PDF-отчет по предприятию (приложение к Акту)
@@ -339,40 +97,13 @@ export async function generateCompanyReportPDF(data: CompanyReportData): Promise
         throw new Error(`Шрифт Roboto-Regular.ttf не знайдено за шляхом: ${FONT_REGULAR}`);
       }
 
-      // Используем АГРЕГИРОВАННЫЕ данные по процессам из RPC (там все часы корректные)
-      // data.processes уже содержит sum(spent_hours) по всем задачам, без LIMIT 100
-      const processes = data.processes || [];
-      logger.log('[PDF] Процессов с агрегированными часами:', processes.length);
-
-      // Группируем задачи для получения описаний и количества исполнителей
-      const tasksByProcess = groupTasksByProcess(data.tasks || []);
-
-      // Готовим данные для AI на основе процессов
-      const tasksForAI: TaskDataForAI[] = processes
-        .filter(p => p.process_name && p.hours > 0)
-        .sort((a, b) => (b.hours || 0) - (a.hours || 0))
-        .map((proc, idx) => {
-          const processGroup = tasksByProcess.get(proc.process_name || '');
-          return {
-            serviceName: proc.process_name || 'Невизначений процес',
-            serviceId: idx + 1,
-            categoryName: 'Обеспечение кибербезопасности ИКС',
-            taskCount: processGroup?.taskCount || 0,
-            totalHours: proc.hours || 0,
-            employees: processGroup ? Array.from(processGroup.employees) : [],
-            taskDescriptions: processGroup?.descriptions?.slice(0, 15) || [],
-            processName: proc.process_name
-          };
-        });
-
-      // Получаем AI-описания
-      logger.log('[PDF] Запрос AI-форматирования для', tasksForAI.length, 'процессов');
-      const aiDescriptions = await callAIForDescriptions(tasksForAI, data.company.company_name);
-      logger.log('[PDF] AI вернул', aiDescriptions.size, 'описаний');
+      const measures = data.measures || [];
+      logger.log('[PDF] Мероприятий для отчёта:', measures.length);
 
       const doc = new PDFDocument({
         size: 'A4',
-        margins: { top: 50, bottom: 50, left: 50, right: 50 },
+        layout: 'landscape',
+        margins: { top: 40, bottom: 40, left: 40, right: 40 },
         autoFirstPage: false,
         info: {
           Title: `Додаток до Акту - ${data.company.company_name} - ${MONTH_NAMES_UK[data.period.month - 1]} ${data.period.year}`,
@@ -396,323 +127,200 @@ export async function generateCompanyReportPDF(data: CompanyReportData): Promise
       const startX = doc.page.margins.left;
       let y = doc.page.margins.top;
 
-      const monthName = MONTH_NAMES_UK[data.period.month - 1];
+      const monthUA = MONTHS_UA[data.period.month - 1];
+      const monthGen = MONTHS_UA_GEN[data.period.month - 1];
       const lastDay = new Date(data.period.year, data.period.month, 0).getDate();
-      const reportDate = new Date(data.period.year, data.period.month - 1, lastDay);
 
-      // ============ ЗАГОЛОВОК ДОКУМЕНТА ============
-      // Центрируем относительно всей ширины страницы
+      // ============ ЗАГОЛОВОК — «Додаток до Акту» (правий верх) ============
       const centerX = 0;
       const fullWidth = doc.page.width;
+      const dateStr = `${lastDay}.${String(data.period.month).padStart(2, '0')}.${data.period.year}`;
 
-      doc.fontSize(PDF_CONFIG.fontSize.header);
-      doc.text('Приложение к Акту', centerX, y, { width: fullWidth, align: 'center' });
-      y += 14;
+      doc.fontSize(PDF_CONFIG.fontSize.body);
+      doc.text('Додаток до Акту', startX, y, { width: pageWidth, align: 'right' });
+      y += 12;
+      doc.text(`приймання-передачі послуг № ___ від ${dateStr} р.`, startX, y, { width: pageWidth, align: 'right' });
+      y += 20;
 
-      doc.text(`приема-передачи услуг от ${lastDay}.${String(data.period.month).padStart(2, '0')}.${data.period.year} г.`,
-        centerX, y, { width: fullWidth, align: 'center' });
-      y += 22;
-
-      // ОТЧЕТ - крупный заголовок
+      // ============ ЗВІТ (центр, жирний) ============
       doc.fontSize(PDF_CONFIG.fontSize.title);
       if (fonts.bold) doc.font('Roboto-Bold');
-      doc.text('ОТЧЕТ', centerX, y, { width: fullWidth, align: 'center' });
-      y += 18;
+      doc.text('ЗВІТ', centerX, y, { width: fullWidth, align: 'center' });
+      y += 16;
       doc.font('Roboto');
 
       doc.fontSize(PDF_CONFIG.fontSize.heading);
-      doc.text('об оказании услуг по обеспечению кибербезопасности информационно-коммуникационных систем,',
-        centerX, y, { width: fullWidth, align: 'center' });
-      y += 13;
-      doc.text('программных продуктов и информации, обрабатываемой в них',
-        centerX, y, { width: fullWidth, align: 'center' });
-      y += 15;
-      doc.text(`за ${monthName.toLowerCase()} ${data.period.year} года`,
-        centerX, y, { width: fullWidth, align: 'center' });
-      y += 22;
+      doc.text(
+        'про надання послуг забезпечення кібербезпеки інформаційно-комунікаційних систем,',
+        centerX, y, { width: fullWidth, align: 'center' }
+      );
+      y += 12;
+      doc.text(
+        'програмних продуктів та інформації',
+        centerX, y, { width: fullWidth, align: 'center' }
+      );
+      y += 14;
+      if (fonts.bold) doc.font('Roboto-Bold');
+      doc.text(`за ${monthUA} ${data.period.year} рік`, centerX, y, { width: fullWidth, align: 'center' });
+      doc.font('Roboto');
+      y += 20;
 
-      // Город и дата
+      // ============ Місто та дата ============
       doc.fontSize(PDF_CONFIG.fontSize.body);
-      doc.text(`г. Днепр`, startX, y);
-      doc.text(formatDateUkrainian(reportDate), startX + pageWidth - 100, y);
-      y += 18;
+      doc.text('м. Дніпро', startX, y);
+      doc.text(`${lastDay} ${monthGen} ${data.period.year}`, startX + pageWidth - 140, y, { width: 140, align: 'right' });
+      y += 12;
 
-      // ============ СТОРОНИ ДОГОВОРУ ============
+      // ============ Реквізити договору ============
+      const labelW = 200;
+      const labelX = startX;
+      const valueX = startX + labelW + 10;
+      const valueW = pageWidth - labelW - 10;
+      const lineH = 11;
+
+      const drawField = (label: string, value: string) => {
+        doc.fontSize(PDF_CONFIG.fontSize.body);
+        const labelH = doc.heightOfString(label, { width: labelW });
+        const valueH = doc.heightOfString(value, { width: valueW });
+        doc.text(label, labelX, y, { width: labelW });
+        doc.text(value, valueX, y, { width: valueW });
+        y += Math.max(labelH, valueH, lineH) + 2;
+      };
+
+      const contractNum = data.company.contract_number || DEFAULT_CONTRACT.number;
+      const contractDate = data.company.contract_date || DEFAULT_CONTRACT.date;
+
+      drawField('Номер договору:', contractNum);
+      drawField('Дата укладання договору:', contractDate);
+      drawField(
+        'Код згідно з Державним класифікатором продукції та послуг, що надаються Виконавцем за цим договором:',
+        `${DEFAULT_CONTRACT.dkCode} (${DEFAULT_CONTRACT.dkDescription}).`
+      );
+      drawField(
+        'Підстава:',
+        `${DEFAULT_CONTRACT.pidstavaPrefix} 01 ${monthGen} ${data.period.year} року`
+      );
+
+      // Сума — розрахунок за нормо-годину
+      const rate = Number(data.company.rate_per_hour) || 0;
+      const totalHours = data.summary.total_hours || 0;
+      const sumWithoutVAT = Math.round(totalHours * rate * 100) / 100;
+      const vat = Math.round(sumWithoutVAT * 0.2 * 100) / 100;
+      const sumWithVAT = Math.round((sumWithoutVAT + vat) * 100) / 100;
+
+      const fmtSum = (v: number) => v > 0 ? v.toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '___';
+
       doc.fontSize(PDF_CONFIG.fontSize.body);
+      const sumaLabelH = doc.heightOfString('Сума оплати наданих робіт, послуг:', { width: labelW });
+      doc.text('Сума оплати наданих робіт, послуг:', labelX, y, { width: labelW });
+      const sumaStartY = y;
+      doc.text(`без ПДВ – ${fmtSum(sumWithoutVAT)} грн`, valueX, sumaStartY, { width: valueW });
+      doc.text(`ПДВ, 20 % – ${fmtSum(vat)} грн`, valueX, sumaStartY + lineH, { width: valueW });
+      doc.text(`разом з ПДВ – ${fmtSum(sumWithVAT)} грн`, valueX, sumaStartY + lineH * 2, { width: valueW });
+      y += Math.max(sumaLabelH, lineH * 3) + 2;
 
-      if (fonts.bold) doc.font('Roboto-Bold');
-      doc.text('Исполнитель:', startX, y);
-      doc.font('Roboto');
-      doc.text(DEFAULT_EXECUTOR.name, startX + 75, y);
+      drawField('Найменування замовника:', data.company.company_name);
+      drawField(
+        'Причини розірвання договору, якщо таке мало місце:',
+        'Відсутні'
+      );
+
+      y += 4;
+
+      // Надпис "Таблиця № 1" справа
+      doc.text('Таблиця № 1', startX + pageWidth - 80, y, { width: 80, align: 'right' });
       y += 13;
 
-      if (fonts.bold) doc.font('Roboto-Bold');
-      doc.text('Заказчик:', startX, y);
-      doc.font('Roboto');
-      doc.text(data.company.company_name, startX + 75, y);
-      y += 18;
+      // ============ ТАБЛИЦА МЕРОПРИЯТИЙ (6 колонок) ============
+      // Колонки: № | Найменування робіт | Відповідальні виконавці | Задіяно співроб. | Трудовитрати | Інформація про виконання
+      const colWidths = [28, pageWidth * 0.22, pageWidth * 0.18, 55, 55, pageWidth * 0.35];
+      // Корректируем последнюю колонку чтобы сумма = pageWidth
+      colWidths[5] = pageWidth - colWidths[0] - colWidths[1] - colWidths[2] - colWidths[3] - colWidths[4];
+      const tableWidth = pageWidth;
+      const tableStartX = startX;
 
-      // ============ СВОДНАЯ ИНФОРМАЦИЯ ============
-      if (fonts.bold) doc.font('Roboto-Bold');
-      doc.text('Сводная информация за отчетный период:', startX, y);
-      doc.font('Roboto');
-      y += 13;
+      doc.fontSize(7);
 
-      doc.text(`• Общий объем оказанных услуг: ${data.summary.tasks_count} работ`, startX + 10, y);
-      y += 11;
-      doc.text(`• Общие трудозатраты: ${formatHours(data.summary.total_hours)}`, startX + 10, y);
-      y += 11;
-      doc.text(`• Количество привлеченных специалистов: ${data.summary.employees_count}`, startX + 10, y);
-      y += 18;
+      // Функция рисования заголовка таблицы
+      const drawMeasureTableHeader = () => {
+        const hY = y;
+        drawTableLine(doc, y, tableStartX, tableWidth);
+        y += 2;
 
-      // ============ ТАБЛИЦЯ ПОСЛУГ (скорочена) ============
-      if (fonts.bold) doc.font('Roboto-Bold');
-      doc.text('Перечень оказанных услуг', centerX, y, { width: fullWidth, align: 'center' });
-      y += 15;
-      doc.font('Roboto');
+        if (fonts.bold) doc.font('Roboto-Bold');
+        let colX2 = tableStartX + 3;
+        doc.text('№\nп/п', colX2, y, { width: colWidths[0] - 6, align: 'center' });
+        colX2 += colWidths[0];
+        doc.text('Найменування робіт, послуг', colX2, y + 2, { width: colWidths[1] - 6, align: 'center' });
+        colX2 += colWidths[1];
+        doc.text('Відповідальні виконавці', colX2, y + 2, { width: colWidths[2] - 6, align: 'center' });
+        colX2 += colWidths[2];
+        doc.text('Задіяно\nспівроб\nтників', colX2, y, { width: colWidths[3] - 6, align: 'center' });
+        colX2 += colWidths[3];
+        doc.text('Трудо\nвитрати,\nл/годин', colX2, y, { width: colWidths[4] - 6, align: 'center' });
+        colX2 += colWidths[4];
+        doc.text('Інформація про виконання', colX2, y + 2, { width: colWidths[5] - 6, align: 'center' });
+        doc.font('Roboto');
 
-      // Ширини колонок (4 колонки без опису)
-      const colWidths = [25, 330, 60, 60];
-      const tableWidth = colWidths.reduce((a, b) => a + b, 0);
-      const tableStartX = startX + (pageWidth - tableWidth) / 2; // Центрируем таблицу
+        y = hY + 32;
+        drawTableLine(doc, y, tableStartX, tableWidth);
+        drawTableVerticals(doc, hY, y, tableStartX, colWidths);
+      };
 
-      doc.fontSize(PDF_CONFIG.fontSize.table);
+      drawMeasureTableHeader();
 
-      // Заголовок таблицы
-      const headerY = y;
-      drawTableLine(doc, y, tableStartX, tableWidth);
-      y += 2;
-
-      let colX = tableStartX + 2;
-      doc.text('№', colX, y + 6, { width: colWidths[0] - 4, align: 'center' });
-      colX += colWidths[0];
-      doc.text('Наименование услуг', colX, y + 3, { width: colWidths[1] - 4, align: 'center' });
-      colX += colWidths[1];
-      doc.text('?/?', colX, y + 6, { width: colWidths[2] - 4, align: 'center' });
-      colX += colWidths[2];
-      doc.text('Специалистов', colX, y + 6, { width: colWidths[3] - 4, align: 'center' });
-
-      y += 22;
-      drawTableLine(doc, y, tableStartX, tableWidth);
-      drawTableVerticals(doc, headerY, y, tableStartX, colWidths);
-
-      // ============ СТРОКИ ТАБЛИЦЫ (сокращенные, без описаний) ============
+      // ============ СТРОКИ ТАБЛИЦЫ ============
       let rowNum = 1;
 
-      for (const processData of tasksForAI) {
+      for (const measure of measures) {
+        // Подсчёт высоты строки
+        const nameH = doc.heightOfString(measure.measure_name || '—', { width: colWidths[1] - 6 });
+        const execH = doc.heightOfString(measure.responsible_executors || '—', { width: colWidths[2] - 6 });
+        const noteText = measure.note || '—';
+        const noteH = doc.heightOfString(noteText, { width: colWidths[5] - 6 });
+        const rowHeight = Math.max(nameH, execH, noteH, 14) + 6;
+
         // Проверка новой страницы
-        if (y > doc.page.height - 60) {
+        if (y + rowHeight > doc.page.height - 50) {
           doc.addPage();
           y = doc.page.margins.top;
-
-          // Заголовок таблицы на новой странице
-          const newHeaderY = y;
-          drawTableLine(doc, y, tableStartX, tableWidth);
-          y += 2;
-
-          colX = tableStartX + 2;
-          doc.text('№', colX, y + 6, { width: colWidths[0] - 4, align: 'center' });
-          colX += colWidths[0];
-          doc.text('Наименование услуг', colX, y + 3, { width: colWidths[1] - 4, align: 'center' });
-          colX += colWidths[1];
-          doc.text('?/?', colX, y + 6, { width: colWidths[2] - 4, align: 'center' });
-          colX += colWidths[2];
-          doc.text('Специалистов', colX, y + 6, { width: colWidths[3] - 4, align: 'center' });
-
-          y += 22;
-          drawTableLine(doc, y, tableStartX, tableWidth);
-          drawTableVerticals(doc, newHeaderY, y, tableStartX, colWidths);
+          drawMeasureTableHeader();
         }
 
         const rowY = y;
+        y += 3;
 
-        // Назва процесу
-        const displayName = processData.serviceName.length > 80
-          ? processData.serviceName.substring(0, 80) + '...'
-          : processData.serviceName;
-
-        // Висота рядка
-        const nameHeight = doc.heightOfString(displayName, { width: colWidths[1] - 4 });
-        const rowHeight = Math.max(nameHeight, 16) + 4;
-
-        y += 2;
-
-        // Текст рядка (4 колонки)
-        colX = tableStartX + 2;
-        doc.text(String(rowNum), colX, y, { width: colWidths[0] - 4, align: 'center' });
-        colX += colWidths[0];
-        doc.text(displayName, colX, y, { width: colWidths[1] - 4 });
-        colX += colWidths[1];
-        doc.text(processData.totalHours.toFixed(1), colX, y, { width: colWidths[2] - 4, align: 'center' });
-        colX += colWidths[2];
-        doc.text(String(processData.employees.length), colX, y, { width: colWidths[3] - 4, align: 'center' });
+        let colX2 = tableStartX + 3;
+        doc.text(String(rowNum), colX2, y, { width: colWidths[0] - 6, align: 'center' });
+        colX2 += colWidths[0];
+        doc.text(measure.measure_name || '—', colX2, y, { width: colWidths[1] - 6 });
+        colX2 += colWidths[1];
+        doc.text(measure.responsible_executors || '—', colX2, y, { width: colWidths[2] - 6 });
+        colX2 += colWidths[2];
+        doc.text(String(measure.employees_count), colX2, y, { width: colWidths[3] - 6, align: 'center' });
+        colX2 += colWidths[3];
+        doc.text(measure.hours.toFixed(2), colX2, y, { width: colWidths[4] - 6, align: 'center' });
+        colX2 += colWidths[4];
+        doc.text(noteText, colX2, y, { width: colWidths[5] - 6 });
 
         y = rowY + rowHeight;
-
         drawTableLine(doc, y, tableStartX, tableWidth);
         drawTableVerticals(doc, rowY, y, tableStartX, colWidths);
 
         rowNum++;
       }
 
-      // Если процессов нет
-      if (tasksForAI.length === 0) {
+      // Если мероприятий нет
+      if (measures.length === 0) {
         const rowY = y;
-        y += 2;
-        doc.text('Работы за отчетный период отсутствуют', tableStartX + 3, y, { width: tableWidth - 6, align: 'center' });
+        y += 3;
+        doc.text('Роботи за звітний період відсутні', tableStartX + 3, y, { width: tableWidth - 6, align: 'center' });
         y += 16;
         drawTableLine(doc, y, tableStartX, tableWidth);
         drawTableVerticals(doc, rowY, y, tableStartX, colWidths);
       }
 
-      // ============ ИТОГ ТАБЛИЦЫ ============
-      y += 12;
-      doc.fontSize(PDF_CONFIG.fontSize.body);
-      if (fonts.bold) doc.font('Roboto-Bold');
-      doc.text(`ИТОГО: ${formatHours(data.summary.total_hours)}`, startX, y);
-      doc.font('Roboto');
-
-      // ============ ДЕТАЛЬНОЕ ОПИСАНИЕ ВЫПОЛНЕННЫХ РАБОТ ============
-      y += 25;
-      doc.addPage();
-      y = doc.page.margins.top;
-
-      doc.fontSize(PDF_CONFIG.fontSize.title);
-      if (fonts.bold) doc.font('Roboto-Bold');
-      doc.text('ДЕТАЛЬНОЕ ОПИСАНИЕ ВЫПОЛНЕННЫХ РАБОТ', centerX, y, { width: fullWidth, align: 'center' });
-      y += 25;
-      doc.font('Roboto');
-
-      // Виводимо детальний опис для кожного процесу
-      rowNum = 1;
-      for (const processData of tasksForAI) {
-        // Проверка новой страницы
-        if (y > doc.page.height - 150) {
-          doc.addPage();
-          y = doc.page.margins.top;
-        }
-
-        // Заголовок процесу
-        doc.fontSize(PDF_CONFIG.fontSize.subtitle);
-        if (fonts.bold) doc.font('Roboto-Bold');
-        doc.text(`${rowNum}. ${processData.serviceName}`, startX, y, { width: pageWidth });
-        y += 16;
-        doc.font('Roboto');
-
-        // Метрики
-        doc.fontSize(PDF_CONFIG.fontSize.small);
-        doc.fillColor(PDF_CONFIG.colors.gray);
-        doc.text(`Трудозатраты: ${processData.totalHours.toFixed(1)} ч/ч  |  Специалистов: ${processData.employees.length}  |  Задач: ${processData.taskCount}`, startX, y);
-        y += 14;
-        doc.fillColor(PDF_CONFIG.colors.black);
-
-        // Детальний опис (AI або базовий)
-        let detailedText = aiDescriptions.get(processData.serviceId);
-        if (!detailedText) {
-          const processGroup = tasksByProcess.get(processData.serviceName);
-          detailedText = generateDetailedDescription(
-            processGroup?.tasks || [],
-            processData.serviceName,
-            processData.totalHours,
-            processData.employees.length
-          );
-        }
-
-        // Виводимо опис з переносами
-        doc.fontSize(PDF_CONFIG.fontSize.body);
-        const textHeight = doc.heightOfString(detailedText, { width: pageWidth });
-
-        // Если текст не помещается - новая страница
-        if (y + textHeight > doc.page.height - 60) {
-          doc.addPage();
-          y = doc.page.margins.top;
-        }
-
-        doc.text(detailedText, startX, y, { width: pageWidth, align: 'justify' });
-        y += textHeight + 20;
-
-        // Разделитель
-        doc.moveTo(startX, y - 10)
-          .lineTo(startX + pageWidth, y - 10)
-          .strokeColor('#E5E7EB')
-          .stroke();
-        doc.strokeColor(PDF_CONFIG.colors.black);
-
-        rowNum++;
-      }
-
-      // ============ ПРИВЛЕЧЕННЫЕ СПЕЦИАЛИСТЫ (с разбивкой по отделам) ============
-      if (data.employees && data.employees.length > 0) {
-        // Новая страница для раздела специалистов
-        doc.addPage();
-        y = doc.page.margins.top;
-
-        doc.fontSize(PDF_CONFIG.fontSize.title);
-        if (fonts.bold) doc.font('Roboto-Bold');
-        doc.text('ПРИВЛЕЧЕННЫЕ СПЕЦИАЛИСТЫ ИСПОЛНИТЕЛЯ', centerX, y, { width: fullWidth, align: 'center' });
-        y += 25;
-        doc.font('Roboto');
-
-        // Группируем сотрудников по отделам
-        const employeesByDept = new Map<string, typeof data.employees>();
-        for (const emp of data.employees) {
-          const deptName = emp.department_name || 'Другие подразделения';
-          if (!employeesByDept.has(deptName)) {
-            employeesByDept.set(deptName, []);
-          }
-          employeesByDept.get(deptName)!.push(emp);
-        }
-
-        // Выводим по отделам
-        for (const [deptName, employees] of Array.from(employeesByDept.entries())) {
-          if (y > doc.page.height - 100) {
-            doc.addPage();
-            y = doc.page.margins.top;
-          }
-
-          // Название отдела
-          doc.fontSize(PDF_CONFIG.fontSize.subtitle);
-          if (fonts.bold) doc.font('Roboto-Bold');
-          doc.text(deptName, startX, y);
-          doc.font('Roboto');
-          y += 15;
-
-          // Сортируем по часам
-          const sortedEmps = employees.sort((a, b) => (b.hours || 0) - (a.hours || 0));
-
-          // Сумма часов отдела
-          const deptTotalHours = sortedEmps.reduce((sum, e) => sum + (e.hours || 0), 0);
-          doc.fontSize(PDF_CONFIG.fontSize.small);
-          doc.fillColor(PDF_CONFIG.colors.gray);
-          doc.text(`Итого: ${formatHours(deptTotalHours)} (${sortedEmps.length} специалистов)`, startX, y);
-          y += 12;
-          doc.fillColor(PDF_CONFIG.colors.black);
-
-          // Таблица сотрудников отдела
-          doc.fontSize(PDF_CONFIG.fontSize.body);
-          for (const emp of sortedEmps) {
-            if (y > doc.page.height - 50) {
-              doc.addPage();
-              y = doc.page.margins.top;
-            }
-            const position = emp.position || 'Специалист';
-            doc.text(`• ${emp.full_name}`, startX + 10, y);
-            doc.fillColor(PDF_CONFIG.colors.gray);
-            doc.text(`${position} — ${formatHours(emp.hours || 0)}`, startX + 200, y);
-            doc.fillColor(PDF_CONFIG.colors.black);
-            y += 12;
-          }
-          y += 10;
-        }
-
-        // Общий итог
-        y += 10;
-        if (fonts.bold) doc.font('Roboto-Bold');
-        doc.text(`ВСЕГО ПРИВЛЕЧЕНО: ${data.employees.length} специалистов`, startX, y);
-        doc.font('Roboto');
-      }
-
-      // ============ ПОДПИСИ ============
+      // ============ ПІДПИСИ ============
       y += 30;
       if (y > doc.page.height - 90) {
         doc.addPage();
@@ -723,8 +331,8 @@ export async function generateCompanyReportPDF(data: CompanyReportData): Promise
       const halfWidth = pageWidth / 2 - 15;
 
       if (fonts.bold) doc.font('Roboto-Bold');
-      doc.text('От Исполнителя:', startX, y);
-      doc.text('От Заказчика:', startX + halfWidth + 30, y);
+      doc.text('Від Виконавця:', startX, y);
+      doc.text('Від Замовника:', startX + halfWidth + 30, y);
       doc.font('Roboto');
       y += 14;
 
@@ -740,8 +348,8 @@ export async function generateCompanyReportPDF(data: CompanyReportData): Promise
 
       doc.fontSize(7);
       doc.fillColor(PDF_CONFIG.colors.gray);
-      doc.text('(подпись)              (Ф.И.О.)', startX + 15, y);
-      doc.text('(подпись)              (Ф.И.О.)', startX + halfWidth + 45, y);
+      doc.text('(підпис)                (П.І.Б.)', startX + 15, y);
+      doc.text('(підпис)                (П.І.Б.)', startX + halfWidth + 45, y);
       doc.fillColor(PDF_CONFIG.colors.black);
 
       doc.end();
@@ -921,3 +529,365 @@ export async function generateEmployeeReportPDF(data: EmployeeReportData): Promi
   });
 }
 
+/**
+ * Генерирует PDF квартального плана (книжная ориентация).
+ * Формат таблицы: №, Перелік завдань, Підрозділ, Термін, Очікуваний результат.
+ */
+export async function generateQuarterlyPlanPDF(data: QuarterlyPlanPDFData): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    try {
+      const fonts = checkFonts();
+      if (!fonts.regular) {
+        throw new Error(`Шрифт Roboto-Regular.ttf не знайдено: ${FONT_REGULAR}`);
+      }
+
+      const quarterRoman: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV' };
+      const qLabel = quarterRoman[data.quarter] || String(data.quarter);
+
+      const doc = new PDFDocument({
+        size: 'A4',
+        layout: 'portrait',
+        margins: { top: 40, bottom: 40, left: 40, right: 40 },
+        autoFirstPage: false,
+        info: {
+          Title: `План роботи УІБК на ${qLabel} квартал ${data.year} р.`,
+          Author: 'SOC System',
+        }
+      });
+
+      doc.registerFont('Roboto', FONT_REGULAR);
+      if (fonts.bold) doc.registerFont('Roboto-Bold', FONT_BOLD);
+      doc.font('Roboto');
+      doc.addPage();
+
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const startX = doc.page.margins.left;
+      const fullWidth = doc.page.width;
+      let y = doc.page.margins.top;
+
+      // === ЗАГОЛОВОК ===
+      doc.fontSize(13);
+      if (fonts.bold) doc.font('Roboto-Bold');
+      doc.text(
+        `План роботи Управління інформаційної безпеки`,
+        0, y, { width: fullWidth, align: 'center' }
+      );
+      y += 16;
+      doc.text(
+        `на ${qLabel} квартал ${data.year} р.`,
+        0, y, { width: fullWidth, align: 'center' }
+      );
+      y += 25;
+      doc.font('Roboto');
+
+      // === КОНФИГУРАЦИЯ ТАБЛИЦЫ ===
+      // Логика как в UI: фиксированные Підрозділ/Термін,
+      // остаток ширины поровну между Перелік завдань и Очікуваний результат.
+      const numberCol = 32;
+      const departmentCol = 72;
+      const termCol = 84;
+      const flexibleCol = Math.max(80, (pageWidth - numberCol - departmentCol - termCol) / 2);
+      const colWidths = [numberCol, flexibleCol, departmentCol, termCol, flexibleCol];
+      const tableWidth = colWidths.reduce((a, b) => a + b, 0);
+      const tableStartX = startX;
+
+      const fontSize = 8;
+      doc.fontSize(fontSize);
+
+      // Вычисляем плановый срок: 19-е число последнего месяца квартала
+      const lastMonth = data.quarter * 3;
+      const deadline = `19.${String(lastMonth).padStart(2, '0')}.${data.year}`;
+
+      // === РИСУЕМ ЗАГОЛОВОК ТАБЛИЦЫ ===
+      const drawHeader = (yPos: number): number => {
+        const headerStartY = yPos;
+        drawTableLine(doc, yPos, tableStartX, tableWidth);
+
+        const headerTexts = [
+          '№',
+          'Перелік завдань',
+          'Підрозділ',
+          'Термін',
+          'Очікуваний результат'
+        ];
+
+        // Вычисляем максимальную высоту заголовка
+        let maxH = 0;
+        for (let i = 0; i < headerTexts.length; i++) {
+          const h = doc.heightOfString(headerTexts[i], { width: colWidths[i] - 6 });
+          if (h > maxH) maxH = h;
+        }
+        const headerH = maxH + 8;
+
+        // Текст заголовков
+        if (fonts.bold) doc.font('Roboto-Bold');
+        let colX = tableStartX + 3;
+        for (let i = 0; i < headerTexts.length; i++) {
+          doc.text(headerTexts[i], colX, yPos + 4, {
+            width: colWidths[i] - 6,
+            align: 'center'
+          });
+          colX += colWidths[i];
+        }
+        doc.font('Roboto');
+
+        yPos += headerH;
+        drawTableLine(doc, yPos, tableStartX, tableWidth);
+        drawTableVerticals(doc, headerStartY, yPos, tableStartX, colWidths);
+        return yPos;
+      };
+
+      y = drawHeader(y);
+
+      // === СТРОКИ ТАБЛИЦЫ ===
+      for (let i = 0; i < data.plans.length; i++) {
+        const plan = data.plans[i];
+
+        // Вычисляем высоту строки
+        const goalH = doc.heightOfString(plan.goal, { width: colWidths[1] - 6 });
+        const resultH = doc.heightOfString(plan.expected_result, { width: colWidths[4] - 6 });
+        const rowH = Math.max(goalH, resultH, 14) + 8;
+
+        // Проверка: если не помещается — новая страница
+        if (y + rowH > doc.page.height - doc.page.margins.bottom) {
+          doc.addPage();
+          y = doc.page.margins.top;
+          y = drawHeader(y);
+        }
+
+        const rowY = y;
+
+        // Содержимое строки
+        let colX = tableStartX + 3;
+
+        // №
+        doc.text(String(i + 1), colX, y + 4, { width: colWidths[0] - 6, align: 'center' });
+        colX += colWidths[0];
+
+        // Перелік завдань
+        doc.text(plan.goal, colX, y + 4, { width: colWidths[1] - 6 });
+        colX += colWidths[1];
+
+        // Відповідальний підрозділ
+        const deptLabel = plan.department_code || plan.department_name;
+        doc.text(deptLabel, colX, y + 4, { width: colWidths[2] - 6, align: 'center' });
+        colX += colWidths[2];
+
+        // Плановий термін
+        doc.text(deadline, colX, y + 4, { width: colWidths[3] - 6, align: 'center' });
+        colX += colWidths[3];
+
+        // Очікуваний результат
+        doc.text(plan.expected_result, colX, y + 4, { width: colWidths[4] - 6 });
+
+        y = rowY + rowH;
+        drawTableLine(doc, y, tableStartX, tableWidth);
+        drawTableVerticals(doc, rowY, y, tableStartX, colWidths);
+      }
+
+      // Пустая таблица
+      if (data.plans.length === 0) {
+        const rowY = y;
+        doc.text('Завдання за цей квартал відсутні', tableStartX + 3, y + 4, {
+          width: tableWidth - 6, align: 'center'
+        });
+        y += 20;
+        drawTableLine(doc, y, tableStartX, tableWidth);
+        drawTableVerticals(doc, rowY, y, tableStartX, colWidths);
+      }
+
+      doc.end();
+    } catch (error: unknown) {
+      reject(error);
+    }
+  });
+}
+
+/**
+ * Генерирует PDF квартального ОТЧЁТА (альбомная ориентация).
+ * Формат таблицы: №, Перелік завдань, Відповідальний підрозділ,
+ * Плановий строк закінчення виконання, Результат виконання, Примітка.
+ */
+export async function generateQuarterlyReportPDF(data: QuarterlyReportPDFData): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    try {
+      const fonts = checkFonts();
+      if (!fonts.regular) {
+        throw new Error(`Шрифт Roboto-Regular.ttf не знайдено: ${FONT_REGULAR}`);
+      }
+
+      const quarterRoman: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV' };
+      const qLabel = quarterRoman[data.quarter] || String(data.quarter);
+
+      const doc = new PDFDocument({
+        size: 'A4',
+        layout: 'landscape',
+        margins: { top: 40, bottom: 40, left: 40, right: 40 },
+        autoFirstPage: false,
+        info: {
+          Title: `Звіт про роботу УІБК за ${qLabel} квартал ${data.year} р.`,
+          Author: 'SOC System',
+        }
+      });
+
+      doc.registerFont('Roboto', FONT_REGULAR);
+      if (fonts.bold) doc.registerFont('Roboto-Bold', FONT_BOLD);
+      doc.font('Roboto');
+      doc.addPage();
+
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const startX = doc.page.margins.left;
+      const fullWidth = doc.page.width;
+      let y = doc.page.margins.top;
+
+      // === ЗАГОЛОВОК ===
+      doc.fontSize(13);
+      if (fonts.bold) doc.font('Roboto-Bold');
+      doc.text('ЗВІТ', 0, y, { width: fullWidth, align: 'center' });
+      y += 16;
+      doc.text(
+        `про роботу Управління інформаційної безпеки`,
+        0, y, { width: fullWidth, align: 'center' }
+      );
+      y += 16;
+      doc.text(
+        `за ${qLabel} квартал ${data.year} р.`,
+        0, y, { width: fullWidth, align: 'center' }
+      );
+      y += 25;
+      doc.font('Roboto');
+
+      // === КОНФИГУРАЦИЯ ТАБЛИЦЫ (6 колонок) ===
+      const numberCol = 28;
+      const departmentCol = 72;
+      const deadlineCol = 80;
+      const statusCol = 68;
+      // Остаток делим между "Перелік завдань" и "Примітка"
+      const flexTotal = pageWidth - numberCol - departmentCol - deadlineCol - statusCol;
+      const goalCol = Math.round(flexTotal * 0.4);
+      const noteCol = flexTotal - goalCol;
+
+      const colWidths = [numberCol, goalCol, departmentCol, deadlineCol, statusCol, noteCol];
+      const tableWidth = colWidths.reduce((a, b) => a + b, 0);
+      const tableStartX = startX;
+
+      const fontSize = 8;
+      doc.fontSize(fontSize);
+
+      // === РИСУЕМ ЗАГОЛОВОК ТАБЛИЦЫ ===
+      const drawHeader = (yPos: number): number => {
+        const headerStartY = yPos;
+        drawTableLine(doc, yPos, tableStartX, tableWidth);
+
+        const headerTexts = [
+          '№',
+          'Перелік завдань',
+          'Відповідальний підрозділ',
+          'Плановий строк закінчення виконання',
+          'Результат виконання',
+          'Примітка'
+        ];
+
+        // Вычисляем максимальную высоту заголовка
+        let maxH = 0;
+        for (let i = 0; i < headerTexts.length; i++) {
+          const h = doc.heightOfString(headerTexts[i], { width: colWidths[i] - 6 });
+          if (h > maxH) maxH = h;
+        }
+        const headerH = maxH + 8;
+
+        if (fonts.bold) doc.font('Roboto-Bold');
+        let colX = tableStartX + 3;
+        for (let i = 0; i < headerTexts.length; i++) {
+          doc.text(headerTexts[i], colX, yPos + 4, {
+            width: colWidths[i] - 6,
+            align: 'center'
+          });
+          colX += colWidths[i];
+        }
+        doc.font('Roboto');
+
+        yPos += headerH;
+        drawTableLine(doc, yPos, tableStartX, tableWidth);
+        drawTableVerticals(doc, headerStartY, yPos, tableStartX, colWidths);
+        return yPos;
+      };
+
+      y = drawHeader(y);
+
+      // === СТРОКИ ТАБЛИЦЫ ===
+      for (let i = 0; i < data.plans.length; i++) {
+        const plan = data.plans[i];
+
+        // Вычисляем высоту строки по всем текстовым колонкам
+        const noteText = plan.ai_note || plan.expected_result;
+        const goalH = doc.heightOfString(plan.goal, { width: colWidths[1] - 6 });
+        const noteH = doc.heightOfString(noteText, { width: colWidths[5] - 6 });
+        const rowH = Math.max(goalH, noteH, 14) + 8;
+
+        // Проверка: если не помещается — новая страница
+        if (y + rowH > doc.page.height - doc.page.margins.bottom) {
+          doc.addPage();
+          y = doc.page.margins.top;
+          y = drawHeader(y);
+        }
+
+        const rowY = y;
+        let colX = tableStartX + 3;
+
+        // №
+        doc.text(String(i + 1), colX, y + 4, { width: colWidths[0] - 6, align: 'center' });
+        colX += colWidths[0];
+
+        // Перелік завдань
+        doc.text(plan.goal, colX, y + 4, { width: colWidths[1] - 6 });
+        colX += colWidths[1];
+
+        // Відповідальний підрозділ
+        const deptLabel = plan.department_code || plan.department_name;
+        doc.text(deptLabel, colX, y + 4, { width: colWidths[2] - 6, align: 'center' });
+        colX += colWidths[2];
+
+        // Плановий строк закінчення виконання
+        doc.text(plan.deadline, colX, y + 4, { width: colWidths[3] - 6, align: 'center' });
+        colX += colWidths[3];
+
+        // Результат виконання
+        doc.text(plan.status, colX, y + 4, { width: colWidths[4] - 6, align: 'center' });
+        colX += colWidths[4];
+
+        // Примітка (AI-generated or expected_result fallback)
+        doc.text(noteText, colX, y + 4, { width: colWidths[5] - 6 });
+
+        y = rowY + rowH;
+        drawTableLine(doc, y, tableStartX, tableWidth);
+        drawTableVerticals(doc, rowY, y, tableStartX, colWidths);
+      }
+
+      // Пустая таблица
+      if (data.plans.length === 0) {
+        const rowY = y;
+        doc.text('Завдання за цей квартал відсутні', tableStartX + 3, y + 4, {
+          width: tableWidth - 6, align: 'center'
+        });
+        y += 20;
+        drawTableLine(doc, y, tableStartX, tableWidth);
+        drawTableVerticals(doc, rowY, y, tableStartX, colWidths);
+      }
+
+      doc.end();
+    } catch (error: unknown) {
+      reject(error);
+    }
+  });
+}

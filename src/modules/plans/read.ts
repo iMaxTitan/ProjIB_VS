@@ -1,5 +1,5 @@
 ﻿import { supabase } from '@/lib/supabase';
-import type { DailyTask, Measure, MonthlyPlan, MonthlyPlanAssignee, Service } from '@/types/planning';
+import type { DailyTask, Measure, MonthlyPlan, MonthlyPlanAssignee } from '@/types/planning';
 
 type ProcessRelation = {
   process_name?: string | null;
@@ -7,10 +7,6 @@ type ProcessRelation = {
 
 type DepartmentRelation = {
   department_name?: string | null;
-};
-
-type ServiceRow = Service & {
-  processes?: ProcessRelation | ProcessRelation[] | null;
 };
 
 type MeasureRow = Measure & {
@@ -75,39 +71,6 @@ export interface PlansCounts {
 function normalizeRelation<T>(value: T | T[] | null | undefined): T | undefined {
   if (!value) return undefined;
   return Array.isArray(value) ? value[0] : value;
-}
-
-export async function getServices(processId?: string): Promise<Service[]> {
-  let query = supabase
-    .from('services')
-    .select(`
-      service_id,
-      process_id,
-      name,
-      description,
-      is_active,
-      created_at,
-      processes (
-        process_name
-      )
-    `)
-    .eq('is_active', true)
-    .order('name');
-
-  if (processId) {
-    query = query.eq('process_id', processId);
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
-
-  return ((data || []) as ServiceRow[]).map((row) => {
-    const process = normalizeRelation(row.processes);
-    return {
-      ...row,
-      process_name: process?.process_name ?? undefined,
-    };
-  });
 }
 
 export async function getMeasures(processId?: string): Promise<Measure[]> {
@@ -230,21 +193,28 @@ export async function getMonthlyPlans(filters: MonthlyPlansFilter = {}): Promise
   if (measureId) query = query.eq('measure_id', measureId);
   if (allowedMonthlyIds) query = query.in('monthly_plan_id', Array.from(allowedMonthlyIds));
 
-  const [{ data: monthlyRows, error: monthlyError }, { data: taskRows, error: tasksError }] = await Promise.all([
-    query,
-    supabase.from('daily_tasks').select('monthly_plan_id, spent_hours'),
-  ]);
-
+  const { data: monthlyRows, error: monthlyError } = await query;
   if (monthlyError) throw monthlyError;
-  if (tasksError) throw tasksError;
 
-  const hoursByPlanId = (taskRows || []).reduce<Record<string, { spent: number; count: number }>>((acc, row) => {
-    const key = row.monthly_plan_id;
-    if (!acc[key]) acc[key] = { spent: 0, count: 0 };
-    acc[key].spent += Number(row.spent_hours) || 0;
-    acc[key].count += 1;
-    return acc;
-  }, {});
+  const planIds = (monthlyRows || []).map((r: { monthly_plan_id: string }) => r.monthly_plan_id);
+
+  const hoursByPlanId: Record<string, { spent: number; count: number }> = {};
+
+  if (planIds.length > 0) {
+    const { data: hoursRows, error: hoursError } = await supabase
+      .from('v_monthly_plan_hours')
+      .select('monthly_plan_id, total_spent_hours, tasks_count')
+      .in('monthly_plan_id', planIds);
+
+    if (hoursError) throw hoursError;
+
+    for (const row of hoursRows || []) {
+      hoursByPlanId[row.monthly_plan_id] = {
+        spent: Number(row.total_spent_hours) || 0,
+        count: Number(row.tasks_count) || 0,
+      };
+    }
+  }
 
   return ((monthlyRows || []) as MonthlyPlanRow[]).map((row) => {
     const measure = normalizeRelation(row.measures);
@@ -295,9 +265,10 @@ export async function getMonthlyPlanById(monthlyPlanId: string): Promise<Monthly
       .eq('monthly_plan_id', monthlyPlanId)
       .single(),
     supabase
-      .from('daily_tasks')
-      .select('spent_hours')
-      .eq('monthly_plan_id', monthlyPlanId),
+      .from('v_monthly_plan_hours')
+      .select('total_spent_hours, tasks_count')
+      .eq('monthly_plan_id', monthlyPlanId)
+      .maybeSingle(),
   ]);
 
   if (planResult.error) throw planResult.error;
@@ -309,9 +280,9 @@ export async function getMonthlyPlanById(monthlyPlanId: string): Promise<Monthly
   const quarterly = normalizeRelation(row.quarterly_plans);
   const department = normalizeRelation(quarterly?.departments);
 
-  const tasks = tasksResult.data || [];
-  const totalSpentHours = tasks.reduce((sum, task) => sum + (Number(task.spent_hours) || 0), 0);
-  const tasksCount = tasks.length;
+  const hoursRow = tasksResult.data;
+  const totalSpentHours = Number(hoursRow?.total_spent_hours) || 0;
+  const tasksCount = Number(hoursRow?.tasks_count) || 0;
   const plannedHours = Number(row.planned_hours) || 0;
 
   return {
@@ -412,22 +383,39 @@ export async function getDailySpentHours(userId: string, taskDate: string): Prom
 }
 
 export async function getPlansCounts(userId: string): Promise<PlansCounts> {
-  const [
-    annualResult,
-    quarterlyResult,
-    monthlyAssignedResult,
-    monthlyCreatedResult,
-  ] = await Promise.all([
-    supabase.from('annual_plans').select('annual_id', { count: 'exact', head: true }).eq('user_id', userId),
-    supabase.from('quarterly_plans').select('quarterly_id', { count: 'exact', head: true }).eq('created_by', userId),
+  const [annualIdsViewResult, monthlyAssignedResult, monthlyCreatedResult] = await Promise.all([
+    supabase.from('v_annual_plans').select('annual_id').eq('user_id', userId),
     supabase.from('monthly_plan_assignees').select('monthly_plan_id').eq('user_id', userId),
     supabase.from('monthly_plans').select('monthly_plan_id').eq('created_by', userId),
   ]);
 
-  if (annualResult.error) throw annualResult.error;
-  if (quarterlyResult.error) throw quarterlyResult.error;
   if (monthlyAssignedResult.error) throw monthlyAssignedResult.error;
   if (monthlyCreatedResult.error) throw monthlyCreatedResult.error;
+
+  let annualIds: string[] = [];
+  if (annualIdsViewResult.error) {
+    const annualIdsBaseResult = await supabase
+      .from('annual_plans')
+      .select('annual_id')
+      .eq('user_id', userId);
+
+    if (annualIdsBaseResult.error) throw annualIdsBaseResult.error;
+    annualIds = (annualIdsBaseResult.data || []).map((row) => row.annual_id).filter(Boolean);
+  } else {
+    annualIds = (annualIdsViewResult.data || []).map((row) => row.annual_id).filter(Boolean);
+  }
+
+  let quarterlyCount = 0;
+
+  if (annualIds.length > 0) {
+    const { count, error } = await supabase
+      .from('quarterly_plans')
+      .select('quarterly_id', { count: 'exact', head: true })
+      .in('annual_plan_id', annualIds);
+
+    if (error) throw error;
+    quarterlyCount = count || 0;
+  }
 
   const monthlyIds = new Set<string>([
     ...((monthlyAssignedResult.data || []).map((row) => row.monthly_plan_id)),
@@ -435,8 +423,8 @@ export async function getPlansCounts(userId: string): Promise<PlansCounts> {
   ]);
 
   return {
-    annual: annualResult.count || 0,
-    quarterly: quarterlyResult.count || 0,
+    annual: annualIds.length,
+    quarterly: quarterlyCount,
     monthly: monthlyIds.size,
   };
 }

@@ -1,4 +1,5 @@
 import type { PlanStatus } from '@/types/planning';
+import type { HourDistributionType } from '@/types/infrastructure';
 
 export interface StatusChangeParams {
   planType: 'annual' | 'quarterly';
@@ -48,6 +49,7 @@ export interface MonthlyPlanParams {
   status: PlanStatus;
   assignees?: string[];
   userId: string;
+  distributionType?: HourDistributionType;
   action?: 'create' | 'update' | 'delete';
 }
 

@@ -4,7 +4,6 @@ import logger from '@/lib/logger';
 
 const LOGIN_ROUTE = '/login';
 const CALLBACK_ROUTE = '/auth/callback';
-const HOME_ROUTE = '/';
 
 const publicPaths = [
   LOGIN_ROUTE,
@@ -36,11 +35,6 @@ export async function middleware(request: NextRequest) {
   logger.debug(`[Middleware] Is public path? ${isPublic}`);
   if (isPublic) {
     logger.debug('[Middleware] Allowing public path.');
-    return NextResponse.next();
-  }
-
-  if (pathname === HOME_ROUTE) {
-    logger.debug('[Middleware] Allowing home path.');
     return NextResponse.next();
   }
 

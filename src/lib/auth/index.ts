@@ -1,50 +1,61 @@
-"use client";
+﻿"use client";
 
 import {
   PublicClientApplication,
   AuthenticationResult,
   InteractionRequiredAuthError,
   EventType,
-  EventMessage,
-  AuthError
+  EventMessage
 } from "@azure/msal-browser";
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 import { getMsalConfig, silentLoginRequest, interactiveLoginRequest } from './config';
-import { supabase } from '@/lib/supabase';
+import { supabase, setSupabaseSession, clearSupabaseSession } from '@/lib/supabase';
 import { UserInfo, AzureUserInfo, roleLabels } from '@/types/azure';
 import { UserRole } from '@/types/supabase';
 import Cookies from 'js-cookie';
 import { logger } from '@/lib/logger';
 
-// MSAL инстанс (синглтон)
+// MSAL РёРЅСЃС‚Р°РЅСЃ (СЃРёРЅРіР»С‚РѕРЅ)
 let msalInstance: PublicClientApplication | null = null;
 
-// Кэш для данных пользователя
+// РљСЌС€ РґР»СЏ РґР°РЅРЅС‹С… РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
 const USER_CACHE_KEY = 'auth_user_cache';
 const USER_CACHE_EXPIRY_KEY = 'auth_user_cache_expiry';
-const CACHE_TTL = 5 * 60 * 1000; // 5 минут в миллисекундах
+const CACHE_TTL = 5 * 60 * 1000; // 5 РјРёРЅСѓС‚ РІ РјРёР»Р»РёСЃРµРєСѓРЅРґР°С…
 
-// Имя cookie для статуса авторизации
+// РРјСЏ cookie РґР»СЏ СЃС‚Р°С‚СѓСЃР° Р°РІС‚РѕСЂРёР·Р°С†РёРё
 const AUTH_STATUS_COOKIE = 'auth-status';
 
+function getEmailCandidates(email: string | null | undefined): string[] {
+  if (!email) return [];
+  const normalized = email.trim().toLowerCase();
+  const [local, domain] = normalized.split('@');
+  if (!local || !domain) return [normalized];
+
+  const candidates = new Set<string>([normalized]);
+  if (domain === 'atbmarket.com') candidates.add(`${local}@atb.ua`);
+  if (domain === 'atb.ua') candidates.add(`${local}@atbmarket.com`);
+  return Array.from(candidates);
+}
+
 /**
- * Устанавливает cookie для статуса авторизации
- * @param isAuthenticated Флаг аутентификации
+ * РЈСЃС‚Р°РЅР°РІР»РёРІР°РµС‚ cookie РґР»СЏ СЃС‚Р°С‚СѓСЃР° Р°РІС‚РѕСЂРёР·Р°С†РёРё
+ * @param isAuthenticated Р¤Р»Р°Рі Р°СѓС‚РµРЅС‚РёС„РёРєР°С†РёРё
  */
 export const setAuthStatusCookie = (isAuthenticated: boolean): void => {
   try {
     if (isAuthenticated) {
-      // Устанавливаем cookie на 24 часа
+      // РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј cookie РЅР° 24 С‡Р°СЃР°
       Cookies.set(AUTH_STATUS_COOKIE, 'authenticated', {
-        expires: 1, // 1 день
+        expires: 1, // 1 РґРµРЅСЊ
         path: '/',
         sameSite: 'lax',
         secure: process.env.NODE_ENV === 'production'
       });
       logger.log('[Auth] Set auth-status cookie to authenticated');
     } else {
-      // Удаляем cookie
+      // РЈРґР°Р»СЏРµРј cookie
       Cookies.remove(AUTH_STATUS_COOKIE, { path: '/' });
       logger.log('[Auth] Removed auth-status cookie');
     }
@@ -54,7 +65,7 @@ export const setAuthStatusCookie = (isAuthenticated: boolean): void => {
 };
 
 /**
- * Инициализация MSAL
+ * РРЅРёС†РёР°Р»РёР·Р°С†РёСЏ MSAL
  */
 export const initializeMsal = async (): Promise<PublicClientApplication> => {
   if (!msalInstance) {
@@ -66,7 +77,7 @@ export const initializeMsal = async (): Promise<PublicClientApplication> => {
 };
 
 /**
- * Обработка redirect после авторизации Azure AD
+ * РћР±СЂР°Р±РѕС‚РєР° redirect РїРѕСЃР»Рµ Р°РІС‚РѕСЂРёР·Р°С†РёРё Azure AD
  */
 export const handleRedirect = async (): Promise<AuthenticationResult | null> => {
   try {
@@ -74,26 +85,26 @@ export const handleRedirect = async (): Promise<AuthenticationResult | null> => 
     const response = await msal.handleRedirectPromise();
     return response;
   } catch (error: unknown) {
-    logger.error('Ошибка при обработке redirect:', error);
+    logger.error('[Auth] Error handling redirect:', error);
     return null;
   }
 };
 
 /**
- * Проверяет наличие потенциальной активной сессии в Azure AD без выполнения запросов.
+ * РџСЂРѕРІРµСЂСЏРµС‚ РЅР°Р»РёС‡РёРµ РїРѕС‚РµРЅС†РёР°Р»СЊРЅРѕР№ Р°РєС‚РёРІРЅРѕР№ СЃРµСЃСЃРёРё РІ Azure AD Р±РµР· РІС‹РїРѕР»РЅРµРЅРёСЏ Р·Р°РїСЂРѕСЃРѕРІ.
  */
 export const hasMsalSession = async (): Promise<boolean> => {
   try {
     const msal = await initializeMsal();
 
-    // Проверяем наличие активного аккаунта
+    // РџСЂРѕРІРµСЂСЏРµРј РЅР°Р»РёС‡РёРµ Р°РєС‚РёРІРЅРѕРіРѕ Р°РєРєР°СѓРЅС‚Р°
     const activeAccount = msal.getActiveAccount();
 
     if (activeAccount) {
       return true;
     }
 
-    // Проверяем наличие любых аккаунтов
+    // РџСЂРѕРІРµСЂСЏРµРј РЅР°Р»РёС‡РёРµ Р»СЋР±С‹С… Р°РєРєР°СѓРЅС‚РѕРІ
     const allAccounts = msal.getAllAccounts();
     if (allAccounts.length > 0) {
       msal.setActiveAccount(allAccounts[0]);
@@ -102,32 +113,13 @@ export const hasMsalSession = async (): Promise<boolean> => {
 
     return false;
   } catch (error: unknown) {
-    logger.error('Ошибка при проверке сессии MSAL:', error);
+    logger.error('[Auth] Error checking MSAL session:', error);
     return false;
   }
 };
 
 /**
- * Декодирует JWT токен
- */
-function parseJwt(token: string): Record<string, unknown> | null {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Получает информацию о пользователе из Azure AD
+ * РџРѕР»СѓС‡Р°РµС‚ РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ РїРѕР»СЊР·РѕРІР°С‚РµР»Рµ РёР· Azure AD
  */
 export const getUserInfo = async (): Promise<AzureUserInfo | null> => {
   try {
@@ -164,17 +156,17 @@ export const getUserInfo = async (): Promise<AzureUserInfo | null> => {
       throw error;
     }
   } catch (error: unknown) {
-    logger.error('Ошибка при получении информации о пользователе:', error);
+    logger.error('[Auth] Error getting Azure user info:', error);
     return null;
   }
 };
 
 /**
- * Получает полную информацию о пользователе (Azure + Supabase)
+ * РџРѕР»СѓС‡Р°РµС‚ РїРѕР»РЅСѓСЋ РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ РїРѕР»СЊР·РѕРІР°С‚РµР»Рµ (Azure + Supabase)
  */
 export const getCurrentUser = async (): Promise<UserInfo | null> => {
   try {
-    // Проверяем кэш
+    // РџСЂРѕРІРµСЂСЏРµРј РєСЌС€
     if (typeof window !== 'undefined') {
       const cachedUserStr = localStorage.getItem(USER_CACHE_KEY);
       const cacheExpiry = localStorage.getItem(USER_CACHE_EXPIRY_KEY);
@@ -183,7 +175,7 @@ export const getCurrentUser = async (): Promise<UserInfo | null> => {
         const now = Date.now();
         if (now < parseInt(cacheExpiry)) {
           const cachedUser = JSON.parse(cachedUserStr);
-          // Проверяем наличие критически важного user_id для Presence
+          // РџСЂРѕРІРµСЂСЏРµРј РЅР°Р»РёС‡РёРµ РєСЂРёС‚РёС‡РµСЃРєРё РІР°Р¶РЅРѕРіРѕ user_id РґР»СЏ Presence
           if (cachedUser && cachedUser.user_id) {
             return cachedUser;
           }
@@ -192,37 +184,70 @@ export const getCurrentUser = async (): Promise<UserInfo | null> => {
       }
     }
 
-    // Если кэша нет или он устарел, делаем запрос
+    // Р•СЃР»Рё РєСЌС€Р° РЅРµС‚ РёР»Рё РѕРЅ СѓСЃС‚Р°СЂРµР», РґРµР»Р°РµРј Р·Р°РїСЂРѕСЃ
     const azureUser = await getUserInfo();
     if (!azureUser) return null;
 
-    // Используем ilike для регистронезависимого поиска и maybeSingle чтобы избежать ошибки 406
-    const { data: userData, error } = await supabase
-      .from('v_user_details')
-      .select('*')
-      .ilike('email', azureUser.email)
-      .maybeSingle();
+    const emailCandidates = getEmailCandidates(azureUser.email);
+    let userData: Record<string, unknown> | null = null;
+    let lastError: unknown = null;
 
-    if (error) {
-      logger.error('[Auth] Supabase error:', error);
+    // Поиск по email-кандидатам (например atbmarket.com <-> atb.ua).
+    for (const candidate of emailCandidates) {
+      const result = await supabase
+        .from('v_user_details')
+        .select('*')
+        .ilike('email', candidate)
+        .maybeSingle();
+
+      if (result.error) {
+        lastError = result.error;
+        continue;
+      }
+      if (result.data) {
+        userData = result.data as Record<string, unknown>;
+        break;
+      }
+    }
+
+    // Fallback: если email не совпал, пробуем получить профиль по user_id из custom JWT.
+    if (!userData) {
+      const authResult = await supabase.auth.getUser();
+      const authUserId = authResult.data.user?.id;
+      if (authUserId) {
+        const byId = await supabase
+          .from('v_user_details')
+          .select('*')
+          .eq('user_id', authUserId)
+          .maybeSingle();
+        if (byId.data && !byId.error) {
+          userData = byId.data as Record<string, unknown>;
+        } else if (byId.error) {
+          lastError = byId.error;
+        }
+      }
+    }
+
+    if (lastError && !userData) {
+      logger.error('[Auth] Supabase error:', lastError);
       return null;
     }
 
-    // Если пользователя нет в базе (userData === null)
-    if (!userData || !userData.user_id) {
+    const typedUserData = userData as (Record<string, unknown> & { user_id?: string; role?: string | null }) | null;
+    if (!typedUserData || !typedUserData.user_id) {
       logger.warn('[Auth] User authenticated in Azure but not found in Supabase:', azureUser.email);
       return null;
     }
 
-    logger.log('[Auth] User role from Supabase:', userData.role, 'Type:', typeof userData.role);
-    const userInfo: UserInfo = {
+    logger.log('[Auth] User role from Supabase:', typedUserData.role, 'Type:', typeof typedUserData.role);
+    const userInfo = {
       ...azureUser,
-      ...userData,
-      role_disp: userData.role && roleLabels[userData.role as UserRole] ? roleLabels[userData.role as UserRole] : 'Пользователь',
-      user_id: userData.user_id
-    };
+      ...(typedUserData as Record<string, unknown>),
+      role_disp: typedUserData.role && roleLabels[typedUserData.role as UserRole] ? roleLabels[typedUserData.role as UserRole] : 'РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ',
+      user_id: typedUserData.user_id
+    } as UserInfo;
 
-    // Кэшируем результат
+    // РљСЌС€РёСЂСѓРµРј СЂРµР·СѓР»СЊС‚Р°С‚
     if (typeof window !== 'undefined') {
       localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userInfo));
       localStorage.setItem(USER_CACHE_EXPIRY_KEY, (Date.now() + CACHE_TTL).toString());
@@ -230,12 +255,17 @@ export const getCurrentUser = async (): Promise<UserInfo | null> => {
 
     return userInfo;
   } catch (error: unknown) {
-    logger.error('Ошибка при получении полной информации о пользователе:', error);
+    logger.error('[Auth] Error getting current user:', error);
     return null;
   }
 };
 
-async function syncServerAuthToken(token: string): Promise<boolean> {
+type ServerAuthSyncResult = {
+  ok: boolean;
+  issue?: string;
+};
+
+async function syncServerAuthToken(token: string, email?: string): Promise<ServerAuthSyncResult> {
   try {
     const response = await fetch('/api/auth/token', {
       method: 'POST',
@@ -243,67 +273,125 @@ async function syncServerAuthToken(token: string): Promise<boolean> {
         'Content-Type': 'application/json',
       },
       credentials: 'include',
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ token, ...(email ? { email } : {}) }),
     });
-    return response.ok;
+    if (!response.ok) return { ok: false, issue: `http_${response.status}` };
+
+    // После hardening supabaseToken обязателен: anon доступ закрыт.
+    try {
+      const data = await response.json();
+      if (!data?.supabaseToken) {
+        logger.warn('[Auth] /api/auth/token returned no supabaseToken', {
+          issue: data?.supabaseTokenIssue || 'unknown',
+        });
+        return { ok: false, issue: data?.supabaseTokenIssue || 'unknown' };
+      }
+
+      const ok = await setSupabaseSession(data.supabaseToken);
+      if (!ok) {
+        logger.error('[Auth] Failed to apply Supabase custom JWT session');
+        return { ok: false, issue: 'set_session_failed' };
+      }
+
+      logger.log('[Auth] Supabase session set via custom JWT');
+    } catch {
+      logger.error('[Auth] Failed to parse /api/auth/token JSON response');
+      return { ok: false, issue: 'invalid_json' };
+    }
+
+    return { ok: true };
   } catch (error: unknown) {
     logger.error('[Auth] Failed to sync server auth token:', error);
+    return { ok: false, issue: 'fetch_failed' };
+  }
+}
+
+/**
+ * РћР±РЅРѕРІР»СЏРµС‚ auth_token cookie СЃРІРµР¶РёРј С‚РѕРєРµРЅРѕРј РёР· MSAL.
+ * Р’С‹Р·С‹РІР°С‚СЊ РїРµСЂРµРґ API-Р·Р°РїСЂРѕСЃР°РјРё Рє server-side endpoints.
+ */
+export async function refreshAuthCookie(): Promise<boolean> {
+  try {
+    const msal = await initializeMsal();
+    const account = msal.getActiveAccount();
+    if (!account) {
+      const allAccounts = msal.getAllAccounts();
+      if (allAccounts.length === 0) return false;
+      msal.setActiveAccount(allAccounts[0]);
+    }
+
+    const response = await msal.acquireTokenSilent({
+      ...silentLoginRequest,
+      account: msal.getActiveAccount()!,
+    });
+
+    if (!response?.accessToken) return false;
+    const result = await syncServerAuthToken(response.accessToken, response.account?.username?.toLowerCase());
+    return result.ok;
+  } catch (error: unknown) {
+    logger.error('[Auth] refreshAuthCookie failed:', error);
     return false;
   }
 }
 
 /**
- * Выход из системы (локальный выход без редиректа на Microsoft)
+ * Р’С‹С…РѕРґ РёР· СЃРёСЃС‚РµРјС‹ (Р»РѕРєР°Р»СЊРЅС‹Р№ РІС‹С…РѕРґ Р±РµР· СЂРµРґРёСЂРµРєС‚Р° РЅР° Microsoft)
  */
 export const logout = async (): Promise<void> => {
   try {
-    // Очищаем кэш пользователя
+    // Убираем пользователя из online-списка сразу (не ждём TTL)
+    try { await fetch('/api/presence/leave', { method: 'POST', credentials: 'include' }); } catch { /* ignore */ }
+
+    // РћС‡РёС‰Р°РµРј РєСЌС€ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
     if (typeof window !== 'undefined') {
       localStorage.removeItem(USER_CACHE_KEY);
       localStorage.removeItem(USER_CACHE_EXPIRY_KEY);
-      // Очищаем кэш Graph API токенов
+      // РћС‡РёС‰Р°РµРј РєСЌС€ Graph API С‚РѕРєРµРЅРѕРІ
       localStorage.removeItem('graph_api_token');
       localStorage.removeItem('graph_api_token_expiry');
     }
 
-    // Удаляем cookie статуса авторизации
+    // РћС‡РёС‰Р°РµРј Supabase-СЃРµСЃСЃРёСЋ
+    await clearSupabaseSession();
+
+    // РЈРґР°Р»СЏРµРј cookie СЃС‚Р°С‚СѓСЃР° Р°РІС‚РѕСЂРёР·Р°С†РёРё
     setAuthStatusCookie(false);
 
-    // Очищаем MSAL сессию
+    // РћС‡РёС‰Р°РµРј MSAL СЃРµСЃСЃРёСЋ
     const msal = await initializeMsal();
     const account = msal.getActiveAccount();
 
     if (account) {
-      // Используем logout с onRedirectNavigate: return false для очистки локального кэша
-      // без перенаправления на страницу Microsoft logout
+      // РСЃРїРѕР»СЊР·СѓРµРј logout СЃ onRedirectNavigate: return false РґР»СЏ РѕС‡РёСЃС‚РєРё Р»РѕРєР°Р»СЊРЅРѕРіРѕ РєСЌС€Р°
+      // Р±РµР· РїРµСЂРµРЅР°РїСЂР°РІР»РµРЅРёСЏ РЅР° СЃС‚СЂР°РЅРёС†Сѓ Microsoft logout
       await msal.logout({
         account: account,
         onRedirectNavigate: () => {
-          // Возвращаем false чтобы остановить навигацию на Microsoft logout
-          // Локальный кэш MSAL всё равно будет очищен
+          // Р’РѕР·РІСЂР°С‰Р°РµРј false С‡С‚РѕР±С‹ РѕСЃС‚Р°РЅРѕРІРёС‚СЊ РЅР°РІРёРіР°С†РёСЋ РЅР° Microsoft logout
+          // Р›РѕРєР°Р»СЊРЅС‹Р№ РєСЌС€ MSAL РІСЃС‘ СЂР°РІРЅРѕ Р±СѓРґРµС‚ РѕС‡РёС‰РµРЅ
           return false;
         }
       });
     }
 
-    // Сбрасываем активный аккаунт
+    // РЎР±СЂР°СЃС‹РІР°РµРј Р°РєС‚РёРІРЅС‹Р№ Р°РєРєР°СѓРЅС‚
     msal.setActiveAccount(null);
 
-    logger.log('[Auth] Выход выполнен успешно');
+    logger.log('[Auth] Logout completed');
   } catch (error: unknown) {
-    logger.error('Ошибка при выходе из системы:', error);
-    // Даже при ошибке сбрасываем активный аккаунт
+    logger.error('[Auth] Error during logout:', error);
+    // Р”Р°Р¶Рµ РїСЂРё РѕС€РёР±РєРµ СЃР±СЂР°СЃС‹РІР°РµРј Р°РєС‚РёРІРЅС‹Р№ Р°РєРєР°СѓРЅС‚
     try {
       const msal = await initializeMsal();
       msal.setActiveAccount(null);
     } catch {
-      // Игнорируем ошибки
+      // РРіРЅРѕСЂРёСЂСѓРµРј РѕС€РёР±РєРё
     }
   }
 };
 
 /**
- * Хук для управления аутентификацией в приложении
+ * РҐСѓРє РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ Р°СѓС‚РµРЅС‚РёС„РёРєР°С†РёРµР№ РІ РїСЂРёР»РѕР¶РµРЅРёРё
  */
 export const useAuth = () => {
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -311,18 +399,11 @@ export const useAuth = () => {
   const [error, setError] = useState<Error | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authErrorType, setAuthErrorType] = useState<'none' | 'interaction_required' | 'supabase_user_not_found' | 'other'>('none');
-  const [isMounted, setIsMounted] = useState(false);
   const msalEventCallbackId = useRef<string | null>(null);
 
-
-  // Отслеживаем монтирование для предотвращения hydration mismatch
+  // РРЅРёС†РёР°Р»РёР·Р°С†РёСЏ РїСЂРё РјРѕРЅС‚РёСЂРѕРІР°РЅРёРё
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  // Инициализация при монтировании
-  useEffect(() => {
-    // Пропускаем на сервере
+    // РџСЂРѕРїСѓСЃРєР°РµРј РЅР° СЃРµСЂРІРµСЂРµ
     if (typeof window === 'undefined') {
       return;
     }
@@ -332,49 +413,49 @@ export const useAuth = () => {
     const initializeAuth = async () => {
       try {
         setIsLoading(true);
-        logger.log('[Auth] Начало инициализации...');
+        logger.log('[Auth] Initialization started...');
 
-        // Инициализируем MSAL и добавляем слушателя событий
+        // РРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј MSAL Рё РґРѕР±Р°РІР»СЏРµРј СЃР»СѓС€Р°С‚РµР»СЏ СЃРѕР±С‹С‚РёР№
         const msal = await initializeMsal();
-        logger.log('[Auth] MSAL инициализирован');
+        logger.log('[Auth] MSAL initialized');
 
-        // Обрабатываем redirect если вернулись после авторизации
+        // РћР±СЂР°Р±Р°С‚С‹РІР°РµРј redirect РµСЃР»Рё РІРµСЂРЅСѓР»РёСЃСЊ РїРѕСЃР»Рµ Р°РІС‚РѕСЂРёР·Р°С†РёРё
         const redirectResponse = await msal.handleRedirectPromise();
         if (redirectResponse) {
-          logger.log('[Auth] Обработан redirect, получен аккаунт:', redirectResponse.account?.username);
+          logger.log('[Auth] Redirect handled, account:', redirectResponse.account?.username);
           msal.setActiveAccount(redirectResponse.account);
         }
 
-        // Добавляем обработчик событий MSAL для отслеживания изменений авторизации
+        // Р”РѕР±Р°РІР»СЏРµРј РѕР±СЂР°Р±РѕС‚С‡РёРє СЃРѕР±С‹С‚РёР№ MSAL РґР»СЏ РѕС‚СЃР»РµР¶РёРІР°РЅРёСЏ РёР·РјРµРЅРµРЅРёР№ Р°РІС‚РѕСЂРёР·Р°С†РёРё
         if (!msalEventCallbackId.current) {
           msalEventCallbackId.current = msal.addEventCallback((message: EventMessage) => {
             if (!mounted) return;
 
-            // Логируем все события MSAL
+            // Р›РѕРіРёСЂСѓРµРј РІСЃРµ СЃРѕР±С‹С‚РёСЏ MSAL
             logger.log('[Auth] MSAL Event:', message.eventType, message.error ? message.error : '');
 
             switch (message.eventType) {
               case EventType.LOGIN_SUCCESS:
-                logger.log('MSAL: Успешный вход');
+                logger.log('MSAL: login success');
                 refreshUser();
                 break;
               case EventType.LOGIN_FAILURE:
-                // Не устанавливаем ошибку если это просто отмена пользователем
+                // РќРµ СѓСЃС‚Р°РЅР°РІР»РёРІР°РµРј РѕС€РёР±РєСѓ РµСЃР»Рё СЌС‚Рѕ РїСЂРѕСЃС‚Рѕ РѕС‚РјРµРЅР° РїРѕР»СЊР·РѕРІР°С‚РµР»РµРј
                 if (message.error && message.error.message) {
                   const errorMsg = message.error.message.toLowerCase();
                   if (errorMsg.includes('user_cancelled') ||
                     errorMsg.includes('popup_window_error') ||
                     errorMsg.includes('cancelled') ||
                     errorMsg.includes('closed')) {
-                    logger.log('[Auth] Пользователь отменил вход');
-                    return; // Не показываем ошибку
+                    logger.log('[Auth] Login cancelled by user');
+                    return; // РќРµ РїРѕРєР°Р·С‹РІР°РµРј РѕС€РёР±РєСѓ
                   }
                 }
-                logger.error('MSAL: Ошибка входа', message.error);
-                // Ошибка обрабатывается в login(), здесь не дублируем
+                logger.error('MSAL: login error', message.error);
+                // РћС€РёР±РєР° РѕР±СЂР°Р±Р°С‚С‹РІР°РµС‚СЃСЏ РІ login(), Р·РґРµСЃСЊ РЅРµ РґСѓР±Р»РёСЂСѓРµРј
                 break;
               case EventType.LOGOUT_SUCCESS:
-                logger.log('MSAL: Успешный выход');
+                logger.log('MSAL: logout success');
                 setUser(null);
                 setIsAuthenticated(false);
                 setAuthErrorType('none');
@@ -384,64 +465,73 @@ export const useAuth = () => {
           });
         }
 
-        // Получаем информацию о пользователе
-        logger.log('[Auth] Получение данных пользователя...');
-        const profile = await getCurrentUser();
-        logger.log('[Auth] Данные пользователя:', profile ? 'получены' : 'null');
+        // РЁР°Рі 1: РџРѕР»СѓС‡Р°РµРј Azure AD С‚РѕРєРµРЅ Рё СЃРёРЅС…СЂРѕРЅРёР·РёСЂСѓРµРј СЃ СЃРµСЂРІРµСЂРѕРј
+        // (СЃРµСЂРІРµСЂ СЃРѕР·РґР°С‘С‚ Supabase JWT в†’ setSession РґРѕ Р·Р°РїСЂРѕСЃРѕРІ Рє Р‘Р”)
+        logger.log('[Auth] Getting Azure AD token...');
+        const azureUser = await getUserInfo();
 
         if (!mounted) return;
 
-        if (profile) {
-          const tokenForServer = profile.accessToken || await getToken();
-          const serverTokenSynced = tokenForServer ? await syncServerAuthToken(tokenForServer) : false;
-          if (!serverTokenSynced) {
-            logger.error('[Auth] Server auth cookie was not set. Falling back to unauthenticated state.');
+        if (azureUser) {
+          const serverTokenSync = await syncServerAuthToken(azureUser.accessToken, azureUser.email);
+          if (!serverTokenSync.ok) {
+            logger.warn('[Auth] Server auth cookie was not set. Falling back to unauthenticated state.', {
+              issue: serverTokenSync.issue || 'unknown',
+            });
             setUser(null);
             setIsAuthenticated(false);
-            setAuthErrorType('other');
+            if (serverTokenSync.issue === 'user_not_found' || serverTokenSync.issue === 'email_missing') {
+              setAuthErrorType('supabase_user_not_found');
+            } else {
+              setAuthErrorType('other');
+            }
             setAuthStatusCookie(false);
             return;
           }
 
-          setUser(profile);
-          setIsAuthenticated(true);
-          setAuthErrorType('none');
-          setAuthStatusCookie(true);
+          // РЁР°Рі 2: Supabase-СЃРµСЃСЃРёСЏ СѓСЃС‚Р°РЅРѕРІР»РµРЅР°, С‚РµРїРµСЂСЊ РјРѕР¶РЅРѕ Р·Р°РїСЂР°С€РёРІР°С‚СЊ РґР°РЅРЅС‹Рµ
+          logger.log('[Auth] Getting user profile from Supabase...');
+          const profile = await getCurrentUser();
 
-          // Настраиваем периодическое обновление данных пользователя
-          refreshTimeout = setTimeout(() => {
-            refreshUser();
-          }, CACHE_TTL / 2); // Обновляем данные через половину срока кэша
-        } else {
-          // Проверяем, есть ли активная Azure сессия
-          // Если Azure сессия есть (getUserInfo вернул данные), но profile === null (выше),
-          // значит, пользователя нет в базе -> ошибка доступа
-          const azureUser = await getUserInfo();
-          if (azureUser) {
-            logger.warn('[Auth] Azure session active but Supabase profile not found');
-            setAuthErrorType('supabase_user_not_found');
-          } else {
-            // Пользователь просто не авторизован - это НЕ ошибка
+          if (!mounted) return;
+
+          if (profile) {
+            setUser(profile);
+            setIsAuthenticated(true);
             setAuthErrorType('none');
-          }
+            setAuthStatusCookie(true);
 
+            // РќР°СЃС‚СЂР°РёРІР°РµРј РїРµСЂРёРѕРґРёС‡РµСЃРєРѕРµ РѕР±РЅРѕРІР»РµРЅРёРµ РґР°РЅРЅС‹С… РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
+            refreshTimeout = setTimeout(() => {
+              refreshUser();
+            }, CACHE_TTL / 2);
+          } else {
+            logger.warn('[Auth] Azure session active but Supabase profile not found');
+            setUser(null);
+            setIsAuthenticated(false);
+            setAuthErrorType('supabase_user_not_found');
+            setAuthStatusCookie(false);
+          }
+        } else {
+          // РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ РІ Azure AD вЂ” СЌС‚Рѕ РќР• РѕС€РёР±РєР°
+          setAuthErrorType('none');
           setUser(null);
           setIsAuthenticated(false);
           setAuthStatusCookie(false);
         }
       } catch (e: unknown) {
         if (mounted) {
-          logger.error('[Auth] Ошибка инициализации:', e);
-          // Проверяем, это реальная ошибка или просто отсутствие авторизации
+          logger.error('[Auth] Initialization error:', e);
+          // РџСЂРѕРІРµСЂСЏРµРј, СЌС‚Рѕ СЂРµР°Р»СЊРЅР°СЏ РѕС€РёР±РєР° РёР»Рё РїСЂРѕСЃС‚Рѕ РѕС‚СЃСѓС‚СЃС‚РІРёРµ Р°РІС‚РѕСЂРёР·Р°С†РёРё
           const errorMessage = e instanceof Error ? e.message : String(e);
-          // Если ошибка связана с interaction_required, это нормальная ситуация
+          // Р•СЃР»Рё РѕС€РёР±РєР° СЃРІСЏР·Р°РЅР° СЃ interaction_required, СЌС‚Рѕ РЅРѕСЂРјР°Р»СЊРЅР°СЏ СЃРёС‚СѓР°С†РёСЏ
           if (errorMessage.includes('interaction_required') || errorMessage.includes('login_required')) {
             setAuthErrorType('interaction_required');
           } else {
-            // Не устанавливаем ошибку для обычных случаев отсутствия авторизации
+            // РќРµ СѓСЃС‚Р°РЅР°РІР»РёРІР°РµРј РѕС€РёР±РєСѓ РґР»СЏ РѕР±С‹С‡РЅС‹С… СЃР»СѓС‡Р°РµРІ РѕС‚СЃСѓС‚СЃС‚РІРёСЏ Р°РІС‚РѕСЂРёР·Р°С†РёРё
             // setError(e instanceof Error ? e : new Error(String(e)));
             // setAuthErrorType('other');
-            logger.log('[Auth] Пользователь не авторизован, показываем форму входа');
+            logger.log('[Auth] User is not authorized, showing login form');
             setAuthErrorType('none');
           }
           setAuthStatusCookie(false);
@@ -451,23 +541,26 @@ export const useAuth = () => {
       }
     };
 
-    // Функция для обновления данных пользователя
+    // Р¤СѓРЅРєС†РёСЏ РґР»СЏ РѕР±РЅРѕРІР»РµРЅРёСЏ РґР°РЅРЅС‹С… РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
     const refreshUser = async () => {
       try {
+        // РћР±РЅРѕРІР»СЏРµРј Azure AD С‚РѕРєРµРЅ Рё Supabase JWT РїРµСЂРµРґ Р·Р°РїСЂРѕСЃРѕРј РґР°РЅРЅС‹С…
+        const msalRef = await initializeMsal();
+        const acct = msalRef.getActiveAccount();
+        if (acct) {
+          const tokenResp = await msalRef.acquireTokenSilent({
+            ...silentLoginRequest,
+            account: acct,
+          });
+          if (tokenResp?.accessToken) {
+            await syncServerAuthToken(tokenResp.accessToken, acct.username?.toLowerCase());
+          }
+        }
+
         const profile = await getCurrentUser();
         if (!mounted) return;
 
         if (profile) {
-          const tokenForServer = profile.accessToken || await getToken();
-          const serverTokenSynced = tokenForServer ? await syncServerAuthToken(tokenForServer) : false;
-          if (!serverTokenSynced) {
-            setUser(null);
-            setIsAuthenticated(false);
-            setAuthErrorType('other');
-            setAuthStatusCookie(false);
-            return;
-          }
-
           setUser(profile);
           setIsAuthenticated(true);
           setAuthErrorType('none');
@@ -478,7 +571,7 @@ export const useAuth = () => {
           setAuthStatusCookie(false);
         }
       } catch (e: unknown) {
-        logger.error('Ошибка при обновлении данных пользователя:', e);
+        logger.error('[Auth] Error refreshing user profile:', e);
       }
     };
 
@@ -487,7 +580,7 @@ export const useAuth = () => {
     return () => {
       mounted = false;
 
-      // Очистка таймаута и обработчика событий при размонтировании
+      // РћС‡РёСЃС‚РєР° С‚Р°Р№РјР°СѓС‚Р° Рё РѕР±СЂР°Р±РѕС‚С‡РёРєР° СЃРѕР±С‹С‚РёР№ РїСЂРё СЂР°Р·РјРѕРЅС‚РёСЂРѕРІР°РЅРёРё
       if (refreshTimeout) clearTimeout(refreshTimeout);
 
       if (msalEventCallbackId.current) {
@@ -499,7 +592,7 @@ export const useAuth = () => {
     };
   }, []);
 
-  // Вход — используем redirect для всех устройств
+  // Р’С…РѕРґ вЂ” РёСЃРїРѕР»СЊР·СѓРµРј redirect РґР»СЏ РІСЃРµС… СѓСЃС‚СЂРѕР№СЃС‚РІ
   const login = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -508,9 +601,9 @@ export const useAuth = () => {
     try {
       const msal = await initializeMsal();
 
-      // Очистка возможных "залипших" состояний
-      // MSAL иногда оставляет 'interaction_in_progress' в localStorage при прерывании
-      // Это безопасный сброс для loginRedirect
+      // РћС‡РёСЃС‚РєР° РІРѕР·РјРѕР¶РЅС‹С… "Р·Р°Р»РёРїС€РёС…" СЃРѕСЃС‚РѕСЏРЅРёР№
+      // MSAL РёРЅРѕРіРґР° РѕСЃС‚Р°РІР»СЏРµС‚ 'interaction_in_progress' РІ localStorage РїСЂРё РїСЂРµСЂС‹РІР°РЅРёРё
+      // Р­С‚Рѕ Р±РµР·РѕРїР°СЃРЅС‹Р№ СЃР±СЂРѕСЃ РґР»СЏ loginRedirect
       try {
         const keys = Object.keys(localStorage);
         const interactionKey = keys.find(key => key.includes('interaction_status'));
@@ -522,27 +615,27 @@ export const useAuth = () => {
         logger.warn('[Auth] Failed to check/clear interaction status:', e);
       }
 
-      logger.log('[Auth] Используем redirect для авторизации');
+      logger.log('[Auth] Using redirect flow for authentication');
       await msal.loginRedirect(interactiveLoginRequest);
-      // После redirect страница перезагрузится
+      // РџРѕСЃР»Рµ redirect СЃС‚СЂР°РЅРёС†Р° РїРµСЂРµР·Р°РіСЂСѓР·РёС‚СЃСЏ
       return true;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message.toLowerCase() : '';
-      logger.error('[Auth] Ошибка входа:', err);
+      logger.error('[Auth] Login error:', err);
 
-      // Если ошибка все еще interaction_in_progress, попробуем еще раз очистить и уведомить
+      // Р•СЃР»Рё РѕС€РёР±РєР° РІСЃРµ РµС‰Рµ interaction_in_progress, РїРѕРїСЂРѕР±СѓРµРј РµС‰Рµ СЂР°Р· РѕС‡РёСЃС‚РёС‚СЊ Рё СѓРІРµРґРѕРјРёС‚СЊ
       if (errorMessage.includes('interaction_in_progress')) {
         logger.error('[Auth] Interaction still in progress detected.');
-        alert('Произошла ошибка сессии браузера. Пожалуйста, обновите страницу и попробуйте снова.');
-        // Мы не можем автоматически восстановиться здесь без перезагрузки, но мы уже почистили LS выше.
+        alert('Browser session error. Please reload the page and try again.');
+        // РњС‹ РЅРµ РјРѕР¶РµРј Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РІРѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊСЃСЏ Р·РґРµСЃСЊ Р±РµР· РїРµСЂРµР·Р°РіСЂСѓР·РєРё, РЅРѕ РјС‹ СѓР¶Рµ РїРѕС‡РёСЃС‚РёР»Рё LS РІС‹С€Рµ.
       }
 
       if (errorMessage.includes('user_cancelled') || errorMessage.includes('cancelled')) {
-        logger.log('[Auth] Пользователь отменил вход');
+        logger.log('[Auth] Login cancelled by user');
         setAuthErrorType('none');
       } else {
         setError(err instanceof Error ? err : new Error(String(err)));
-        if (errorMessage.includes('supabase') || errorMessage.includes('не найден')) {
+        if (errorMessage.includes('supabase') || errorMessage.includes('РЅРµ РЅР°Р№РґРµРЅ')) {
           setAuthErrorType('supabase_user_not_found');
         }
       }
@@ -553,7 +646,7 @@ export const useAuth = () => {
     }
   }, []);
 
-  // Выход (использует общую функцию logout)
+  // Р’С‹С…РѕРґ (РёСЃРїРѕР»СЊР·СѓРµС‚ РѕР±С‰СѓСЋ С„СѓРЅРєС†РёСЋ logout)
   const handleLogout = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -569,7 +662,7 @@ export const useAuth = () => {
     }
   }, []);
 
-  // Получение токена для API запросов
+  // РџРѕР»СѓС‡РµРЅРёРµ С‚РѕРєРµРЅР° РґР»СЏ API Р·Р°РїСЂРѕСЃРѕРІ
   const getToken = useCallback(async (): Promise<string | null> => {
     try {
       const msal = await initializeMsal();
@@ -584,21 +677,21 @@ export const useAuth = () => {
       return response.accessToken;
     } catch (error: unknown) {
       if (error instanceof InteractionRequiredAuthError) {
-        // При необходимости можно добавить логику для интерактивного получения токена
+        // РџСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё РјРѕР¶РЅРѕ РґРѕР±Р°РІРёС‚СЊ Р»РѕРіРёРєСѓ РґР»СЏ РёРЅС‚РµСЂР°РєС‚РёРІРЅРѕРіРѕ РїРѕР»СѓС‡РµРЅРёСЏ С‚РѕРєРµРЅР°
         return null;
       }
-      logger.error('Ошибка при получении токена:', error);
+      logger.error('[Auth] Error getting token:', error);
       return null;
     }
   }, []);
 
-  // Обновление токена
+  // РћР±РЅРѕРІР»РµРЅРёРµ С‚РѕРєРµРЅР°
   const refreshToken = useCallback(async (): Promise<boolean> => {
     try {
       const token = await getToken();
       return !!token;
     } catch (error: unknown) {
-      logger.error('Ошибка при обновлении токена:', error);
+      logger.error('[Auth] Error refreshing token:', error);
       return false;
     }
   }, [getToken]);
@@ -615,5 +708,6 @@ export const useAuth = () => {
     refreshToken
   };
 };
+
 
 

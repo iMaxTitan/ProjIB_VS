@@ -1,7 +1,9 @@
 ﻿'use client';
 
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { SupabaseUserInfo, UserStatus } from '@/types/supabase';
+import ReferenceListItem from '@/components/dashboard/content/shared/ReferenceListItem';
 
 interface EmployeeCardProps {
   employee: SupabaseUserInfo;
@@ -74,25 +76,21 @@ export default function EmployeeCard({ employee, isSelected = false, onClick }: 
   const statusConfig = getStatusConfig(employee.status as UserStatus);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={`Выбрать сотрудника ${employee.full_name}`}
-      aria-pressed={isSelected}
-      className={cn(
-        'w-full p-3 rounded-xl text-left transition-all border shadow-sm',
-        'focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1',
-        isSelected
-          ? 'bg-emerald-50 border-emerald-300 shadow-sm'
-          : 'bg-white/70 text-slate-800 hover:bg-white/90 hover:border-emerald-300 border-white/50'
-      )}
+    <ReferenceListItem
+      tone="emerald"
+      isSelected={isSelected}
+      onClick={onClick || (() => {})}
+      ariaLabel={`Выбрать сотрудника ${employee.full_name}`}
     >
       <div className="flex items-center gap-3">
         <div className="relative flex-shrink-0">
           {employee.photo_base64 ? (
-            <img
+            <Image
               src={employee.photo_base64}
               alt=""
+              width={40}
+              height={40}
+              unoptimized
               aria-hidden="true"
               className="h-10 w-10 rounded-full object-cover border-2 border-white shadow-sm"
             />
@@ -117,12 +115,11 @@ export default function EmployeeCard({ employee, isSelected = false, onClick }: 
             {employee.full_name || 'Без имени'}
           </div>
           <div className={cn('text-xs truncate', isSelected ? 'text-emerald-700' : 'text-slate-500')}>
-            {getRoleLabel(employee.role)}
+            {employee.position || getRoleLabel(employee.role)}
           </div>
         </div>
-
       </div>
-    </button>
+    </ReferenceListItem>
   );
 }
 

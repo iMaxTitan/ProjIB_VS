@@ -9,9 +9,8 @@ import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useEmployees } from '@/hooks/useEmployees';
 import EmployeeCard from '@/components/employees/EmployeeCard';
 import EmployeeDetails from '@/components/employees/EmployeeDetails';
-import ReferencesTwoPanelLayout from './ReferencesTwoPanelLayout';
+import { TwoPanelLayout, GroupHeader } from '../shared';
 import ReferenceLeftPanelShell from './ReferenceLeftPanelShell';
-import ReferenceGroupHeader from './ReferenceGroupHeader';
 import ReferenceEmptyState from './ReferenceEmptyState';
 import ReferenceDetailsEmptyState from './ReferenceDetailsEmptyState';
 
@@ -78,7 +77,6 @@ export default function EmployeesReferenceContent({ user, tabsSlot }: EmployeesR
       loading={loading}
       error={error}
       isEmpty={departments.length === 0}
-      loadingColorClass="border-emerald-500"
       bodyClassName="space-y-2"
       emptyState={<ReferenceEmptyState icon={<Users className="h-12 w-12" aria-hidden="true" />} text="Сотрудники не найдены" />}
       body={
@@ -88,7 +86,8 @@ export default function EmployeesReferenceContent({ user, tabsSlot }: EmployeesR
 
             return (
               <div key={department} className="space-y-1">
-                <ReferenceGroupHeader
+                <GroupHeader
+                  tone="emerald"
                   title={department}
                   count={deptEmployees.length}
                   expanded={isExpanded}
@@ -96,16 +95,6 @@ export default function EmployeesReferenceContent({ user, tabsSlot }: EmployeesR
                   onAdd={canEdit ? () => openAddEmployeeModal(department) : undefined}
                   toggleAriaLabel={`${isExpanded ? 'Свернуть' : 'Развернуть'} отдел ${department}`}
                   addAriaLabel={`Добавить сотрудника в отдел ${department}`}
-                  containerClassName={cn(
-                    'bg-gradient-to-r from-emerald-100/80 to-emerald-50/80 border border-emerald-200/50',
-                    'hover:from-emerald-200/80 hover:to-emerald-100/80',
-                    'focus:outline-none focus:ring-2 focus:ring-emerald-500',
-                    'transition-all'
-                  )}
-                  chevronClassName="text-emerald-400"
-                  titleClassName="text-emerald-700"
-                  countClassName="text-emerald-500 bg-white/70"
-                  addButtonClassName="border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
                 />
 
                 {isExpanded && (
@@ -152,7 +141,7 @@ export default function EmployeesReferenceContent({ user, tabsSlot }: EmployeesR
   );
 
   return (
-    <ReferencesTwoPanelLayout
+    <TwoPanelLayout
       leftPanel={leftPanel}
       rightPanel={rightPanel}
       isDrawerOpen={isDrawerOpen}
@@ -161,7 +150,6 @@ export default function EmployeesReferenceContent({ user, tabsSlot }: EmployeesR
         'overscroll-contain',
         selectedEmployee || detailsMode === 'create' ? 'bg-emerald-50/30' : 'bg-transparent'
       )}
-      mobileDrawerContentClassName="p-3 pb-6"
       resizerClassName="hover:bg-emerald-300/50 active:bg-emerald-400/50"
     />
   );

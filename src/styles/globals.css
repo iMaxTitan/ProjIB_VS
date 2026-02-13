@@ -205,7 +205,7 @@
 
   /* Button Utilities */
   .btn-base {
-    @apply inline-flex items-center justify-center rounded-lg font-medium transition-all duration-base;
+    @apply inline-flex items-center justify-center rounded-lg font-medium transition-colors duration-base;
   }
 
   .btn-focus {

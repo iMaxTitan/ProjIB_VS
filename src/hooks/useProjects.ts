@@ -1,6 +1,8 @@
-﻿'use client';
+'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { projectsQueryOptions } from '@/lib/queries/reference-queries';
 import { supabase } from '@/lib/supabase';
 import {
   Project,
@@ -26,7 +28,6 @@ interface UseProjectsReturn {
   refetch: () => Promise<void>;
   createProject: (input: CreateProjectInput) => Promise<{ success: boolean; error?: string; project?: Project }>;
   updateProject: (input: UpdateProjectInput) => Promise<{ success: boolean; error?: string }>;
-  deleteProject: (projectId: string) => Promise<{ success: boolean; error?: string }>;
   toggleActive: (projectId: string, isActive: boolean) => Promise<{ success: boolean; error?: string }>;
 }
 
@@ -35,54 +36,29 @@ interface UseProjectsReturn {
  */
 export function useProjects(options: UseProjectsOptions = {}): UseProjectsReturn {
   const { activeOnly = false, departmentId } = options;
+  const queryClient = useQueryClient();
 
-  const [projects, setProjects] = useState<ProjectWithDepartments[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: allProjects = [], isLoading: loading, error: queryError } = useQuery(projectsQueryOptions);
+  const error = queryError ? getErrorMessage(queryError) : null;
 
-  const fetchProjects = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      let query = supabase
-        .from('v_projects_with_departments')
-        .select('*')
-        .order('project_name');
-
-      if (activeOnly) {
-        query = query.eq('is_active', true);
-      }
-
-      const { data, error: fetchError } = await query;
-
-      if (fetchError) throw fetchError;
-
-      let filteredData = data || [];
-
-      // Фильтруем по департаменту, если нужно
-      if (departmentId) {
-        filteredData = filteredData.filter((p: ProjectWithDepartments) =>
-          p.department_ids?.includes(departmentId)
-        );
-      }
-
-      setProjects(filteredData);
-    } catch (err: unknown) {
-      logger.error('[useProjects] Error fetching:', err);
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
+  // Фильтрация из кеша (без запроса к БД)
+  const projects = useMemo(() => {
+    let filtered = allProjects;
+    if (activeOnly) {
+      filtered = filtered.filter(p => p.is_active);
     }
-  }, [activeOnly, departmentId]);
+    if (departmentId) {
+      filtered = filtered.filter(p => p.department_ids?.includes(departmentId));
+    }
+    return filtered;
+  }, [allProjects, activeOnly, departmentId]);
 
-  useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+  const invalidate = useCallback(() => {
+    return queryClient.invalidateQueries({ queryKey: ['projects'] });
+  }, [queryClient]);
 
   const createProject = useCallback(async (input: CreateProjectInput) => {
     try {
-      // 1. Создаем проект
       const { data: project, error: projectError } = await supabase
         .from('projects')
         .insert({
@@ -95,7 +71,6 @@ export function useProjects(options: UseProjectsOptions = {}): UseProjectsReturn
 
       if (projectError) throw projectError;
 
-      // 2. Добавляем связи с департаментами
       if (input.department_ids.length > 0) {
         const deptLinks = input.department_ids.map(deptId => ({
           project_id: project.project_id,
@@ -109,17 +84,16 @@ export function useProjects(options: UseProjectsOptions = {}): UseProjectsReturn
         if (linkError) throw linkError;
       }
 
-      await fetchProjects();
+      await invalidate();
       return { success: true, project };
     } catch (err: unknown) {
       logger.error('[useProjects] Error creating:', err);
       return { success: false, error: getErrorMessage(err) };
     }
-  }, [fetchProjects]);
+  }, [invalidate]);
 
   const updateProject = useCallback(async (input: UpdateProjectInput) => {
     try {
-      // 1. Обновляем основные поля проекта
       const updateData: Partial<Project> = {};
       if (input.project_name !== undefined) updateData.project_name = input.project_name;
       if (input.description !== undefined) updateData.description = input.description;
@@ -134,9 +108,7 @@ export function useProjects(options: UseProjectsOptions = {}): UseProjectsReturn
         if (updateError) throw updateError;
       }
 
-      // 2. Обновляем связи с департаментами
       if (input.department_ids !== undefined) {
-        // Удаляем старые связи
         const { error: deleteError } = await supabase
           .from('project_departments')
           .delete()
@@ -144,7 +116,6 @@ export function useProjects(options: UseProjectsOptions = {}): UseProjectsReturn
 
         if (deleteError) throw deleteError;
 
-        // Добавляем новые связи
         if (input.department_ids.length > 0) {
           const deptLinks = input.department_ids.map(deptId => ({
             project_id: input.project_id,
@@ -159,30 +130,13 @@ export function useProjects(options: UseProjectsOptions = {}): UseProjectsReturn
         }
       }
 
-      await fetchProjects();
+      await invalidate();
       return { success: true };
     } catch (err: unknown) {
       logger.error('[useProjects] Error updating:', err);
       return { success: false, error: getErrorMessage(err) };
     }
-  }, [fetchProjects]);
-
-  const deleteProject = useCallback(async (projectId: string) => {
-    try {
-      const { error: deleteError } = await supabase
-        .from('projects')
-        .delete()
-        .eq('project_id', projectId);
-
-      if (deleteError) throw deleteError;
-
-      await fetchProjects();
-      return { success: true };
-    } catch (err: unknown) {
-      logger.error('[useProjects] Error deleting:', err);
-      return { success: false, error: getErrorMessage(err) };
-    }
-  }, [fetchProjects]);
+  }, [invalidate]);
 
   const toggleActive = useCallback(async (projectId: string, isActive: boolean) => {
     try {
@@ -193,80 +147,45 @@ export function useProjects(options: UseProjectsOptions = {}): UseProjectsReturn
 
       if (updateError) throw updateError;
 
-      await fetchProjects();
+      await invalidate();
       return { success: true };
     } catch (err: unknown) {
       logger.error('[useProjects] Error toggling active:', err);
       return { success: false, error: getErrorMessage(err) };
     }
-  }, [fetchProjects]);
+  }, [invalidate]);
 
   return {
     projects,
     loading,
     error,
-    refetch: fetchProjects,
+    refetch: invalidate,
     createProject,
     updateProject,
-    deleteProject,
     toggleActive
   };
 }
 
 /**
  * Хук для получения проектов для dropdown в задаче
- * Фильтрует по департаменту пользователя
+ * Фильтрует по департаменту пользователя — тонкая обёртка над кешем
  */
 export function useProjectsForTask(userDepartmentId: string | undefined): {
   options: ProjectOption[];
   loading: boolean;
 } {
-  const [options, setOptions] = useState<ProjectOption[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: allProjects = [], isLoading: loading } = useQuery(projectsQueryOptions);
 
-  useEffect(() => {
-    if (!userDepartmentId) {
-      setOptions([]);
-      setLoading(false);
-      return;
-    }
-
-    const fetchOptions = async () => {
-      setLoading(true);
-      try {
-        // Получаем активные проекты из view
-        const { data, error } = await supabase
-          .from('v_projects_with_departments')
-          .select('project_id, project_name, description, department_ids')
-          .eq('is_active', true)
-          .order('project_name');
-
-        if (error) throw error;
-
-        // Фильтруем по департаменту
-        const filtered = (data || [])
-          .filter((p: { department_ids: string[] }) =>
-            p.department_ids?.includes(userDepartmentId)
-          )
-          .map((p: { project_id: string; project_name: string; description: string | null }) => ({
-            project_id: p.project_id,
-            project_name: p.project_name,
-            description: p.description
-          }));
-
-        setOptions(filtered);
-      } catch (err: unknown) {
-        logger.error('[useProjectsForTask] Error:', err);
-        setOptions([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchOptions();
-  }, [userDepartmentId]);
+  const options = useMemo(() => {
+    if (!userDepartmentId) return [];
+    return allProjects
+      .filter(p => p.is_active && p.department_ids?.includes(userDepartmentId))
+      .map(p => ({
+        project_id: p.project_id,
+        project_name: p.project_name,
+        description: p.description
+      }));
+  }, [allProjects, userDepartmentId]);
 
   return { options, loading };
 }
-
-

@@ -5,6 +5,8 @@ type ActivityEventType = ActivityEvent['event_type'];
 
 interface ActivityFeedRow {
     activity_id: string;
+    action_type: string | null;
+    target_type: string | null;
     event_type: string;
     event_time: string;
     user_id: string;
@@ -38,16 +40,59 @@ interface ActivityContextRow {
     department_name: string | null;
 }
 
+interface LegacyActivityProfile {
+    user_id?: string | null;
+    email?: string | null;
+    full_name?: string | null;
+    photo_base64?: string | null;
+    role?: string | null;
+    department_id?: string | null;
+    department_name?: string | null;
+}
+
+interface LegacyActivityRow {
+    id?: string;
+    activity_id?: string;
+    user_id?: string | null;
+    action_type?: string | null;
+    target_type?: string | null;
+    target_id?: string | null;
+    created_at?: string | null;
+    timestamp?: string | null;
+    details?: Record<string, unknown> | null;
+    user_profiles?: LegacyActivityProfile | LegacyActivityProfile[] | null;
+}
+
+interface AnnualPlanLookupRow {
+    annual_id: string;
+    goal: string | null;
+    expected_result: string | null;
+}
+
+interface QuarterlyPlanLookupRow {
+    quarterly_id: string;
+    goal: string | null;
+    expected_result: string | null;
+    quarter: number | null;
+    department_id: string | null;
+}
+
 function normalizeEventType(value: string): ActivityEventType {
+    if (!value) return 'other';
+    if (value === 'task_created') return 'task_created';
     if (value === 'task_completed') return 'task_completed';
     if (value === 'plan_created') return 'plan_created';
-    return 'task_created';
+    if (value === 'status_change') return 'status_change';
+    if (value === 'report_generated') return 'report_generated';
+    return value;
 }
 
 function mapFeedRowToActivityEvent(row: ActivityFeedRow): ActivityEvent {
     return {
         activity_id: row.activity_id,
         event_type: normalizeEventType(row.event_type),
+        action_type: row.action_type || row.event_type || null,
+        target_type: row.target_type || null,
         event_time: row.event_time,
         user_id: row.user_id,
         user_name: row.user_name || 'Неизвестно',
@@ -68,7 +113,9 @@ function mapFeedRowToActivityEvent(row: ActivityFeedRow): ActivityEvent {
 
 export interface ActivityEvent {
     activity_id: string;
-    event_type: 'task_created' | 'task_completed' | 'plan_created';
+    event_type: 'task_created' | 'task_completed' | 'plan_created' | 'status_change' | 'report_generated' | 'other' | string;
+    action_type?: string | null;
+    target_type?: string | null;
     event_time: string;
     user_id: string;
     user_name: string;
@@ -114,7 +161,6 @@ export async function getActivityFeed(
     const { departmentId, daysBack = 7, limit = 50 } = filters;
 
     try {
-        // РСЃРїРѕР»СЊР·СѓРµРј RPC С„СѓРЅРєС†РёСЋ get_activity_feed
         const { data, error } = await supabase.rpc('get_activity_feed', {
             p_user_id: userId,
             p_department_id: departmentId || null,
@@ -123,11 +169,10 @@ export async function getActivityFeed(
         });
 
         if (error) {
-            logger.error('RPC get_activity_feed error, using fallback:', error);
+            logger.warn('RPC get_activity_feed unavailable, using fallback:', error);
             return getActivityFeedFallback(userId, userRole, userDepartmentId, filters);
         }
 
-        // RPC РІРѕР·РІСЂР°С‰Р°РµС‚ РґР°РЅРЅС‹Рµ РІ РЅСѓР¶РЅРѕРј С„РѕСЂРјР°С‚Рµ
         return ((data || []) as ActivityFeedRow[]).map(mapFeedRowToActivityEvent);
     } catch (err: unknown) {
         logger.error('Error in getActivityFeed:', err);
@@ -173,12 +218,430 @@ async function getActivityFeedFallback(
     const { data: events, error } = await query;
 
     if (error) {
-        logger.error('Error fetching activity feed from view:', error);
+        logger.warn('Error fetching activity feed from view, using activities fallback:', error);
+        const eventsFromActivities = await getActivityFeedFromActivities(userId, userRole, userDepartmentId, filters);
+        if (eventsFromActivities.length > 0) {
+            return eventsFromActivities;
+        }
+        return getActivityFeedFromDailyTasks(userId, userRole, userDepartmentId, filters);
+    }
+
+    // View тоже может вернуть пусто без ошибки, тогда идем дальше по fallback-цепочке.
+    const viewEvents = ((events || []) as ActivityFeedRow[]).slice(0, limit).map(mapFeedRowToActivityEvent);
+    if (viewEvents.length === 0) {
+        const eventsFromActivities = await getActivityFeedFromActivities(userId, userRole, userDepartmentId, filters);
+        if (eventsFromActivities.length > 0) {
+            return eventsFromActivities;
+        }
+        return getActivityFeedFromDailyTasks(userId, userRole, userDepartmentId, filters);
+    }
+    return viewEvents;
+}
+
+function normalizeLegacyProfile(value: LegacyActivityProfile | LegacyActivityProfile[] | null | undefined): LegacyActivityProfile | undefined {
+    if (!value) return undefined;
+    return Array.isArray(value) ? value[0] : value;
+}
+
+function toNumber(value: unknown): number | null {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
+function getDisplayName(
+    profile: { full_name?: string | null; email?: string | null } | undefined,
+    details: Record<string, unknown>,
+    userId?: string | null
+): string {
+    const detailsName =
+        (typeof details['user_name'] === 'string' && details['user_name']) ||
+        (typeof details['full_name'] === 'string' && details['full_name']) ||
+        (typeof details['employee_name'] === 'string' && details['employee_name']) ||
+        '';
+    const emailName = profile?.email ? profile.email.split('@')[0] : '';
+    const userIdFallback = userId ? `Пользователь ${userId.slice(0, 8)}` : 'Неизвестно';
+    return profile?.full_name || detailsName || emailName || userIdFallback;
+}
+
+function mapLegacyRowToActivityEvent(
+    row: LegacyActivityRow,
+    lookups?: {
+        annualPlans?: Map<string, AnnualPlanLookupRow>;
+        quarterlyPlans?: Map<string, QuarterlyPlanLookupRow>;
+    }
+): ActivityEvent {
+    const profile = normalizeLegacyProfile(row.user_profiles);
+    const details = row.details || {};
+    const createdAt = row.created_at || row.timestamp || new Date().toISOString();
+    const actionType = row.action_type || '';
+    const targetType = row.target_type || '';
+    const eventType = normalizeEventType(actionType);
+    const detailsDepartmentId =
+        typeof details['department_id'] === 'string' ? details['department_id'] : '';
+    const detailsDepartmentName =
+        typeof details['department_name'] === 'string' ? details['department_name'] : '';
+    const detailsDescription = typeof details['description'] === 'string' ? details['description'] : '';
+    const detailsMessage = typeof details['message'] === 'string' ? details['message'] : '';
+    const detailsGoal = typeof details['goal'] === 'string' ? details['goal'] : '';
+    const detailsExpectedResult = typeof details['expected_result'] === 'string' ? details['expected_result'] : '';
+    const detailsPlanName = typeof details['plan_name'] === 'string' ? details['plan_name'] : '';
+    const annualPlan = targetType === 'annual_plan' && row.target_id ? lookups?.annualPlans?.get(row.target_id) : undefined;
+    const quarterlyPlan = targetType === 'quarterly_plan' && row.target_id ? lookups?.quarterlyPlans?.get(row.target_id) : undefined;
+    const planGoal = annualPlan?.goal || quarterlyPlan?.goal || '';
+    const planExpectedResult = annualPlan?.expected_result || quarterlyPlan?.expected_result || '';
+    const planDepartmentId = quarterlyPlan?.department_id || '';
+    const planQuarter = quarterlyPlan?.quarter ?? null;
+    const isPlanEvent = targetType === 'annual_plan' || targetType === 'quarterly_plan';
+    const eventDescription = isPlanEvent
+        ? (planExpectedResult || detailsExpectedResult || detailsDescription || detailsMessage || planGoal || detailsGoal || `${actionType || 'event'} ${targetType}`.trim())
+        : (detailsDescription || detailsMessage || detailsGoal || detailsExpectedResult || `${actionType || 'event'} ${targetType}`.trim());
+
+    return {
+        activity_id: row.activity_id || row.id || `${row.user_id || 'unknown'}-${createdAt}`,
+        event_type: eventType,
+        action_type: actionType || null,
+        target_type: targetType || null,
+        event_time: createdAt,
+        user_id: row.user_id || '',
+        user_name: getDisplayName(profile, details, row.user_id),
+        user_photo: profile?.photo_base64 || null,
+        user_role: profile?.role || 'employee',
+        department_id: profile?.department_id || planDepartmentId || detailsDepartmentId || '',
+        department_name: profile?.department_name || detailsDepartmentName || '',
+        event_description: eventDescription,
+        spent_hours: toNumber(details['spent_hours']),
+        plan_id: row.target_id || '',
+        plan_name: planGoal || detailsPlanName || detailsGoal || '',
+        plan_date: String(details['plan_date'] || createdAt),
+        quarterly_goal: quarterlyPlan?.goal || (details['quarterly_goal'] ? String(details['quarterly_goal']) : null),
+        quarter: planQuarter ?? toNumber(details['quarter']),
+        process_name: details['process_name'] ? String(details['process_name']) : null
+    };
+}
+
+async function getActivityFeedFromActivities(
+    userId: string,
+    userRole: string,
+    userDepartmentId: string | null,
+    filters: ActivityFilters
+): Promise<ActivityEvent[]> {
+    const { departmentId, daysBack = 7, limit = 50 } = filters;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    const { data, error } = await supabase
+        .from('activities')
+        .select('id, user_id, action_type, target_type, target_id, details, created_at')
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(limit * 3);
+
+    if (error) {
+        logger.warn('Error fetching activity feed from activities source:', error);
         return [];
     }
 
-    // РџСЂРµРѕР±СЂР°Р·СѓРµРј РІ С„РѕСЂРјР°С‚ ActivityEvent
-    return ((events || []) as ActivityFeedRow[]).slice(0, limit).map(mapFeedRowToActivityEvent);
+    const activityRows = (data || []) as LegacyActivityRow[];
+    const userIds = Array.from(new Set(activityRows.map((r) => r.user_id).filter(Boolean))) as string[];
+    const annualIds = Array.from(
+        new Set(
+            activityRows
+                .filter((r) => r.target_type === 'annual_plan' && r.target_id)
+                .map((r) => r.target_id as string)
+        )
+    );
+    const quarterlyIds = Array.from(
+        new Set(
+            activityRows
+                .filter((r) => r.target_type === 'quarterly_plan' && r.target_id)
+                .map((r) => r.target_id as string)
+        )
+    );
+    const profileMap = new Map<string, LegacyActivityProfile>();
+    const annualMap = new Map<string, AnnualPlanLookupRow>();
+    const quarterlyMap = new Map<string, QuarterlyPlanLookupRow>();
+
+    if (userIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+            .from('v_user_details')
+            .select('user_id, email, full_name, photo_base64, role, department_id, department_name')
+            .in('user_id', userIds);
+
+        if (!profilesError) {
+            for (const profile of (profilesData || []) as LegacyActivityProfile[]) {
+                if (profile.user_id) {
+                    profileMap.set(profile.user_id, profile);
+                }
+            }
+        }
+    }
+
+    if (annualIds.length > 0) {
+        const { data: annualData, error: annualError } = await supabase
+            .from('annual_plans')
+            .select('annual_id, goal, expected_result')
+            .in('annual_id', annualIds);
+
+        if (!annualError) {
+            for (const annual of (annualData || []) as AnnualPlanLookupRow[]) {
+                annualMap.set(annual.annual_id, annual);
+            }
+        }
+    }
+
+    if (quarterlyIds.length > 0) {
+        const { data: quarterlyData, error: quarterlyError } = await supabase
+            .from('quarterly_plans')
+            .select('quarterly_id, goal, expected_result, quarter, department_id')
+            .in('quarterly_id', quarterlyIds);
+
+        if (!quarterlyError) {
+            for (const quarterly of (quarterlyData || []) as QuarterlyPlanLookupRow[]) {
+                quarterlyMap.set(quarterly.quarterly_id, quarterly);
+            }
+        }
+    }
+
+    let events = activityRows.map((row) => {
+        const profile = row.user_id ? profileMap.get(row.user_id) : undefined;
+        return mapLegacyRowToActivityEvent({
+            ...row,
+            user_profiles: profile || null
+        }, {
+            annualPlans: annualMap,
+            quarterlyPlans: quarterlyMap
+        });
+    });
+
+    if (userRole === 'employee') {
+        events = events.filter((e) => e.user_id === userId);
+    } else if (userRole === 'head') {
+        events = events.filter((e) => e.department_id && e.department_id === userDepartmentId);
+    } else if (userRole === 'chief' && departmentId) {
+        events = events.filter((e) => e.department_id && e.department_id === departmentId);
+    }
+
+    if (events.length === 0) {
+        return getActivityFeedFromDailyTasks(userId, userRole, userDepartmentId, filters);
+    }
+
+    return events.slice(0, limit);
+}
+
+type DailyTaskFeedRow = {
+    daily_task_id: string;
+    monthly_plan_id: string;
+    user_id: string | null;
+    description: string | null;
+    spent_hours: number | null;
+    task_date: string | null;
+    created_at: string | null;
+};
+
+type QuarterlyFeedRow = {
+    quarterly_id: string;
+    quarter: number | null;
+    goal: string | null;
+    department_id: string | null;
+};
+
+type DepartmentFeedRow = {
+    department_id: string;
+    department_name: string | null;
+};
+
+type MonthlyPlanFeedRow = {
+    monthly_plan_id: string;
+    description: string | null;
+    quarterly_id: string | null;
+    measure_id: string | null;
+};
+
+type MeasureFeedRow = {
+    measure_id: string;
+    process_id: string | null;
+};
+
+type ProcessFeedRow = {
+    process_id: string;
+    process_name: string | null;
+};
+
+type UserProfileFeedRow = {
+    user_id: string;
+    email: string | null;
+    full_name: string | null;
+    photo_base64: string | null;
+    role: string | null;
+    department_id: string | null;
+    department_name: string | null;
+};
+
+async function getActivityFeedFromDailyTasks(
+    userId: string,
+    userRole: string,
+    userDepartmentId: string | null,
+    filters: ActivityFilters
+): Promise<ActivityEvent[]> {
+    const { departmentId, daysBack = 7, limit = 50 } = filters;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    let query = supabase
+        .from('daily_tasks')
+        .select('daily_task_id, monthly_plan_id, user_id, description, spent_hours, task_date, created_at')
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(limit * 4);
+
+    if (userRole === 'employee') {
+        query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+        logger.warn('Error fetching activity feed from daily_tasks fallback:', error);
+        return [];
+    }
+
+    const rows = (data || []) as DailyTaskFeedRow[];
+    if (rows.length === 0) return [];
+
+    const monthlyPlanIds = Array.from(new Set(rows.map((r) => r.monthly_plan_id).filter(Boolean)));
+    const monthlyPlanMap = new Map<string, MonthlyPlanFeedRow>();
+    if (monthlyPlanIds.length > 0) {
+        const { data: monthlyRows } = await supabase
+            .from('monthly_plans')
+            .select('monthly_plan_id, description, quarterly_id, measure_id')
+            .in('monthly_plan_id', monthlyPlanIds);
+        for (const row of ((monthlyRows || []) as MonthlyPlanFeedRow[])) {
+            monthlyPlanMap.set(row.monthly_plan_id, row);
+        }
+    }
+
+    const userIds = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean))) as string[];
+    const profileMap = new Map<string, UserProfileFeedRow>();
+    if (userIds.length > 0) {
+        const { data: profileRows } = await supabase
+            .from('v_user_details')
+            .select('user_id, email, full_name, photo_base64, role, department_id, department_name')
+            .in('user_id', userIds);
+        for (const row of ((profileRows || []) as UserProfileFeedRow[])) {
+            profileMap.set(row.user_id, row);
+        }
+    }
+
+    const measureIds = Array.from(
+        new Set(
+            Array.from(monthlyPlanMap.values())
+                .map((m) => m.measure_id)
+                .filter(Boolean)
+        )
+    ) as string[];
+    const measureMap = new Map<string, MeasureFeedRow>();
+    if (measureIds.length > 0) {
+        const { data: measureRows } = await supabase
+            .from('measures')
+            .select('measure_id, process_id')
+            .in('measure_id', measureIds);
+        for (const row of ((measureRows || []) as MeasureFeedRow[])) {
+            measureMap.set(row.measure_id, row);
+        }
+    }
+
+    const processIds = Array.from(
+        new Set(
+            Array.from(measureMap.values())
+                .map((m) => m.process_id)
+                .filter(Boolean)
+        )
+    ) as string[];
+    const processMap = new Map<string, ProcessFeedRow>();
+    if (processIds.length > 0) {
+        const { data: processRows } = await supabase
+            .from('processes')
+            .select('process_id, process_name')
+            .in('process_id', processIds);
+        for (const row of ((processRows || []) as ProcessFeedRow[])) {
+            processMap.set(row.process_id, row);
+        }
+    }
+
+    const quarterlyIds = Array.from(
+        new Set(
+            Array.from(monthlyPlanMap.values())
+                .map((m) => m.quarterly_id)
+                .filter(Boolean)
+        )
+    ) as string[];
+    const quarterlyMap = new Map<string, QuarterlyFeedRow>();
+    if (quarterlyIds.length > 0) {
+        const { data: quarterlyRows } = await supabase
+            .from('quarterly_plans')
+            .select('quarterly_id, quarter, goal, department_id')
+            .in('quarterly_id', quarterlyIds);
+
+        for (const row of ((quarterlyRows || []) as QuarterlyFeedRow[])) {
+            quarterlyMap.set(row.quarterly_id, row);
+        }
+    }
+
+    const departmentIds = Array.from(
+        new Set(
+            Array.from(quarterlyMap.values())
+                .map((q) => q.department_id)
+                .filter(Boolean)
+        )
+    ) as string[];
+    const departmentMap = new Map<string, DepartmentFeedRow>();
+    if (departmentIds.length > 0) {
+        const { data: departmentRows } = await supabase
+            .from('departments')
+            .select('department_id, department_name')
+            .in('department_id', departmentIds);
+        for (const row of ((departmentRows || []) as DepartmentFeedRow[])) {
+            departmentMap.set(row.department_id, row);
+        }
+    }
+
+    let events: ActivityEvent[] = rows.map((row) => {
+        const profile = row.user_id ? profileMap.get(row.user_id) : undefined;
+        const monthly = monthlyPlanMap.get(row.monthly_plan_id);
+        const measure = monthly?.measure_id ? measureMap.get(monthly.measure_id) : undefined;
+        const processRel = measure?.process_id ? processMap.get(measure.process_id) : undefined;
+        const quarterly = monthly?.quarterly_id ? quarterlyMap.get(monthly.quarterly_id) : undefined;
+        const deptFromQuarterly = quarterly?.department_id ? departmentMap.get(quarterly.department_id)?.department_name : null;
+
+        return {
+            activity_id: row.daily_task_id,
+            event_type: 'task_created',
+            action_type: 'create',
+            target_type: 'daily_task',
+            event_time: row.created_at || (row.task_date ? `${row.task_date}T12:00:00.000Z` : new Date().toISOString()),
+            user_id: row.user_id || '',
+            user_name: profile?.full_name || (profile?.email ? profile.email.split('@')[0] : '') || (row.user_id ? `Пользователь ${row.user_id.slice(0, 8)}` : 'Неизвестно'),
+            user_photo: profile?.photo_base64 || null,
+            user_role: profile?.role || 'employee',
+            department_id: profile?.department_id || quarterly?.department_id || '',
+            department_name: profile?.department_name || deptFromQuarterly || '',
+            event_description: row.description || '',
+            spent_hours: Number(row.spent_hours) || 0,
+            plan_id: row.monthly_plan_id,
+            plan_name: monthly?.description || '',
+            plan_date: row.task_date || '',
+            quarterly_goal: quarterly?.goal || null,
+            quarter: quarterly?.quarter || null,
+            process_name: processRel?.process_name || null
+        };
+    });
+
+    if (userRole === 'head') {
+        events = events.filter((e) => e.department_id && e.department_id === userDepartmentId);
+    } else if (userRole === 'chief' && departmentId) {
+        events = events.filter((e) => e.department_id && e.department_id === departmentId);
+    }
+
+    return events.slice(0, limit);
 }
 
 /**
@@ -366,32 +829,45 @@ export async function getAIContext(
     previousStart.setDate(previousStart.getDate() - daysBack);
 
     // Р‘Р°Р·РѕРІС‹Р№ Р·Р°РїСЂРѕСЃ СЃ С„РёР»СЊС‚СЂР°С†РёРµР№ РїРѕ СЂРѕР»Рё
-    const buildQuery = (startDate: Date, endDate: Date) => {
-        let query = supabase
-            .from('v_activity_feed')
-            .select('spent_hours, user_id, user_name, department_id, department_name')
-            .eq('event_type', 'task_created')
-            .gte('event_time', startDate.toISOString())
-            .lt('event_time', endDate.toISOString());
+    // Paginated fetch to bypass Supabase max_rows=1000 limit
+    const fetchAllRows = async (startDate: Date, endDate: Date): Promise<ActivityContextRow[]> => {
+        const PAGE = 1000;
+        const allRows: ActivityContextRow[] = [];
+        let offset = 0;
 
-        if (userRole === 'employee') {
-            query = query.eq('user_id', userId);
-        } else if (userRole === 'head') {
-            query = query.eq('department_id', userDeptId);
-        } else if (userRole === 'chief' && departmentId) {
-            query = query.eq('department_id', departmentId);
+        while (true) {
+            let query = supabase
+                .from('v_activity_feed')
+                .select('spent_hours, user_id, user_name, department_id, department_name')
+                .eq('event_type', 'task_created')
+                .gte('event_time', startDate.toISOString())
+                .lt('event_time', endDate.toISOString())
+                .range(offset, offset + PAGE - 1);
+
+            if (userRole === 'employee') {
+                query = query.eq('user_id', userId);
+            } else if (userRole === 'head') {
+                query = query.eq('department_id', userDeptId);
+            } else if (userRole === 'chief' && departmentId) {
+                query = query.eq('department_id', departmentId);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+
+            allRows.push(...(data as ActivityContextRow[]));
+            if (data.length < PAGE) break;
+            offset += PAGE;
         }
-        return query;
+
+        return allRows;
     };
 
-    // РџР°СЂР°Р»Р»РµР»СЊРЅРѕ Р·Р°РіСЂСѓР¶Р°РµРј РґР°РЅРЅС‹Рµ Р·Р° С‚РµРєСѓС‰РёР№ Рё РїСЂРµРґС‹РґСѓС‰РёР№ РїРµСЂРёРѕРґС‹
-    const [currentResult, previousResult] = await Promise.all([
-        buildQuery(currentStart, now),
-        buildQuery(previousStart, currentStart)
+    const [currentEvents, previousEvents] = await Promise.all([
+        fetchAllRows(currentStart, now),
+        fetchAllRows(previousStart, currentStart)
     ]);
-
-    const currentEvents = currentResult.data || [];
-    const previousEvents = previousResult.data || [];
 
     // Р’С‹С‡РёСЃР»СЏРµРј СЃС‚Р°С‚РёСЃС‚РёРєСѓ
     const calcStats = (events: ActivityContextRow[]) => {
@@ -407,10 +883,8 @@ export async function getAIContext(
         };
     };
 
-    const typedCurrentEvents = currentEvents as ActivityContextRow[];
-    const typedPreviousEvents = previousEvents as ActivityContextRow[];
-    const current = calcStats(typedCurrentEvents);
-    const previous = calcStats(typedPreviousEvents);
+    const current = calcStats(currentEvents);
+    const previous = calcStats(previousEvents);
 
     // Р’С‹С‡РёСЃР»СЏРµРј РёР·РјРµРЅРµРЅРёСЏ РІ %
     const calcChange = (curr: number, prev: number) => {
@@ -427,7 +901,7 @@ export async function getAIContext(
 
     // РўРѕРї РёСЃРїРѕР»РЅРёС‚РµР»Рё (С‚РѕР»СЊРєРѕ РґР»СЏ С‚РµРєСѓС‰РµРіРѕ РїРµСЂРёРѕРґР°)
     const userStats = new Map<string, { name: string; hours: number; tasks: number; department: string }>();
-    for (const event of typedCurrentEvents) {
+    for (const event of currentEvents) {
         const key = event.user_id;
         const existing = userStats.get(key) || {
             name: event.user_name || 'Неизвестно',
@@ -446,7 +920,7 @@ export async function getAIContext(
 
     // РЎС‚Р°С‚РёСЃС‚РёРєР° РїРѕ РѕС‚РґРµР»Р°Рј
     const deptStats = new Map<string, { name: string; hours: number; tasks: number; userIds: Set<string> }>();
-    for (const event of typedCurrentEvents) {
+    for (const event of currentEvents) {
         const key = event.department_id;
         const existing = deptStats.get(key) || {
             name: event.department_name || '',
@@ -473,26 +947,6 @@ export async function getAIContext(
             type: periodType,
             daysBack,
             startDate: currentStart.toISOString().split('T')[0],
-            endDate: now.toISOString().split('T')[0]
-        }
-    };
-}
-
-function getEmptyContext(periodType: 'week' | 'month' | 'quarter' | 'year', daysBack: number): AIContext {
-    const now = new Date();
-    const start = new Date(now);
-    start.setDate(now.getDate() - daysBack);
-
-    return {
-        current: { hours: 0, tasks: 0, activeUsers: 0, avgHoursPerTask: 0, avgHoursPerUser: 0 },
-        previous: { hours: 0, tasks: 0, activeUsers: 0, avgHoursPerTask: 0, avgHoursPerUser: 0 },
-        changes: { hoursChange: 0, tasksChange: 0, usersChange: 0, productivityChange: 0 },
-        topPerformers: [],
-        departmentStats: [],
-        periodInfo: {
-            type: periodType,
-            daysBack,
-            startDate: start.toISOString().split('T')[0],
             endDate: now.toISOString().split('T')[0]
         }
     };

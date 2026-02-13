@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { PresenceUser } from '@/hooks/usePresence';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,7 +16,7 @@ interface ActiveUsersListProps {
  * Компонент для отображения списка активных пользователей.
  * Показывает только аватарки других пользователей (с наложением).
  */
-export default function ActiveUsersList({ users, currentUserId, maxDisplay = 5 }: ActiveUsersListProps) {
+export default function ActiveUsersList({ users, currentUserId, maxDisplay = 8 }: ActiveUsersListProps) {
     // Фильтруем текущего пользователя, чтобы не дублировать его (его аватар уже справа в хедере)
     const otherUsers = users.filter(u => {
         const uid = String(u.user_id).trim();
@@ -53,17 +54,28 @@ export default function ActiveUsersList({ users, currentUserId, maxDisplay = 5 }
                             title={user.displayName}
                         >
                             <div className={cn(
-                                "h-7 w-7 rounded-full border-2 border-indigo-400 bg-white overflow-hidden flex items-center justify-center transition-all duration-300 hover:scale-125 hover:z-30 hover:border-white shadow-sm cursor-default"
+                                "h-7 w-7 rounded-full border-2 border-indigo-400 bg-white overflow-hidden flex items-center justify-center transition-[transform,border-color] duration-300 hover:scale-125 hover:z-30 hover:border-white shadow-sm cursor-default"
                             )}>
                                 {user.photo_base64 ? (
-                                    <img
-                                        src={user.photo_base64}
-                                        alt={user.displayName}
-                                        className="h-full w-full object-cover"
-                                        onError={(e) => {
-                                            (e.target as HTMLImageElement).style.display = 'none';
-                                        }}
-                                    />
+                                    <>
+                                        <Image
+                                            src={user.photo_base64}
+                                            alt={user.displayName}
+                                            width={28}
+                                            height={28}
+                                            unoptimized
+                                            className="h-full w-full object-cover peer"
+                                            onError={(e) => {
+                                                const img = e.target as HTMLImageElement;
+                                                img.style.display = 'none';
+                                                const fallback = img.nextElementSibling as HTMLElement;
+                                                if (fallback) fallback.style.display = 'flex';
+                                            }}
+                                        />
+                                        <div className="hidden h-full w-full bg-gradient-to-br from-indigo-100 to-blue-200 items-center justify-center text-indigo-700 text-[10px] font-bold">
+                                            {getInitials(user.displayName)}
+                                        </div>
+                                    </>
                                 ) : (
                                     <div className="h-full w-full bg-gradient-to-br from-indigo-100 to-blue-200 flex items-center justify-center text-indigo-700 text-[10px] font-bold">
                                         {getInitials(user.displayName)}

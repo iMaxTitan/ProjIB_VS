@@ -1,11 +1,13 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Building2, ChevronRight } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnnualPlan, QuarterlyPlan, MonthlyPlan, PlanStatus, getMonthName } from '@/types/planning';
 import { UserInfo } from '@/types/azure';
+import type { UserRole } from '@/types/supabase';
 import { supabase } from '@/lib/supabase';
-import { PlanDetailcard, PlanDetailHeader, PlanSection } from './components/PlanDetailCommon';
-import { manageQuarterlyPlan, canDeleteQuarterlyPlan, deleteQuarterlyPlan } from '@/lib/plans/plan-service';
+import { DetailSection, GradientDetailCard, ExpandableListItem } from '@/components/dashboard/content/shared';
+import PlanStatusDropdown from './components/PlanStatusDropdown';
+import { manageQuarterlyPlan, canDeleteQuarterlyPlan, deleteQuarterlyPlan, changeQuarterlyPlanStatus } from '@/lib/plans/plan-service';
 import { useProcesses } from '@/hooks/useProcesses';
 import { useAvailableStatuses } from '@/hooks/useAvailableStatuses';
 import { Modal } from '@/components/ui/Modal';
@@ -23,7 +25,6 @@ interface MonthStats {
 interface QuarterlyPlanDetailsProps {
     plan: QuarterlyPlan;
     user: UserInfo;
-    onEdit?: () => void;
     onClose: () => void;
     onUpdate?: (newId?: string) => void;
     canEdit: boolean;
@@ -31,9 +32,15 @@ interface QuarterlyPlanDetailsProps {
     monthlyPlans: MonthlyPlan[];
 }
 
+const NO_PLAN_TITLE = 'Нет названия плана';
+const NO_EXPECTED_RESULT = 'Нет ожидаемого результата';
+const normalizeUserRole = (role: string | null | undefined): UserRole => {
+    if (role === 'chief' || role === 'head' || role === 'employee') return role;
+    return 'employee';
+};
+
 export default function QuarterlyPlanDetails({
     plan,
-    onEdit,
     onClose,
     onUpdate,
     canEdit,
@@ -101,15 +108,15 @@ export default function QuarterlyPlanDetails({
         }
 
         const checkDelete = async () => {
-            const result = await canDeleteQuarterlyPlan(plan.quarterly_id, user?.user_id || '');
+            const result = await canDeleteQuarterlyPlan(plan.quarterly_id, user?.user_id || '', user?.role);
             setCanDelete(result.canDelete);
             setDeleteReason(result.reason || '');
         };
         checkDelete();
-    }, [plan.quarterly_id, user?.user_id, isNewPlan]);
+    }, [plan.quarterly_id, user?.user_id, user?.role, isNewPlan]);
 
     const handleDelete = async () => {
-        const result = await deleteQuarterlyPlan(plan.quarterly_id, user?.user_id || '');
+        const result = await deleteQuarterlyPlan(plan.quarterly_id, user?.user_id || '', user?.role);
         if (result.success) {
             onUpdate?.();
             onClose();
@@ -119,20 +126,18 @@ export default function QuarterlyPlanDetails({
     };
 
     const onStatusChangeHandler = async (newStatus: PlanStatus) => {
+        if (isNewPlan) return;
         try {
             setCurrentStatus(newStatus); // Optimistic
-            await manageQuarterlyPlan({
-                action: 'update',
-                quarterlyId: plan.quarterly_id,
-                annualPlanId: plan.annual_plan_id || '',
-                departmentId: plan.department_id || '',
-                quarter: plan.quarter,
-                goal: plan.goal,
-                expectedResult: plan.expected_result,
-                status: newStatus,
-                process_id: plan.process_id || '',
-                userId: user?.user_id || ''
-            });
+            const result = await changeQuarterlyPlanStatus(
+                plan.quarterly_id,
+                newStatus,
+                user?.user_id || '',
+                normalizeUserRole(user?.role)
+            );
+            if (!result.success) {
+                throw new Error(result.error || 'Ошибка изменения статуса');
+            }
             onUpdate?.();
         } catch (e: unknown) {
             logger.error('Status Change Error:', e);
@@ -316,31 +321,39 @@ export default function QuarterlyPlanDetails({
         fetchMonthStats();
     }, [plan.quarterly_id, relatedMonthly]);
 
-    return (
-        <div className="p-4 pb-8">
-            <PlanDetailcard colorScheme="purple">
-                <PlanDetailHeader
-                    title={isNewPlan ? 'Создание' : isEditing ? 'Редактирование' : 'Просмотр'}
-                    status={currentStatus}
-                    colorScheme="purple"
-                    onClose={onClose}
-                    onStatusChange={isNewPlan ? undefined : onStatusChangeHandler}
-                    canEdit={canEdit}
-                    icon={<Calendar className="h-5 w-5 opacity-80" />}
-                    // Editing props
-                    onEdit={canEdit && !isNewPlan ? () => setIsEditing(true) : undefined}
-                    isEditing={isEditing}
-                    onSave={handleSave}
-                    onCancel={handleCancel}
-                    // Delete props
-                    onDelete={isNewPlan ? undefined : handleDelete}
-                    onCopy={!isNewPlan ? () => setIsCopyModalOpen(true) : undefined}
-                    canDelete={canDelete}
-                    deleteReason={deleteReason}
-                    availableStatuses={availableStatuses}
-                />
+    const modeLabel = isNewPlan ? 'Создание' : isEditing ? 'Редактирование' : 'Просмотр';
 
-                <div className="p-4 space-y-5 overflow-y-auto flex-1">
+    return (
+        <>
+        <GradientDetailCard
+            gradientClassName="from-purple-400/80 to-violet-400/80"
+            modeLabel={modeLabel}
+            isEditing={isEditing}
+            canEdit={canEdit}
+            onEdit={canEdit && !isNewPlan ? () => setIsEditing(true) : undefined}
+            onSave={handleSave}
+            onCancel={handleCancel}
+            onClose={onClose}
+            onDelete={isNewPlan ? undefined : handleDelete}
+            onCopy={!isNewPlan ? () => setIsCopyModalOpen(true) : undefined}
+            canDelete={canDelete}
+            deleteReason={deleteReason}
+            deleteConfirm
+            headerContent={
+                <>
+                    <Calendar className="h-5 w-5 opacity-80" aria-hidden="true" />
+                    <PlanStatusDropdown
+                        status={currentStatus}
+                        onStatusChange={isNewPlan ? undefined : onStatusChangeHandler}
+                        canChange={canEdit && !isEditing}
+                        availableStatuses={availableStatuses}
+                    />
+                    <span className="font-bold text-lg leading-tight tracking-tight drop-shadow-sm font-heading">
+                        {modeLabel}
+                    </span>
+                </>
+            }
+        >
                     {/* Выбор квартала (только в режиме редактирования/создания) */}
                     {isEditing && (
                         <div className="flex items-center gap-2">
@@ -352,7 +365,7 @@ export default function QuarterlyPlanDetails({
                                         type="button"
                                         onClick={() => setEditQuarter(q)}
                                         className={cn(
-                                            "px-3 py-1.5 text-xs rounded-lg border transition-all",
+                                            "px-3 py-1.5 text-xs rounded-lg border transition-colors",
                                             editQuarter === q
                                                 ? "bg-purple-500 text-white border-purple-600 shadow-sm"
                                                 : "bg-white text-gray-700 border-gray-300 hover:bg-purple-50 hover:border-purple-300"
@@ -372,21 +385,21 @@ export default function QuarterlyPlanDetails({
                                 {linkedAnnual.year}
                             </div>
                             <div className="flex flex-col flex-1 min-w-0">
-                                <span className="font-bold tracking-tight text-slate-900 leading-tight truncate">{linkedAnnual.goal}</span>
+                                <span className="font-bold tracking-tight text-slate-900 leading-tight truncate">{linkedAnnual.goal?.trim() || NO_PLAN_TITLE}</span>
                                 <span className="text-2xs font-bold text-amber-600/70 uppercase tracking-widest mt-0.5">Годовой план</span>
                             </div>
                         </div>
                     )}
 
                     {/* Процесс */}
-                    <PlanSection title="Процесс" colorScheme="purple">
+                    <DetailSection title="Процесс" colorScheme="purple">
                         {isEditing ? (
                             <select
                                 value={editProcessId}
                                 onChange={(e) => setEditProcessId(e.target.value)}
                                 disabled={loadingProcesses}
                                 aria-label="Выбор процесса"
-                                className="w-full p-4 text-sm glass-card rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all font-medium text-slate-700 bg-white/40 cursor-pointer"
+                                className="w-full p-4 text-sm glass-card rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-colors font-medium text-slate-700 bg-white/40 cursor-pointer"
                             >
                                 <option value="">Выберите процесс...</option>
                                 {processes.map((proc) => (
@@ -402,43 +415,43 @@ export default function QuarterlyPlanDetails({
                                 </div>
                             )
                         )}
-                    </PlanSection>
+                    </DetailSection>
 
                     {/* Цель */}
-                    <PlanSection title="Цель" colorScheme="purple">
+                    <DetailSection title="Цель" colorScheme="purple">
                         {isEditing ? (
                             <textarea
                                 value={editParams.goal}
                                 onChange={(e) => setEditParams(p => ({ ...p, goal: e.target.value }))}
-                                className="w-full min-h-[100px] p-4 text-sm glass-card rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all font-medium text-slate-700"
+                                className="w-full min-h-[100px] p-4 text-sm glass-card rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-colors font-medium text-slate-700"
                                 placeholder="Введите цель..."
                             />
                         ) : (
                             <div className="glass-card p-3 rounded-2xl text-slate-700 bg-white/40 leading-snug">
-                                {editParams.goal}
+                                {editParams.goal?.trim() || NO_PLAN_TITLE}
                             </div>
                         )}
-                    </PlanSection>
+                    </DetailSection>
 
                     {/* Ожидаемый результат */}
-                    <PlanSection title="Ожидаемый результат" colorScheme="purple">
+                    <DetailSection title="Ожидаемый результат" colorScheme="purple">
                         {isEditing ? (
                             <textarea
                                 value={editParams.expectedResult}
                                 onChange={(e) => setEditParams(p => ({ ...p, expectedResult: e.target.value }))}
-                                className="w-full min-h-[100px] p-4 text-sm glass-card rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all font-medium text-slate-700"
+                                className="w-full min-h-[100px] p-4 text-sm glass-card rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-colors font-medium text-slate-700"
                                 placeholder="Ожидаемый результат..."
                             />
                         ) : (
                             <div className="glass-card p-3 rounded-2xl text-slate-700 bg-white/40 leading-snug">
-                                {editParams.expectedResult}
+                                {editParams.expectedResult?.trim() || NO_EXPECTED_RESULT}
                             </div>
                         )}
-                    </PlanSection>
+                    </DetailSection>
 
                     {/* Месячные планы */}
                     {!isNewPlan && (
-                        <PlanSection title="Месячные планы" colorScheme="purple" className="pt-4 border-t border-purple-100">
+                        <DetailSection title="Месячные планы" colorScheme="purple" className="pt-4 border-t border-purple-100">
                             {relatedMonthly.length > 0 ? (
                                 <div className="space-y-2">
                                     {relatedMonthly
@@ -450,77 +463,13 @@ export default function QuarterlyPlanDetails({
                                             const isExpanded = expandedMonth === m.monthly_plan_id;
 
                                             return (
-                                                <div key={m.monthly_plan_id}>
-                                                    {/* Заголовок месяца - indigo градиент */}
-                                                    <div
-                                                        className={cn(
-                                                            "p-3 flex items-center gap-3 rounded-2xl cursor-pointer transition-all border shadow-md",
-                                                            isExpanded
-                                                                ? "bg-gradient-to-r from-indigo-50 to-blue-50 text-slate-900 ring-1 ring-indigo-200/50 border-indigo-200"
-                                                                : "glass-card text-slate-800 bg-white/70 hover:bg-white/90 hover:border-indigo-200"
-                                                        )}
-                                                        onClick={() => setExpandedMonth(isExpanded ? null : m.monthly_plan_id)}
-                                                    >
-                                                        {/* Стрелка в круге */}
-                                                        <div className={cn(
-                                                            "w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all",
-                                                            isExpanded
-                                                                ? "bg-indigo-200 text-indigo-700"
-                                                                : "bg-indigo-100 text-indigo-600"
-                                                        )}>
-                                                            <span className={cn(
-                                                                "text-xs transition-transform duration-200",
-                                                                isExpanded && "rotate-90"
-                                                            )}>
-                                                                <ChevronRight className="w-3 h-3" />
-                                                            </span>
-                                                        </div>
-                                                        {/* Месяц */}
-                                                        <div className={cn(
-                                                            "w-10 h-8 rounded-xl flex items-center justify-center text-2xs font-bold flex-shrink-0",
-                                                            isCompleted ? 'bg-emerald-100 text-emerald-600' : isExpanded ? 'bg-white text-indigo-600 shadow-sm' : 'bg-indigo-100 text-indigo-600'
-                                                        )}>
-                                                            {getMonthName(m.month, 'ru').slice(0, 3)}
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className={cn(
-                                                                "text-xs font-medium tracking-tight truncate",
-                                                                isExpanded ? "text-indigo-900" : "text-slate-900"
-                                                            )}>
-                                                                {m.measure_name || 'Без названия'}
-                                                            </p>
-                                                            {(() => {
-                                                                const plannedHrs = Number(m.planned_hours) || 0;
-                                                                const mProgressPercent = plannedHrs > 0 ? Math.round((spentHours / plannedHrs) * 100) : 0;
-                                                                return (
-                                                                    <div className="flex items-center gap-2 mt-1">
-                                                                        <div className={cn(
-                                                                            "flex-1 h-2 rounded-full overflow-hidden shadow-inner",
-                                                                            isExpanded ? "bg-white/10" : "bg-indigo-50"
-                                                                        )}>
-                                                                            <div
-                                                                                className={cn(
-                                                                                    "h-full transition-all duration-500",
-                                                                                    mProgressPercent >= 100 ? "bg-emerald-400" : (isExpanded ? "bg-indigo-300" : "bg-indigo-500")
-                                                                                )}
-                                                                                style={{ width: `${Math.min(mProgressPercent, 100)}%` }}
-                                                                            />
-                                                                        </div>
-                                                                        <span className={cn(
-                                                                            "text-2xs font-black font-mono w-10 text-right flex-shrink-0",
-                                                                            isExpanded ? "text-white" : "text-indigo-600"
-                                                                        )}>
-                                                                            {mProgressPercent}%
-                                                                        </span>
-                                                                    </div>
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Детали месячного плана - белый фон */}
-                                                    {isExpanded && (
-                                                        <div className="ml-9 mt-1 mb-2 space-y-1 border-l-2 border-indigo-200 pl-2">
+                                                <ExpandableListItem
+                                                    key={m.monthly_plan_id}
+                                                    tone="indigo"
+                                                    expanded={isExpanded}
+                                                    onToggle={() => setExpandedMonth(isExpanded ? null : m.monthly_plan_id)}
+                                                    expandedContent={
+                                                        <>
                                                             {m.description && (
                                                                 <div className="flex items-start gap-2 text-xs py-1">
                                                                     <span className="text-2xs font-bold text-slate-500 flex-shrink-0 mt-0.5">Описание</span>
@@ -543,9 +492,51 @@ export default function QuarterlyPlanDetails({
                                                                     </span>
                                                                 )}
                                                             </div>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                        </>
+                                                    }
+                                                >
+                                                    {/* Месяц */}
+                                                    <div className={cn(
+                                                        "w-10 h-8 rounded-xl flex items-center justify-center text-2xs font-bold flex-shrink-0",
+                                                        isCompleted ? 'bg-emerald-100 text-emerald-600' : isExpanded ? 'bg-white text-indigo-600 shadow-sm' : 'bg-indigo-100 text-indigo-600'
+                                                    )}>
+                                                        {getMonthName(m.month, 'ru').slice(0, 3)}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className={cn(
+                                                            "text-xs font-medium tracking-tight truncate",
+                                                            isExpanded ? "text-indigo-900" : "text-slate-900"
+                                                        )}>
+                                                            {m.measure_name || 'Без названия'}
+                                                        </p>
+                                                        {(() => {
+                                                            const plannedHrs = Number(m.planned_hours) || 0;
+                                                            const mProgressPercent = plannedHrs > 0 ? Math.round((spentHours / plannedHrs) * 100) : 0;
+                                                            return (
+                                                                <div className="flex items-center gap-2 mt-1">
+                                                                    <div className={cn(
+                                                                        "flex-1 h-2 rounded-full overflow-hidden shadow-inner",
+                                                                        isExpanded ? "bg-white/10" : "bg-indigo-50"
+                                                                    )}>
+                                                                        <div
+                                                                            className={cn(
+                                                                                "h-full transition-colors duration-500",
+                                                                                mProgressPercent >= 100 ? "bg-emerald-400" : (isExpanded ? "bg-indigo-300" : "bg-indigo-500")
+                                                                            )}
+                                                                            style={{ width: `${Math.min(mProgressPercent, 100)}%` }}
+                                                                        />
+                                                                    </div>
+                                                                    <span className={cn(
+                                                                        "text-2xs font-black font-mono w-10 text-right flex-shrink-0",
+                                                                        isExpanded ? "text-white" : "text-indigo-600"
+                                                                    )}>
+                                                                        {mProgressPercent}%
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                </ExpandableListItem>
                                             );
                                         })}
                                 </div>
@@ -555,10 +546,9 @@ export default function QuarterlyPlanDetails({
                                     <p>Месячных планов пока нет</p>
                                 </div>
                             )}
-                        </PlanSection>
+                        </DetailSection>
                     )}
-                </div>
-            </PlanDetailcard>
+        </GradientDetailCard>
 
             {!isNewPlan && (
                 <Modal
@@ -587,7 +577,7 @@ export default function QuarterlyPlanDetails({
                                 ) : (
                                     activeAnnualPlans.map((a) => (
                                         <option key={a.annual_id} value={a.annual_id}>
-                                            {a.year} - {(a.goal || 'Без названия').slice(0, 70)}
+                                            {a.year} - {(a.goal?.trim() || NO_PLAN_TITLE).slice(0, 70)}
                                         </option>
                                     ))
                                 )}
@@ -605,7 +595,7 @@ export default function QuarterlyPlanDetails({
                                         type="button"
                                         onClick={() => setCopyQuarter(q)}
                                         className={cn(
-                                            "px-3 py-2 text-sm rounded-xl border transition-all",
+                                            "px-3 py-2 text-sm rounded-xl border transition-colors",
                                             copyQuarter === q
                                                 ? "bg-indigo-500 text-white border-indigo-600 shadow-sm"
                                                 : "bg-white text-gray-700 border-gray-200 hover:bg-indigo-50 hover:border-indigo-300"
@@ -631,7 +621,7 @@ export default function QuarterlyPlanDetails({
                                     setIsCopyModalOpen(false);
                                     setCopyError(null);
                                 }}
-                                className="px-3 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100 transition-all"
+                                className="px-3 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
                                 disabled={copying}
                             >
                                 Отмена
@@ -639,7 +629,7 @@ export default function QuarterlyPlanDetails({
                             <button
                                 type="button"
                                 onClick={handleCopyQuarterlyPlan}
-                                className="px-3 py-2 text-sm rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-all disabled:opacity-50"
+                                className="px-3 py-2 text-sm rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:opacity-50"
                                 disabled={copying || !copyAnnualId}
                             >
                                 {copying ? 'Копирование...' : 'Копировать'}
@@ -648,7 +638,7 @@ export default function QuarterlyPlanDetails({
                     </div>
                 </Modal>
             )}
-        </div>
+        </>
     );
 }
 

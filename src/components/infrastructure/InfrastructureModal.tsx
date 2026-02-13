@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Modal, ErrorAlert, ModalFooter } from '@/components/ui/Modal';
+import React, { useState, useEffect, useRef } from 'react';
+import { Check, X, Building2, Calendar, Server, Monitor, Hash, FileText, User, FileSignature, Banknote, CalendarDays } from 'lucide-react';
+import { Modal } from '@/components/ui/Modal';
 import { useCompanies } from '@/hooks/useCompanies';
-import type { Company, CompanyWithInfrastructure, InfrastructureParams } from '@/types/infrastructure';
+import { cn } from '@/lib/utils';
+import type { CompanyWithInfrastructure, InfrastructureParams } from '@/types/infrastructure';
 import { MONTH_NAMES } from '@/types/infrastructure';
 
 interface InfrastructureModalProps {
@@ -24,13 +26,14 @@ export default function InfrastructureModal({
   preselectedCompanyId
 }: InfrastructureModalProps) {
   const { companies, loading: loadingCompanies } = useCompanies();
+  const formRef = useRef<HTMLFormElement>(null);
 
-  // Состояния формы
   const [companyId, setCompanyId] = useState<string>('');
   const [periodYear, setPeriodYear] = useState<number>(new Date().getFullYear());
   const [periodMonth, setPeriodMonth] = useState<number>(new Date().getMonth() + 1);
   const [serversCount, setServersCount] = useState<number>(0);
   const [workstationsCount, setWorkstationsCount] = useState<number>(0);
+  const [ratePerHour, setRatePerHour] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
   const [loading, setLoading] = useState(false);
@@ -38,7 +41,6 @@ export default function InfrastructureModal({
 
   const isEditMode = !!editData?.infrastructure_id;
 
-  // Заполнение формы при редактировании или предвыборе компании
   useEffect(() => {
     if (isOpen) {
       if (editData) {
@@ -47,14 +49,15 @@ export default function InfrastructureModal({
         setPeriodMonth(editData.period_month || new Date().getMonth() + 1);
         setServersCount(editData.servers_count || 0);
         setWorkstationsCount(editData.workstations_count || 0);
+        setRatePerHour(editData.rate_per_hour != null ? String(editData.rate_per_hour) : '');
         setNotes(editData.notes || '');
       } else {
-        // Новая запись
         setCompanyId(preselectedCompanyId || '');
         setPeriodYear(new Date().getFullYear());
         setPeriodMonth(new Date().getMonth() + 1);
         setServersCount(0);
         setWorkstationsCount(0);
+        setRatePerHour('');
         setNotes('');
       }
       setError(null);
@@ -77,6 +80,11 @@ export default function InfrastructureModal({
     setLoading(true);
     setError(null);
 
+    // Реквизиты: при создании — из текущей company, при редактировании — из editData (снапшот)
+    const selectedCompany = companies.find(c => c.company_id === companyId);
+    const snapshotSource = isEditMode ? editData : selectedCompany;
+    const parsedRate = ratePerHour ? parseFloat(ratePerHour) : null;
+
     const params: InfrastructureParams = {
       action: isEditMode ? 'update' : 'create',
       infrastructureId: editData?.infrastructure_id ?? undefined,
@@ -86,161 +94,260 @@ export default function InfrastructureModal({
       serversCount,
       workstationsCount,
       notes: notes.trim() || undefined,
-      userId
+      userId,
+      companyFullName: snapshotSource?.company_full_name || null,
+      director: snapshotSource?.director || null,
+      contractNumber: snapshotSource?.contract_number || null,
+      contractDate: snapshotSource?.contract_date || null,
+      ratePerHour: parsedRate ?? snapshotSource?.rate_per_hour ?? null
     };
 
     const success = await onSave(params);
-
     setLoading(false);
 
     if (success) {
       onClose();
     } else {
-      setError('Ошибка при сохранении данных');
+      setError('Ошибка сохранения данных');
     }
   };
 
   const handleClose = () => {
-    if (!loading) {
-      onClose();
-    }
+    if (!loading) onClose();
   };
 
-  // Генерируем года для выбора (текущий и 2 предыдущих)
   const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear - 1, currentYear - 2];
+
+  const total = serversCount + workstationsCount;
+
+  const inputCn = cn(
+    'w-full px-3 py-2.5 sm:py-2 text-sm border border-gray-200 rounded-xl transition-colors bg-white',
+    'focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400',
+    'disabled:bg-gray-50 disabled:text-gray-500'
+  );
+
+  const labelCn = 'flex items-center gap-1.5 text-3xs font-bold text-blue-400 uppercase tracking-wider mb-1.5 pl-1';
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
       title={isEditMode ? 'Редактирование инфраструктуры' : 'Добавление инфраструктуры'}
+      headerVariant="gradient-indigo"
+      showCloseButton={false}
       maxWidth="max-w-lg"
+      headerActions={
+        <>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-colors backdrop-blur-sm disabled:opacity-50"
+            aria-label="Отменить"
+            disabled={loading}
+          >
+            <X className="w-5 h-5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => formRef.current?.requestSubmit()}
+            className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-colors backdrop-blur-sm disabled:opacity-50"
+            aria-label="Сохранить"
+            disabled={loading}
+          >
+            <Check className="w-5 h-5" aria-hidden="true" />
+          </button>
+        </>
+      }
     >
-      <form onSubmit={handleSubmit}>
-        <ErrorAlert message={error} />
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+        {/* Предприятие */}
+        <div>
+          <label className={labelCn}>
+            <Building2 className="w-3 h-3" aria-hidden="true" />
+            Предприятие <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={companyId}
+            onChange={(e) => setCompanyId(e.target.value)}
+            className={cn(inputCn, !companyId && 'text-gray-400')}
+            disabled={loading || loadingCompanies || isEditMode}
+            required
+          >
+            <option value="">Выберите предприятие</option>
+            {companies.map((company) => (
+              <option key={company.company_id} value={company.company_id}>
+                {company.company_name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <div className="space-y-4">
-          {/* Предприятие */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Предприятие <span className="text-red-500">*</span>
+        {/* Реквізити предприятия (read-only) */}
+        {companyId && (() => {
+          const company = isEditMode ? editData : companies.find(c => c.company_id === companyId);
+          const hasDetails = company?.director || company?.contract_number || company?.contract_date || company?.rate_per_hour || company?.company_full_name;
+          if (!hasDetails) return null;
+          return (
+            <div className="px-3 py-2.5 bg-slate-50/80 rounded-xl border border-slate-100/80 space-y-1.5">
+              {company?.company_full_name && (
+                <div className="flex items-center gap-1.5">
+                  <Building2 className="w-3 h-3 text-slate-400 flex-shrink-0" aria-hidden="true" />
+                  <span className="text-xs text-slate-500 truncate">{company.company_full_name}</span>
+                </div>
+              )}
+              {company?.director && (
+                <div className="flex items-center gap-1.5">
+                  <User className="w-3 h-3 text-slate-400 flex-shrink-0" aria-hidden="true" />
+                  <span className="text-xs text-slate-500 truncate">{company.director}</span>
+                </div>
+              )}
+              {company?.contract_number && (
+                <div className="flex items-center gap-1.5">
+                  <FileSignature className="w-3 h-3 text-slate-400 flex-shrink-0" aria-hidden="true" />
+                  <span className="text-xs text-slate-500 truncate">
+                    Договір {company.contract_number}
+                    {company.contract_date && ` від ${new Date(company.contract_date).toLocaleDateString('uk-UA')}`}
+                  </span>
+                </div>
+              )}
+              {company?.rate_per_hour != null && (
+                <div className="flex items-center gap-1.5">
+                  <Banknote className="w-3 h-3 text-slate-400 flex-shrink-0" aria-hidden="true" />
+                  <span className="text-xs text-slate-500">{Number(company.rate_per_hour).toFixed(2)} ₴/год</span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Период: Год и Месяц */}
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className={labelCn}>
+              <Calendar className="w-3 h-3" aria-hidden="true" />
+              Год <span className="text-red-500">*</span>
             </label>
             <select
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={loading || loadingCompanies || isEditMode}
-              required
+              value={periodYear}
+              onChange={(e) => setPeriodYear(Number(e.target.value))}
+              className={inputCn}
+              disabled={loading || isEditMode}
             >
-              <option value="">Выберите предприятие</option>
-              {companies.map((company) => (
-                <option key={company.company_id} value={company.company_id}>
-                  {company.company_name}
-                </option>
+              {years.map((year) => (
+                <option key={year} value={year}>{year}</option>
               ))}
             </select>
           </div>
-
-          {/* Период: Год и Месяц */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Год <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={periodYear}
-                onChange={(e) => setPeriodYear(Number(e.target.value))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={loading || isEditMode}
-              >
-                {years.map((year) => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Месяц <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={periodMonth}
-                onChange={(e) => setPeriodMonth(Number(e.target.value))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={loading || isEditMode}
-              >
-                {MONTH_NAMES.map((name, index) => (
-                  <option key={index + 1} value={index + 1}>{name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Авгверы и Рабочие станции */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Авгвери <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={serversCount}
-                onChange={(e) => setServersCount(Number(e.target.value) || 0)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={loading}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Рабочие станции <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={workstationsCount}
-                onChange={(e) => setWorkstationsCount(Number(e.target.value) || 0)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={loading}
-                required
-              />
-            </div>
-          </div>
-
-          {/* Итого */}
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-600">Всього:</span>
-              <span className="font-semibold text-gray-800">
-                {serversCount + workstationsCount} од.
-              </span>
-            </div>
-          </div>
-
-          {/* Примечания */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Примечания
+          <div className="flex-1">
+            <label className={labelCn}>
+              <Calendar className="w-3 h-3" aria-hidden="true" />
+              Месяц <span className="text-red-500">*</span>
             </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              rows={3}
-              placeholder="Дополнительная информация..."
+            <select
+              value={periodMonth}
+              onChange={(e) => setPeriodMonth(Number(e.target.value))}
+              className={inputCn}
+              disabled={loading || isEditMode}
+            >
+              {MONTH_NAMES.map((name, index) => (
+                <option key={index + 1} value={index + 1}>{name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Серверы и Рабочие станции */}
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className={labelCn}>
+              <Server className="w-3 h-3" aria-hidden="true" />
+              Серверы <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={serversCount}
+              onChange={(e) => setServersCount(Number(e.target.value) || 0)}
+              onFocus={(e) => e.target.select()}
+              className={inputCn}
               disabled={loading}
+              required
+            />
+          </div>
+          <div className="flex-1">
+            <label className={labelCn}>
+              <Monitor className="w-3 h-3" aria-hidden="true" />
+              Рабочие станции <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={workstationsCount}
+              onChange={(e) => setWorkstationsCount(Number(e.target.value) || 0)}
+              onFocus={(e) => e.target.select()}
+              className={inputCn}
+              disabled={loading}
+              required
             />
           </div>
         </div>
 
-        <ModalFooter
-          onCancel={handleClose}
-          loading={loading}
-          isEditMode={isEditMode}
-          submitLabel="Сохранить"
-          editLabel="Сохранить изменения"
-        />
+        {/* Итого */}
+        <div className="flex items-center gap-3 px-3 py-2.5 bg-blue-50/50 rounded-xl border border-blue-100/50">
+          <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-blue-100">
+            <Hash className="w-4 h-4 text-blue-500" aria-hidden="true" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-3xs font-bold text-blue-400 uppercase tracking-wider">Всего</p>
+            <p className="text-sm font-bold text-slate-800">{total.toLocaleString()} од.</p>
+          </div>
+        </div>
+
+        {/* Нормогодина */}
+        <div>
+          <label className={labelCn}>
+            <Banknote className="w-3 h-3" aria-hidden="true" />
+            Нормогодина, ₴
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={ratePerHour}
+            onChange={(e) => setRatePerHour(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            placeholder={(() => {
+              const src = isEditMode ? editData : companies.find(c => c.company_id === companyId);
+              return src?.rate_per_hour != null ? `${Number(src.rate_per_hour).toFixed(2)} (з реквізитів)` : '0.00';
+            })()}
+            className={inputCn}
+            disabled={loading}
+          />
+        </div>
+
+        {/* Примечания */}
+        <div>
+          <label className={labelCn}>
+            <FileText className="w-3 h-3" aria-hidden="true" />
+            Примечания
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className={cn(inputCn, 'resize-none')}
+            rows={2}
+            placeholder="Дополнительная информация..."
+            disabled={loading}
+          />
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+            <p className="text-sm text-red-600">{error}</p>
+          </div>
+        )}
       </form>
     </Modal>
   );

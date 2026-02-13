@@ -22,12 +22,12 @@ export const colors = {
     info: '#3b82f6',
   },
   
-  // KPI статусы
+  // KPI статусы (план = 70% ёмкости)
   kpi: {
-    excellent: '#f59e0b', // Желтый
-    good: '#10b981',      // Зеленый
-    warning: '#f59e0b',   // Янтарный
-    critical: '#ef4444',  // Красный
+    exceeds: '#f59e0b',   // Amber — перегрузка (>=130% плана = ~91% ёмкости)
+    good: '#10b981',      // Зелёный — норма (>=100% плана)
+    warning: '#f59e0b',   // Янтарный — ниже нормы (70-99% плана)
+    critical: '#ef4444',  // Красный — критично (<70% плана)
   },
   
   // Нейтральные цвета
@@ -119,7 +119,7 @@ export const components = {
       bg-white rounded-lg shadow-md 
       border border-gray-200 
       hover:shadow-xl hover:border-indigo-300 
-      transition-all duration-200 cursor-pointer
+      transition-[background-color,box-shadow,border-color] duration-200 cursor-pointer
     `,
   },
   
@@ -150,24 +150,60 @@ export const animations = {
   spin: 'spin 1s linear infinite',
 } as const;
 
-// KPI специфичные стили (обновлено для правильных цветов)
+// KPI специфичные стили
 export const kpi = {
-  // Определение статуса по проценту выполнения
+  // Legacy: определение статуса по проценту выполнения (для v_kpi_current)
   getStatus: (actual: number, target: number): keyof typeof colors.kpi => {
     const percentage = target > 0 ? (actual / target) * 100 : 0;
-    
-    if (percentage > 70) return 'good';         // >70% = зеленый (#10b981)
-    if (percentage >= 50) return 'warning';     // 50-70% = желтый (#f59e0b)  
-    return 'critical';                          // <50% = красный (#ef4444)
+    if (percentage > 70) return 'good';
+    if (percentage >= 50) return 'warning';
+    return 'critical';
   },
-  
+
+  // NEW: определение статуса по часам (план vs факт)
+  // План = 70% ёмкости (норма). Пороги от % выполнения плана:
+  //   >= 130% плана (~91% ёмкости) = перевыполнение (сигнал перегрузки)
+  //   >= 100% плана = норма
+  //   >= 70% плана  = ниже нормы
+  //   < 70% плана   = критично
+  getKPIStatus: (actualHours: number, plannedHours: number): keyof typeof colors.kpi => {
+    if (plannedHours <= 0) return 'critical';
+    const pct = (actualHours / plannedHours) * 100;
+    if (pct >= 130) return 'exceeds';
+    if (pct >= 100) return 'good';
+    if (pct >= 70) return 'warning';
+    return 'critical';
+  },
+
   // Получение цвета по статусу
   getColor: (status: keyof typeof colors.kpi): string => colors.kpi[status],
-  
+
   // Получение цвета напрямую по значениям
   getColorByValues: (actual: number, target: number): string => {
     const status = kpi.getStatus(actual, target);
     return kpi.getColor(status);
+  },
+
+  // Tailwind class по KPI статусу
+  getTailwindBg: (status: keyof typeof colors.kpi): string => {
+    const map: Record<string, string> = {
+      exceeds: 'bg-amber-100 text-amber-800',
+      good: 'bg-emerald-100 text-emerald-800',
+      warning: 'bg-orange-100 text-orange-800',
+      critical: 'bg-red-100 text-red-800',
+    };
+    return map[status] || map.critical;
+  },
+
+  // Лейбл статуса
+  getStatusLabel: (status: keyof typeof colors.kpi): string => {
+    const map: Record<string, string> = {
+      exceeds: 'Перевиконання',
+      good: 'Норма',
+      warning: 'Нижче норми',
+      critical: 'Критично',
+    };
+    return map[status] || 'Невідомо';
   },
 } as const;
 
@@ -189,7 +225,7 @@ export const shadows = {
   xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
 } as const;
 
-export default {
+const designSystem = {
   colors,
   spacing,
   typography,
@@ -199,3 +235,5 @@ export default {
   breakpoints,
   shadows,
 };
+
+export default designSystem;

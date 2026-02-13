@@ -1,6 +1,7 @@
-﻿import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { getErrorMessage } from '@/lib/utils/error-message';
+'use client';
+
+import { useQuery } from '@tanstack/react-query';
+import { processesQueryOptions } from '@/lib/queries/reference-queries';
 import { Process } from '@/types/planning';
 
 interface UseProcessesOptions {
@@ -8,33 +9,13 @@ interface UseProcessesOptions {
   all?: boolean;
 }
 
-export function useProcesses(options: UseProcessesOptions = {}) {
-  const [processes, setProcesses] = useState<Process[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchProcesses() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const { data, error: queryError } = await supabase
-          .from('processes')
-          .select('process_id, process_name')
-          .order('process_name', { ascending: true });
-
-        if (queryError) throw queryError;
-        setProcesses(data || []);
-      } catch (err: unknown) {
-        setError(getErrorMessage(err, 'Не удалось загрузить процессы'));
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchProcesses();
-  }, [options.userId, options.all]);
+export function useProcesses(_options: UseProcessesOptions = {}): {
+  processes: Process[];
+  loading: boolean;
+  error: string | null;
+} {
+  const { data: processes = [], isLoading: loading, error: queryError } = useQuery(processesQueryOptions);
+  const error = queryError ? (queryError instanceof Error ? queryError.message : String(queryError)) : null;
 
   return { processes, loading, error };
 }

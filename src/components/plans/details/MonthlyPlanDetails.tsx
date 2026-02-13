@@ -1,12 +1,14 @@
 ﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Calendar, Users, FileText, Clock, Pencil, Loader2, ChevronRight, Plus, Settings, Building2 } from 'lucide-react';
+import Image from 'next/image';
+import { Calendar, Users, Clock, Pencil, Trash2, Loader2, Plus, Check, X, Info } from 'lucide-react';
 import AddTaskModal from '@/components/dashboard/Tasks/AddTaskModal';
 import { cn } from '@/lib/utils';
 import { MonthlyPlan, QuarterlyPlan, Measure, PlanStatus, getMonthName, MONTH_NAMES_RU } from '@/types/planning';
 import { UserInfo } from '@/types/azure';
 import { UserRole } from '@/types/supabase';
 import { supabase } from '@/lib/supabase';
-import { PlanDetailcard, PlanDetailHeader, PlanSection } from './components/PlanDetailCommon';
+import { DetailSection, GradientDetailCard, ExpandableListItem } from '@/components/dashboard/content/shared';
+import PlanStatusDropdown from './components/PlanStatusDropdown';
 import { manageMonthlyPlan, getMeasures, canDeleteMonthlyPlan, deleteMonthlyPlan, changeMonthlyPlanStatus } from '@/lib/plans/plan-service';
 import { useAvailableStatuses } from '@/hooks/useAvailableStatuses';
 import { getTasksByMonthlyPlanId, DailyTaskRow } from '@/lib/tasks/task-service';
@@ -14,10 +16,8 @@ import { Modal } from '@/components/ui/Modal';
 import { getErrorMessage } from '@/lib/utils/error-message';
 import logger from '@/lib/logger';
 import {
-    WorkloadDistributionType,
-    WORKLOAD_DISTRIBUTION_TYPES,
-    EXCLUDED_COMPANIES_ATBi5,
-    CompanyWithInfrastructure
+    HourDistributionType,
+    HOUR_DISTRIBUTION_TYPES,
 } from '@/types/infrastructure';
 
 interface AssigneeWithDetails {
@@ -33,6 +33,8 @@ interface Company {
     company_id: string;
     company_name: string;
     has_servers?: boolean;
+    servers_count?: number;
+    workstations_count?: number;
 }
 
 interface Task {
@@ -100,14 +102,18 @@ export default function MonthlyPlanDetails({
     const [editMeasureId, setEditMeasureId] = useState(plan.measure_id || '');
     const [editAssigneeIds, setEditAssigneeIds] = useState<string[]>([]);
     const [editCompanyIds, setEditCompanyIds] = useState<string[]>([]);
-    const [distributionType, setDistributionType] = useState<WorkloadDistributionType>('custom');
+    const [distributionType, setDistributionType] = useState<HourDistributionType>(
+        (plan.distribution_type as HourDistributionType) || 'even'
+    );
+    // Инфраструктура за конкретный период (year + month) для фильтрации компаний
+    const [periodInfra, setPeriodInfra] = useState<Map<string, { servers_count: number; workstations_count: number }>>(new Map());
 
     // Data state
     const [assignees, setAssignees] = useState<AssigneeWithDetails[]>([]);
     const [measures, setMeasures] = useState<Measure[]>([]);
+    const [usedMeasureIds, setUsedMeasureIds] = useState<Set<string>>(new Set());
     const [allUsers, setAllUsers] = useState<AssigneeWithDetails[]>([]);
     const [allCompanies, setAllCompanies] = useState<Company[]>([]);
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
     // Tasks state for work log
@@ -118,6 +124,7 @@ export default function MonthlyPlanDetails({
     // Task editing state
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
+    const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
     const [isUserAssigned, setIsUserAssigned] = useState(false);
     const [tasksRefreshTrigger, setTasksRefreshTrigger] = useState(0);
 
@@ -254,10 +261,10 @@ export default function MonthlyPlanDetails({
     // Load dictionaries (companies and users)
     useEffect(() => {
         const loadDictionaries = async () => {
-            // Companies with infrastructure info (for has_servers)
+            // Companies with infrastructure info
             const { data: companies } = await supabase
                 .from('v_companies_with_infrastructure')
-                .select('company_id, company_name, has_servers')
+                .select('company_id, company_name, has_servers, servers_count, workstations_count')
                 .order('company_name');
             if (companies) setAllCompanies(companies);
 
@@ -277,8 +284,53 @@ export default function MonthlyPlanDetails({
         loadDictionaries();
     }, [user?.role, user?.department_id]);
 
+    // Загрузка инфраструктуры за конкретный период (для фильтрации компаний по серверам/станциям)
+    useEffect(() => {
+        const targetMonth = isEditing ? editMonth : plan.month;
+        const targetYear = plan.year;
+        if (!targetYear || !targetMonth) return;
+
+        const fetchPeriodInfra = async () => {
+            const { data } = await supabase
+                .from('company_infrastructure')
+                .select('company_id, servers_count, workstations_count')
+                .eq('period_year', targetYear)
+                .eq('period_month', targetMonth);
+
+            const map = new Map<string, { servers_count: number; workstations_count: number }>();
+            if (data && data.length > 0) {
+                for (const row of data) {
+                    map.set(row.company_id, {
+                        servers_count: row.servers_count || 0,
+                        workstations_count: row.workstations_count || 0,
+                    });
+                }
+            } else {
+                // Fallback: использовать данные из v_companies_with_infrastructure (последние известные)
+                for (const c of allCompanies) {
+                    if (c.servers_count || c.workstations_count) {
+                        map.set(c.company_id, {
+                            servers_count: c.servers_count || 0,
+                            workstations_count: c.workstations_count || 0,
+                        });
+                    }
+                }
+            }
+            setPeriodInfra(map);
+        };
+        fetchPeriodInfra();
+    }, [plan.year, editMonth, isEditing, plan.month, allCompanies]);
+
     const effectiveProcessId = linkedQuarterly?.process_id || plan.process_id;
     const effectiveProcessName = (linkedQuarterly?.process_name || plan.process_name || '').trim();
+
+    // Описание текущего мероприятия (read-only)
+    const currentMeasureDescription = useMemo(() => {
+        const mid = isEditing ? editMeasureId : plan.measure_id;
+        if (!mid) return null;
+        const found = measures.find(m => m.measure_id === mid);
+        return found?.description || null;
+    }, [measures, editMeasureId, plan.measure_id, isEditing]);
 
     // Load measures when process changes
     useEffect(() => {
@@ -317,15 +369,41 @@ export default function MonthlyPlanDetails({
         fetchMeasures();
     }, [effectiveProcessId, effectiveProcessName, plan.measure_id, plan.measure_name]);
 
+    // Load already-used measure IDs for this quarterly + month (to hide from dropdown)
+    useEffect(() => {
+        if (!isEditing) { setUsedMeasureIds(new Set()); return; }
+        const qId = editQuarterlyId;
+        const m = editMonth;
+        const y = plan.year;
+        if (!qId || !m || !y) { setUsedMeasureIds(new Set()); return; }
+
+        const fetchUsed = async () => {
+            const { data } = await supabase
+                .from('monthly_plans')
+                .select('measure_id')
+                .eq('quarterly_id', qId)
+                .eq('year', y)
+                .eq('month', m)
+                .neq('monthly_plan_id', plan.monthly_plan_id);
+            setUsedMeasureIds(new Set((data || []).map(r => r.measure_id).filter(Boolean)));
+        };
+        fetchUsed();
+    }, [isEditing, editQuarterlyId, editMonth, plan.year, plan.monthly_plan_id]);
+
+    // Available measures: exclude already-used in this quarterly+month
+    // Always keep the currently selected measure visible (for editing)
+    const availableMeasures = useMemo(() =>
+        measures.filter(m => m.measure_id === editMeasureId || !usedMeasureIds.has(m.measure_id)),
+        [measures, usedMeasureIds, editMeasureId]
+    );
+
     // Load plan data (assignees, companies)
     useEffect(() => {
         if (isNewPlan) {
-            setLoading(false);
             return;
         }
 
         const fetchData = async () => {
-            setLoading(true);
             try {
                 // Assignees
                 const { data: assigneesData } = await supabase
@@ -356,19 +434,14 @@ export default function MonthlyPlanDetails({
                 if (companiesData) {
                     const companyIds = companiesData.map(c => c.company_id);
                     setEditCompanyIds(companyIds);
-
-                    // Try to determine distribution type from selected companies
-                    // For now, default to 'custom' since we don't store the type yet
-                    setDistributionType('custom');
+                    setDistributionType((plan.distribution_type as HourDistributionType) || 'even');
                 }
             } catch (err: unknown) {
                 logger.error('Error loading monthly plan data:', err);
-            } finally {
-                setLoading(false);
             }
         };
         fetchData();
-    }, [plan.monthly_plan_id, isNewPlan]);
+    }, [plan.monthly_plan_id, plan.distribution_type, isNewPlan]);
 
     // Check delete permissions
     useEffect(() => {
@@ -378,12 +451,12 @@ export default function MonthlyPlanDetails({
         }
 
         const checkDelete = async () => {
-            const result = await canDeleteMonthlyPlan(plan.monthly_plan_id, user.user_id);
+            const result = await canDeleteMonthlyPlan(plan.monthly_plan_id, user.user_id, user.role);
             setCanDelete(result.canDelete);
             setDeleteReason(result.reason || '');
         };
         checkDelete();
-    }, [plan.monthly_plan_id, user.user_id, isNewPlan]);
+    }, [plan.monthly_plan_id, user.user_id, user.role, isNewPlan]);
 
     // Check if current user is assigned to this plan
     useEffect(() => {
@@ -421,10 +494,10 @@ export default function MonthlyPlanDetails({
             })
             .catch(err => logger.error('Error loading tasks:', err))
             .finally(() => setTasksLoading(false));
-    }, [plan.monthly_plan_id, isNewPlan, tasksRefreshTrigger]);
+    }, [plan.monthly_plan_id, isNewPlan, tasksRefreshTrigger, plan.tasks_count]);
 
     const handleDelete = async () => {
-        const result = await deleteMonthlyPlan(plan.monthly_plan_id, user.user_id);
+        const result = await deleteMonthlyPlan(plan.monthly_plan_id, user.user_id, user.role);
         if (result.success) {
             onUpdate?.();
             onClose();
@@ -467,6 +540,10 @@ export default function MonthlyPlanDetails({
             alert('Выберите квартальный план');
             return;
         }
+        if (editCompanyIds.length === 0) {
+            alert('Виберіть хоча б одне підприємство');
+            return;
+        }
 
         setSaving(true);
         try {
@@ -480,7 +557,8 @@ export default function MonthlyPlanDetails({
                 plannedHours: editPlannedHours,
                 status: currentStatus,
                 assignees: editAssigneeIds,
-                userId: user.user_id
+                userId: user.user_id,
+                distributionType,
             });
 
             const newId = (typeof result === 'string' ? result : result?.monthly_plan_id) ?? undefined;
@@ -535,6 +613,22 @@ export default function MonthlyPlanDetails({
         setIsTaskModalOpen(true);
     }, []);
 
+    const handleDeleteTask = useCallback(async (taskId: string) => {
+        try {
+            const { error } = await supabase
+                .from('daily_tasks')
+                .delete()
+                .eq('daily_task_id', taskId);
+            if (error) throw error;
+            setTaskToDeleteId(null);
+            setTasksRefreshTrigger(prev => prev + 1);
+            onUpdate?.();
+        } catch (err: unknown) {
+            logger.error('Error deleting task:', err);
+            setTaskToDeleteId(null);
+        }
+    }, [onUpdate]);
+
     const handleTaskSuccess = useCallback(() => {
         setIsTaskModalOpen(false);
         setTaskToEdit(null);
@@ -542,35 +636,73 @@ export default function MonthlyPlanDetails({
         onUpdate?.();
     }, [onUpdate]);
 
-    // Get companies by distribution type
-    const getCompaniesByDistributionType = useCallback((type: WorkloadDistributionType): string[] => {
-        if (type === 'custom') return editCompanyIds;
+    // Компании, доступные для текущего типа распределения
+    const availableCompanies = useMemo(() => {
+        if (distributionType === 'even') return allCompanies;
 
-        return allCompanies
-            .filter(c => {
-                if (type === 'ATBi5') {
-                    // Exclude КФК and МФФ
-                    return !EXCLUDED_COMPANIES_ATBi5.some(name => c.company_name.includes(name));
-                }
-                if (type === 'ATB3') {
-                    // Only companies with servers
-                    return c.has_servers === true;
-                }
-                // ATBi7, ATB7 - all companies
-                return true;
-            })
-            .map(c => c.company_id);
-    }, [allCompanies, editCompanyIds]);
+        return allCompanies.filter(c => {
+            const infra = periodInfra.get(c.company_id);
+            if (distributionType === 'by_servers') {
+                return infra ? infra.servers_count > 0 : (c.servers_count || 0) > 0;
+            }
+            // by_workstations
+            return infra ? infra.workstations_count > 0 : (c.workstations_count || 0) > 0;
+        });
+    }, [allCompanies, distributionType, periodInfra]);
+
+    // Доли распределения для отображения процентов
+    const companyShares = useMemo(() => {
+        if (distributionType === 'even' || editCompanyIds.length === 0) return new Map<string, number>();
+
+        const field = distributionType === 'by_servers' ? 'servers_count' : 'workstations_count';
+        const values = editCompanyIds.map(id => {
+            const infra = periodInfra.get(id);
+            const c = allCompanies.find(c => c.company_id === id);
+            const val = infra ? infra[field] : (c?.[field] || 0);
+            return { id, val: val || 0 };
+        });
+        const total = values.reduce((s, v) => s + v.val, 0);
+        if (total === 0) return new Map<string, number>();
+
+        const shares = new Map<string, number>();
+        for (const v of values) {
+            shares.set(v.id, Math.round((v.val / total) * 100));
+        }
+        return shares;
+    }, [distributionType, editCompanyIds, periodInfra, allCompanies]);
+
+    // Получить кол-во инфраструктуры для отображения
+    const getInfraCount = useCallback((companyId: string): number => {
+        const infra = periodInfra.get(companyId);
+        const c = allCompanies.find(c => c.company_id === companyId);
+        if (distributionType === 'by_servers') {
+            return infra ? infra.servers_count : (c?.servers_count || 0);
+        }
+        return infra ? infra.workstations_count : (c?.workstations_count || 0);
+    }, [periodInfra, allCompanies, distributionType]);
 
     // Handle distribution type change
-    const handleDistributionTypeChange = useCallback((type: WorkloadDistributionType) => {
+    const handleDistributionTypeChange = useCallback((type: HourDistributionType) => {
         setDistributionType(type);
-        if (type !== 'custom') {
-            // Auto-populate companies based on type
-            const companyIds = getCompaniesByDistributionType(type);
-            setEditCompanyIds(companyIds);
+        if (type === 'by_servers') {
+            const ids = allCompanies
+                .filter(c => {
+                    const infra = periodInfra.get(c.company_id);
+                    return infra ? infra.servers_count > 0 : (c.servers_count || 0) > 0;
+                })
+                .map(c => c.company_id);
+            setEditCompanyIds(ids);
+        } else if (type === 'by_workstations') {
+            const ids = allCompanies
+                .filter(c => {
+                    const infra = periodInfra.get(c.company_id);
+                    return infra ? infra.workstations_count > 0 : (c.workstations_count || 0) > 0;
+                })
+                .map(c => c.company_id);
+            setEditCompanyIds(ids);
         }
-    }, [getCompaniesByDistributionType]);
+        // 'even' — не трогаем текущий набор, пользователь выбирает вручную
+    }, [allCompanies, periodInfra]);
 
     const sourceProcessId = linkedQuarterly?.process_id || plan.process_id || null;
     const sourceProcessName = (linkedQuarterly?.process_name || plan.process_name || '').trim().toLowerCase();
@@ -659,6 +791,7 @@ export default function MonthlyPlanDetails({
                 status: 'draft',
                 assignees: assigneesForCopy,
                 userId: user.user_id,
+                distributionType,
                 action: 'create',
             });
 
@@ -690,31 +823,54 @@ export default function MonthlyPlanDetails({
         editCompanyIds,
         user.user_id,
         onUpdate,
+        distributionType,
     ]);
 
-    return (
-        <div className="p-4 pb-8">
-            <PlanDetailcard colorScheme="indigo">
-                <PlanDetailHeader
-                    title={isNewPlan ? 'Создание' : isEditing ? 'Редактирование' : 'Просмотр'}
-                    status={currentStatus}
-                    colorScheme="indigo"
-                    onClose={onClose}
-                    onStatusChange={isNewPlan ? undefined : onStatusChangeHandler}
-                    canEdit={canEdit}
-                    icon={<Calendar className="h-5 w-5" />}
-                    onEdit={canEdit && !isNewPlan ? () => setIsEditing(true) : undefined}
-                    isEditing={isEditing}
-                    onSave={handleSave}
-                    onCancel={handleCancel}
-                    onDelete={isNewPlan ? undefined : handleDelete}
-                    onCopy={!isNewPlan ? () => setIsCopyModalOpen(true) : undefined}
-                    canDelete={canDelete}
-                    deleteReason={deleteReason}
-                    availableStatuses={availableStatuses}
-                />
+    const modeLabel = isNewPlan ? 'Создание' : isEditing ? 'Редактирование' : 'Просмотр';
 
-                <div className="p-4 space-y-5 overflow-y-auto flex-1">
+    return (
+        <>
+        <GradientDetailCard
+            gradientClassName="from-indigo-400/80 to-blue-400/80"
+            modeLabel={modeLabel}
+            isEditing={isEditing}
+            canEdit={canEdit}
+            onEdit={canEdit && !isNewPlan ? () => setIsEditing(true) : undefined}
+            onSave={handleSave}
+            onCancel={handleCancel}
+            onClose={onClose}
+            onDelete={isNewPlan ? undefined : handleDelete}
+            onCopy={!isNewPlan ? () => setIsCopyModalOpen(true) : undefined}
+            canDelete={canDelete}
+            deleteReason={deleteReason}
+            deleteConfirm
+            saving={saving}
+            headerActions={!isNewPlan && !isEditing && (
+                <button
+                    type="button"
+                    onClick={handleAddTask}
+                    aria-label="Добавить задачу"
+                    title="Добавить задачу"
+                    className="p-2 hover:bg-white/20 rounded-xl transition-colors text-white/80 hover:text-white"
+                >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                </button>
+            )}
+            headerContent={
+                <>
+                    <Calendar className="h-5 w-5 opacity-80" aria-hidden="true" />
+                    <PlanStatusDropdown
+                        status={currentStatus}
+                        onStatusChange={isNewPlan ? undefined : onStatusChangeHandler}
+                        canChange={canEdit && !isEditing}
+                        availableStatuses={availableStatuses}
+                    />
+                    <span className="font-bold text-lg leading-tight tracking-tight drop-shadow-sm font-heading">
+                        {modeLabel}
+                    </span>
+                </>
+            }
+        >
                     {/* Квартальный план - показываем только если создаем не из плюсика */}
                     {isEditing && !plan.quarterly_id && (
                         <div>
@@ -746,114 +902,86 @@ export default function MonthlyPlanDetails({
                         </div>
                     )}
 
-                    {/* Контекст: Квартальный план и Процесс */}
+                    {/* Квартальный план — на всю ширину */}
                     {linkedQuarterly && !isNewPlan && !isEditing && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {/* Квартальный план */}
-                            <div className="glass-card rounded-2xl p-3 flex items-center gap-3 bg-purple-50/30 border-purple-100/50">
-                                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-xs shadow-sm">
-                                    Q{linkedQuarterly.quarter}
-                                </div>
-                                <div className="min-w-0">
-                                    <div className="text-3xs font-bold uppercase tracking-wider text-purple-400 mb-0.5">Квартальный план</div>
-                                    <div className="text-xs font-medium text-slate-700 leading-tight line-clamp-2">{linkedQuarterly.goal}</div>
-                                </div>
+                        <DetailSection title="Квартальный план" colorScheme="purple">
+                            <div className="glass-card p-3 rounded-2xl text-xs font-medium text-slate-700 bg-white/40 leading-snug line-clamp-2">
+                                Q{linkedQuarterly.quarter} — {linkedQuarterly.goal}
                             </div>
-
-                            {/* Процесс */}
-                            {(plan.process_name || linkedQuarterly.process_name) && (
-                                <div className="glass-card rounded-2xl p-3 flex items-center gap-3 bg-indigo-50/30 border-indigo-100/50">
-                                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
-                                        <Settings className="h-4 w-4" aria-hidden="true" />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <div className="text-3xs font-bold uppercase tracking-wider text-indigo-400 mb-0.5">Процесс</div>
-                                        <div className="text-xs font-medium text-slate-700 leading-tight line-clamp-2">{plan.process_name || linkedQuarterly.process_name}</div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        </DetailSection>
                     )}
-
-                    {/* Привязанный квартальный план и процесс (в режиме редактирования) */}
                     {linkedQuarterly && isEditing && plan.quarterly_id && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {/* Квартальный план */}
-                            <div className="glass-card rounded-2xl p-3 flex items-center gap-3 bg-purple-50/30 border-purple-100/50">
-                                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-xs shadow-sm">
-                                    Q{linkedQuarterly.quarter}
-                                </div>
-                                <div className="min-w-0">
-                                    <div className="text-3xs font-bold uppercase tracking-wider text-purple-400 mb-0.5">Квартальный план</div>
-                                    <div className="text-xs font-medium text-slate-700 leading-tight line-clamp-2">{linkedQuarterly.goal}</div>
-                                </div>
+                        <DetailSection title="Квартальный план" colorScheme="purple">
+                            <div className="glass-card p-3 rounded-2xl text-xs font-medium text-slate-700 bg-white/40 leading-snug line-clamp-2">
+                                Q{linkedQuarterly.quarter} — {linkedQuarterly.goal}
                             </div>
-
-                            {/* Процесс */}
-                            {(plan.process_name || linkedQuarterly.process_name) && (
-                                <div className="glass-card rounded-2xl p-3 flex items-center gap-3 bg-indigo-50/30 border-indigo-100/50">
-                                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
-                                        <Settings className="h-4 w-4" aria-hidden="true" />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <div className="text-3xs font-bold uppercase tracking-wider text-indigo-400 mb-0.5">Процесс</div>
-                                        <div className="text-xs font-medium text-slate-700 leading-tight line-clamp-2">{plan.process_name || linkedQuarterly.process_name}</div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        </DetailSection>
                     )}
 
                     {/* Мероприятие */}
                     {(isEditing || !isNewPlan) && (
-                        <PlanSection title="Мероприятие" colorScheme="indigo" titleIcon={<FileText />}>
+                        <DetailSection title="Мероприятие" colorScheme="indigo">
                             {isEditing ? (
                                 <select
                                     value={editMeasureId}
                                     onChange={(e) => {
                                         const measureId = e.target.value;
                                         setEditMeasureId(measureId);
-                                        // Автозаполнение плановых часов по периоду мероприятия
                                         const selectedMeasure = measures.find(m => m.measure_id === measureId);
                                         if (selectedMeasure) {
                                             setEditPlannedHours(getMonthlyHoursFromMeasure(selectedMeasure));
                                         }
                                     }}
                                     className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
-                                    disabled={measures.length === 0}
+                                    disabled={availableMeasures.length === 0 && !editMeasureId}
                                 >
                                     <option value="">
-                                        {measures.length === 0
-                                            ? (linkedQuarterly ? 'Нет мероприятий для этого процесса' : 'Сначала выберите квартальный план')
+                                        {availableMeasures.length === 0
+                                            ? (linkedQuarterly ? 'Нет доступных мероприятий' : 'Сначала выберите квартальный план')
                                             : 'Выберите мероприятие...'}
                                     </option>
-                                    {measures.map(m => (
+                                    {availableMeasures.map(m => (
                                         <option key={m.measure_id} value={m.measure_id}>
                                             {m.name} ({m.target_value} ч. {PERIOD_LABELS[m.target_period]})
                                         </option>
                                     ))}
                                 </select>
                             ) : (
-                                <div className="flex items-center gap-3 p-3 bg-white/60 rounded-xl border border-gray-100 text-sm">
-                                    <div className="p-2 bg-indigo-100 rounded-lg flex-shrink-0">
-                                        <FileText className="h-4 w-4 text-indigo-600" aria-hidden="true" />
-                                    </div>
-                                    <span className="font-medium text-slate-700 leading-snug">
-                                        {plan.measure_name || measures.find(m => m.measure_id === plan.measure_id)?.name || <span className="text-slate-500 italic">Мероприятие не выбрано</span>}
-                                    </span>
+                                <div className="glass-card p-3 rounded-2xl text-xs font-medium text-slate-700 bg-white/40 leading-snug">
+                                    {plan.measure_name || measures.find(m => m.measure_id === plan.measure_id)?.name || <span className="text-slate-500 italic">Мероприятие не выбрано</span>}
                                 </div>
                             )}
-                        </PlanSection>
+                        </DetailSection>
+                    )}
+
+                    {/* Описание мероприятия — акцентный блок */}
+                    {currentMeasureDescription && (
+                        <div className="relative rounded-xl border border-amber-200/80 bg-gradient-to-br from-amber-50/90 to-yellow-50/70 p-3 sm:p-4 shadow-sm">
+                            <div className="flex items-start gap-2.5">
+                                <div className="flex-shrink-0 mt-0.5">
+                                    <div className="w-6 h-6 rounded-lg bg-amber-400/20 flex items-center justify-center">
+                                        <Info className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
+                                    </div>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-3xs font-bold text-amber-600/80 uppercase tracking-wider mb-1">Описание мероприятия</div>
+                                    <div className="text-xs sm:text-sm text-amber-900/80 leading-relaxed whitespace-pre-line">
+                                        {currentMeasureDescription}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     )}
 
                     {/* Месяц и часы (компактно, как в мероприятиях) */}
-                    <PlanSection title="Часы" colorScheme="indigo" titleIcon={<Clock />}>
+                    <DetailSection title="Часы" colorScheme="indigo">
                         {isEditing ? (
                             <div className="grid grid-cols-2 gap-3">
                                 <input
                                     type="number"
                                     value={editPlannedHours}
                                     onChange={(e) => setEditPlannedHours(Number(e.target.value) || 0)}
+                                    onFocus={(e) => e.target.select()}
                                     className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
                                     min={0}
                                     step={8}
@@ -872,31 +1000,29 @@ export default function MonthlyPlanDetails({
                                 </select>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-3 p-3 bg-white/60 rounded-xl border border-gray-100 text-sm">
-                                <div className="p-2 bg-amber-100 rounded-lg flex-shrink-0">
-                                    <Clock className="h-4 w-4 text-amber-600" aria-hidden="true" />
-                                </div>
-                                <span className="font-medium text-slate-700">
-                                    {Number(plan.planned_hours || editPlannedHours || 0).toFixed(0)} ч. на {getMonthName(plan.month || editMonth, 'ru')}
-                                </span>
+                            <div className="glass-card p-3 rounded-2xl text-xs font-medium text-slate-700 bg-white/40 leading-snug">
+                                {Number(plan.planned_hours || editPlannedHours || 0).toFixed(0)} ч. на {getMonthName(plan.month || editMonth, 'ru')}
                             </div>
                         )}
-                    </PlanSection>
+                    </DetailSection>
 
                     {/* Тип распределения и компании */}
                     {isEditing ? (
-                        <PlanSection title="Предприятия" colorScheme="indigo" titleIcon={<Building2 />}>
-                            {/* Distribution type selector */}
+                        <DetailSection title="Предприятия" colorScheme="indigo">
+                            {/* Селектор типа распределения */}
                             <div className="mb-3">
-                                <label className="text-3xs font-bold text-indigo-400 uppercase tracking-wider mb-1.5 pl-1 block">Тип распределения</label>
+                                <label className="text-3xs font-bold text-indigo-400 uppercase tracking-wider mb-1.5 pl-1 block">
+                                    Тип распределения
+                                </label>
                                 <div className="flex flex-wrap gap-1.5">
-                                    {WORKLOAD_DISTRIBUTION_TYPES.map(dt => (
+                                    {HOUR_DISTRIBUTION_TYPES.map(dt => (
                                         <button
                                             key={dt.type}
                                             type="button"
                                             onClick={() => handleDistributionTypeChange(dt.type)}
+                                            aria-label={dt.description}
                                             className={cn(
-                                                "px-2.5 py-1.5 rounded-lg text-xs border transition-all",
+                                                "px-2.5 sm:px-3 py-1.5 rounded-lg text-xs border transition-colors",
                                                 distributionType === dt.type
                                                     ? "bg-indigo-500 border-indigo-600 text-white shadow-sm"
                                                     : "bg-white border-gray-200 text-gray-700 hover:bg-indigo-50 hover:border-indigo-300"
@@ -907,23 +1033,22 @@ export default function MonthlyPlanDetails({
                                         </button>
                                     ))}
                                 </div>
-                                {distributionType !== 'custom' && (
-                                    <p className="text-2xs text-gray-400 mt-1">
-                                        {WORKLOAD_DISTRIBUTION_TYPES.find(dt => dt.type === distributionType)?.description}
-                                    </p>
-                                )}
+                                <p className="text-xs text-gray-400 mt-1">
+                                    {HOUR_DISTRIBUTION_TYPES.find(dt => dt.type === distributionType)?.description}
+                                </p>
                             </div>
 
-                            {/* Manual company selection - only for 'custom' type */}
-                            {distributionType === 'custom' ? (
+                            {/* Компании — ручной выбор для 'even', автовыбор для by_servers/by_workstations */}
+                            {distributionType === 'even' ? (
                                 <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
                                     {allCompanies.map(c => (
                                         <button
                                             key={c.company_id}
                                             type="button"
                                             onClick={() => toggleCompany(c.company_id)}
+                                            aria-label={`Выбрать ${c.company_name}`}
                                             className={cn(
-                                                "px-2 py-0.5 rounded-full text-2xs border transition-all",
+                                                "px-2 py-0.5 rounded-full text-xs border transition-colors",
                                                 editCompanyIds.includes(c.company_id)
                                                     ? "bg-indigo-100 border-indigo-300 text-indigo-800"
                                                     : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
@@ -934,50 +1059,74 @@ export default function MonthlyPlanDetails({
                                     ))}
                                 </div>
                             ) : (
-                                /* Show auto-selected companies as read-only chips */
+                                /* Автоматически выбранные компании — read-only, с инфраструктурой и процентами */
                                 <div className="flex flex-wrap gap-1.5">
-                                    {allCompanies
-                                        .filter(c => editCompanyIds.includes(c.company_id))
-                                        .map(c => (
+                                    {availableCompanies.map(c => {
+                                        const count = getInfraCount(c.company_id);
+                                        const share = companyShares.get(c.company_id);
+                                        return (
                                             <span
                                                 key={c.company_id}
-                                                className="px-2 py-0.5 rounded-full text-2xs bg-indigo-100 border border-indigo-300 text-indigo-800"
+                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-indigo-100 border border-indigo-300 text-indigo-800"
                                             >
                                                 {c.company_name}
+                                                <span className="text-indigo-500 font-medium">
+                                                    {count}
+                                                </span>
+                                                {share !== undefined && (
+                                                    <span className="text-indigo-400">
+                                                        ({share}%)
+                                                    </span>
+                                                )}
                                             </span>
-                                        ))}
-                                    <span className="text-2xs text-gray-400 self-center ml-1">
-                                        ({editCompanyIds.length} выбрано автоматически)
+                                        );
+                                    })}
+                                    <span className="text-xs text-gray-400 self-center ml-1">
+                                        ({editCompanyIds.length} авто)
                                     </span>
                                 </div>
                             )}
-                        </PlanSection>
+                        </DetailSection>
                     ) : (
-                        <PlanSection title="Предприятия" colorScheme="indigo" titleIcon={<Building2 />}>
+                        <DetailSection title="Предприятия" colorScheme="indigo">
                             <div className="glass-card p-3 rounded-2xl bg-white/30">
                                 {editCompanyIds.length > 0 ? (
-                                    <div className="flex flex-wrap gap-2">
-                                        {allCompanies
-                                            .filter(c => editCompanyIds.includes(c.company_id))
-                                            .map(c => (
-                                                <span
-                                                    key={c.company_id}
-                                                    className="px-2.5 py-1 rounded-lg text-xs bg-white/50 border border-indigo-100 text-indigo-700 font-medium shadow-sm"
-                                                >
-                                                    {c.company_name}
-                                                </span>
-                                            ))}
-                                    </div>
+                                    <>
+                                        {/* Бейдж типа распределения */}
+                                        <div className="mb-2">
+                                            <span className="text-2xs font-medium text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">
+                                                {HOUR_DISTRIBUTION_TYPES.find(d => d.type === distributionType)?.label || 'Поровну'}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {allCompanies
+                                                .filter(c => editCompanyIds.includes(c.company_id))
+                                                .map(c => {
+                                                    const share = companyShares.get(c.company_id);
+                                                    return (
+                                                        <span
+                                                            key={c.company_id}
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-white/50 border border-indigo-100 text-indigo-700 font-medium shadow-sm"
+                                                        >
+                                                            {c.company_name}
+                                                            {share !== undefined && (
+                                                                <span className="text-indigo-400 font-normal">({share}%)</span>
+                                                            )}
+                                                        </span>
+                                                    );
+                                                })}
+                                        </div>
+                                    </>
                                 ) : (
                                     <span className="text-xs text-slate-500 italic px-1">Не выбрано</span>
                                 )}
                             </div>
-                        </PlanSection>
+                        </DetailSection>
                     )}
 
                     {/* Исполнители - только в режиме редактирования */}
                     {isEditing && (
-                        <PlanSection title="Исполнители" colorScheme="indigo" titleIcon={<Users />}>
+                        <DetailSection title="Исполнители" colorScheme="indigo">
                             <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
                                 {allUsers.map(u => (
                                     <button
@@ -985,14 +1134,14 @@ export default function MonthlyPlanDetails({
                                         type="button"
                                         onClick={() => toggleAssignee(u.user_id)}
                                         className={cn(
-                                            "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs border transition-all",
+                                            "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs border transition-colors",
                                             editAssigneeIds.includes(u.user_id)
                                                 ? "bg-indigo-100 border-indigo-300 text-indigo-800"
                                                 : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
                                         )}
                                     >
                                         {u.photo_base64 ? (
-                                            <img src={u.photo_base64} alt="" className="w-4 h-4 rounded-full" />
+                                            <Image src={u.photo_base64} alt="" width={16} height={16} unoptimized className="w-4 h-4 rounded-full" />
                                         ) : (
                                             <Users className="w-3 h-3" />
                                         )}
@@ -1000,34 +1149,15 @@ export default function MonthlyPlanDetails({
                                     </button>
                                 ))}
                             </div>
-                        </PlanSection>
+                        </DetailSection>
                     )}
 
                     {/* Исполнители - только для существующих планов и не в режиме редактирования */}
                     {!isNewPlan && !isEditing && (
-                        <PlanSection
+                        <DetailSection
                             title="Исполнители"
                             colorScheme="indigo"
-                            titleIcon={<Users />}
                             className="pt-4 border-t border-indigo-100"
-                            rightElement={
-                                isUserAssigned && (
-                                    <button
-                                        type="button"
-                                        onClick={handleAddTask}
-                                        aria-label="Добавить задачу"
-                                        className={cn(
-                                            "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg",
-                                            "bg-indigo-500 text-white hover:bg-indigo-600",
-                                            "focus:outline-none focus:ring-2 focus:ring-indigo-500",
-                                            "active:scale-95 transition-all"
-                                        )}
-                                    >
-                                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                                        <span className="hidden xs:inline">Добавить</span>
-                                    </button>
-                                )
-                            }
                         >
                             {tasksLoading ? (
                                 <div className="flex justify-center py-6">
@@ -1043,69 +1173,18 @@ export default function MonthlyPlanDetails({
                                         const userName = resolveUserName(group);
 
                                         return (
-                                            <div key={group.userId}>
-                                                {/* Строка сотрудника */}
-                                                <div
-                                                    className={cn(
-                                                        "flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all border border-transparent shadow-md",
-                                                        isExpanded
-                                                            ? "bg-gradient-to-r from-indigo-50 to-blue-50 text-slate-900 border-indigo-200 ring-1 ring-indigo-200/50"
-                                                            : "glass-card text-slate-800 bg-white/70 hover:bg-white/90 hover:border-indigo-200"
-                                                    )}
-                                                    onClick={() => setExpandedEmployees(prev =>
-                                                        isExpanded
-                                                            ? prev.filter(id => id !== group.userId)
-                                                            : [...prev, group.userId]
-                                                    )}
-                                                >
-                                                    {/* Стрелка */}
-                                                    <div className={cn(
-                                                        "flex items-center justify-center w-5 h-5 rounded-full transition-all duration-300",
-                                                        isExpanded ? "bg-indigo-200 text-indigo-700 rotate-90" : "bg-indigo-50 text-indigo-400"
-                                                    )}>
-                                                        <ChevronRight className="w-3 h-3" />
-                                                    </div>
-
-                                                    {/* Аватар */}
-                                                    {group.user?.photo_base64 ? (
-                                                        <img src={group.user.photo_base64} alt="" className="w-8 h-8 rounded-xl object-cover flex-shrink-0 shadow-sm border border-white/20" />
-                                                    ) : (
-                                                        <div className={cn(
-                                                            "w-8 h-8 rounded-xl flex items-center justify-center text-white text-2xs font-black flex-shrink-0 shadow-sm",
-                                                            avatarColors[idx % avatarColors.length]
-                                                        )}>
-                                                            {getInitials(userName)}
-                                                        </div>
-                                                    )}
-
-                                                    {/* Имя и прогресс */}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center justify-between mb-1">
-                                                            <span className={cn("text-xs font-medium tracking-tight truncate", isExpanded ? "text-indigo-900" : "text-slate-900")}>{userName}</span>
-                                                            <span className={cn("text-2xs font-medium flex-shrink-0 ml-2", isExpanded ? "text-indigo-600" : "text-indigo-600")}>
-                                                                {group.tasks.length} задач
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className={cn("flex-1 h-2 rounded-full overflow-hidden shadow-inner", isExpanded ? "bg-indigo-200/50" : "bg-indigo-50")}>
-                                                                <div
-                                                                    className={cn(
-                                                                        "h-full transition-all duration-500",
-                                                                        empProgressPercent >= 80 ? "bg-emerald-400" : empProgressPercent >= 50 ? "bg-amber-400" : "bg-blue-400"
-                                                                    )}
-                                                                    style={{ width: `${Math.min(empProgressPercent, 100)}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className={cn("text-2xs font-bold font-mono w-10 text-right flex-shrink-0", isExpanded ? "text-indigo-700" : "text-indigo-600")}>
-                                                                {group.totalHours.toFixed(1)}h
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Список задач */}
-                                                {isExpanded && group.tasks.length > 0 && (
-                                                    <div className="ml-9 mt-1 mb-2 space-y-1 border-l-2 border-indigo-200 pl-2">
+                                            <ExpandableListItem
+                                                key={group.userId}
+                                                tone="indigo"
+                                                chevronSize="sm"
+                                                expanded={isExpanded}
+                                                onToggle={() => setExpandedEmployees(prev =>
+                                                    isExpanded
+                                                        ? prev.filter(id => id !== group.userId)
+                                                        : [...prev, group.userId]
+                                                )}
+                                                expandedContent={group.tasks.length > 0 ? (
+                                                    <>
                                                         {group.tasks.map(task => (
                                                             <div
                                                                 key={task.daily_task_id}
@@ -1122,25 +1201,100 @@ export default function MonthlyPlanDetails({
                                                                         {Number(task.spent_hours).toFixed(1)}ч
                                                                     </span>
                                                                 )}
-                                                                {/* Кнопка редактирования - только для назначенных и своих задач */}
                                                                 {isUserAssigned && task.user_id === user.user_id && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            handleEditTask(task);
-                                                                        }}
-                                                                        aria-label="Редактировать задачу"
-                                                                        className="p-0.5 hover:bg-indigo-100 rounded transition-all flex-shrink-0 focus:ring-2 focus:ring-indigo-500"
-                                                                    >
-                                                                        <Pencil className="h-3 w-3 text-indigo-400 hover:text-indigo-600" aria-hidden="true" />
-                                                                    </button>
+                                                                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleEditTask(task);
+                                                                            }}
+                                                                            aria-label="Редактировать задачу"
+                                                                            className="p-0.5 hover:bg-indigo-100 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                        >
+                                                                            <Pencil className="h-3 w-3 text-indigo-400 hover:text-indigo-600" aria-hidden="true" />
+                                                                        </button>
+                                                                        {taskToDeleteId === task.daily_task_id ? (
+                                                                            <div className="flex items-center gap-0.5 bg-red-50 rounded px-1 animate-fade-in">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        setTaskToDeleteId(null);
+                                                                                    }}
+                                                                                    aria-label="Отмена удаления"
+                                                                                    className="p-0.5 hover:bg-white rounded transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                                >
+                                                                                    <X className="h-3 w-3 text-gray-500" aria-hidden="true" />
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        handleDeleteTask(task.daily_task_id);
+                                                                                    }}
+                                                                                    aria-label="Подтвердить удаление"
+                                                                                    className="p-0.5 hover:bg-red-100 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+                                                                                >
+                                                                                    <Check className="h-3 w-3 text-red-500" aria-hidden="true" />
+                                                                                </button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setTaskToDeleteId(task.daily_task_id);
+                                                                                }}
+                                                                                aria-label="Удалить задачу"
+                                                                                className="p-0.5 hover:bg-red-100 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+                                                                            >
+                                                                                <Trash2 className="h-3 w-3 text-red-400 hover:text-red-600" aria-hidden="true" />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                         ))}
+                                                    </>
+                                                ) : undefined}
+                                            >
+                                                {/* Аватар */}
+                                                {group.user?.photo_base64 ? (
+                                                    <Image src={group.user.photo_base64} alt="" width={32} height={32} unoptimized className="w-8 h-8 rounded-xl object-cover flex-shrink-0 shadow-sm border border-white/20" />
+                                                ) : (
+                                                    <div className={cn(
+                                                        "w-8 h-8 rounded-xl flex items-center justify-center text-white text-2xs font-black flex-shrink-0 shadow-sm",
+                                                        avatarColors[idx % avatarColors.length]
+                                                    )}>
+                                                        {getInitials(userName)}
                                                     </div>
                                                 )}
-                                            </div>
+
+                                                {/* Имя и прогресс */}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <span className={cn("text-xs font-medium tracking-tight truncate", isExpanded ? "text-indigo-900" : "text-slate-900")}>{userName}</span>
+                                                        <span className="text-2xs font-medium flex-shrink-0 ml-2 text-indigo-600">
+                                                            {group.tasks.length} задач
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={cn("flex-1 h-2 rounded-full overflow-hidden shadow-inner", isExpanded ? "bg-indigo-200/50" : "bg-indigo-50")}>
+                                                            <div
+                                                                className={cn(
+                                                                    "h-full transition-colors duration-500",
+                                                                    empProgressPercent >= 80 ? "bg-emerald-400" : empProgressPercent >= 50 ? "bg-amber-400" : "bg-blue-400"
+                                                                )}
+                                                                style={{ width: `${Math.min(empProgressPercent, 100)}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className={cn("text-2xs font-bold font-mono w-10 text-right flex-shrink-0", isExpanded ? "text-indigo-700" : "text-indigo-600")}>
+                                                            {group.totalHours.toFixed(1)}h
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </ExpandableListItem>
                                         );
                                     })}
                                 </div>
@@ -1152,11 +1306,10 @@ export default function MonthlyPlanDetails({
                                     <p className="text-xs text-slate-600">Записей пока нет</p>
                                 </div>
                             )}
-                        </PlanSection>
+                        </DetailSection>
                     )}
 
-                </div>
-            </PlanDetailcard>
+        </GradientDetailCard>
 
             {/* Task Modal */}
             {!isNewPlan && (
@@ -1252,7 +1405,7 @@ export default function MonthlyPlanDetails({
                                     setIsCopyModalOpen(false);
                                     setCopyError(null);
                                 }}
-                                className="px-3 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100 transition-all"
+                                className="px-3 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
                                 disabled={copying}
                             >
                                 Отмена
@@ -1260,7 +1413,7 @@ export default function MonthlyPlanDetails({
                             <button
                                 type="button"
                                 onClick={handleCopyPlan}
-                                className="px-3 py-2 text-sm rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-all disabled:opacity-50"
+                                className="px-3 py-2 text-sm rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:opacity-50"
                                 disabled={copying}
                             >
                                 {copying ? 'Копирование...' : 'Копировать'}
@@ -1269,7 +1422,7 @@ export default function MonthlyPlanDetails({
                     </div>
                 </Modal>
             )}
-        </div>
+        </>
     );
 }
 

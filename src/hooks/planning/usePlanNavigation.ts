@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { AnnualPlan, QuarterlyPlan } from '@/types/planning';
+import { AnnualPlan } from '@/types/planning';
 
 export function usePlanNavigation(
-    annualPlans: AnnualPlan[],
-    quarterlyPlans: QuarterlyPlan[]
+    annualPlans: AnnualPlan[]
 ) {
     const [selectedYear, setSelectedYear] = useState<number | null>(null);
     const [selectedQuarter, setSelectedQuarter] = useState<number | null>(null);

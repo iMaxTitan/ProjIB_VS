@@ -1,16 +1,15 @@
 ﻿'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Check, Folder, Pencil, X } from 'lucide-react';
+import { Folder } from 'lucide-react';
 import { UserInfo } from '@/types/azure';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { supabase } from '@/lib/supabase';
 import { useProjects } from '@/hooks/useProjects';
 import { ProjectWithDepartments } from '@/types/projects';
-import ReferencesTwoPanelLayout from './ReferencesTwoPanelLayout';
+import { TwoPanelLayout, GradientDetailCard, GroupHeader, DetailSection, ReferenceListItem } from '../shared';
 import ReferenceLeftPanelShell from './ReferenceLeftPanelShell';
-import ReferenceGroupHeader from './ReferenceGroupHeader';
 import ReferenceEmptyState from './ReferenceEmptyState';
 import ReferenceDetailsEmptyState from './ReferenceDetailsEmptyState';
 
@@ -149,7 +148,6 @@ export default function ProjectsReferenceContent({ user, tabsSlot }: { user: Use
       loading={loading}
       error={error}
       isEmpty={projects.length === 0}
-      loadingColorClass="border-amber-500"
       bodyClassName="space-y-2"
       emptyState={<ReferenceEmptyState icon={<Folder className="h-12 w-12" aria-hidden="true" />} text="Проекты не найдены" />}
       body={
@@ -158,7 +156,8 @@ export default function ProjectsReferenceContent({ user, tabsSlot }: { user: Use
           { key: 'inactive' as const, label: 'Неактивные', items: groupedProjects.inactive },
         ]).map((group) => (
           <div key={group.key} className="space-y-1.5">
-            <ReferenceGroupHeader
+            <GroupHeader
+              tone="amber"
               title={group.label}
               count={group.items.length}
               expanded={expandedGroups[group.key]}
@@ -166,16 +165,6 @@ export default function ProjectsReferenceContent({ user, tabsSlot }: { user: Use
               onAdd={canEdit ? () => openNewForm(group.key === 'active') : undefined}
               toggleAriaLabel={`${expandedGroups[group.key] ? 'Свернуть' : 'Развернуть'} группу ${group.label}`}
               addAriaLabel={`Добавить проект в группу ${group.label}`}
-              containerClassName={cn(
-                'bg-gradient-to-r from-amber-100/80 to-amber-50/80 border border-amber-200/50',
-                'hover:from-amber-200/80 hover:to-amber-100/80',
-                'focus:outline-none focus:ring-2 focus:ring-amber-500',
-                'transition-all'
-              )}
-              chevronClassName="text-amber-400"
-              titleClassName="text-amber-700"
-              countClassName="text-amber-500 bg-white/70"
-              addButtonClassName="border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100"
             />
 
             {expandedGroups[group.key] && (
@@ -183,21 +172,13 @@ export default function ProjectsReferenceContent({ user, tabsSlot }: { user: Use
                 {group.items.map((project) => {
                   const isSelected = selectedProject?.project_id === project.project_id;
                   return (
-                    <button
-                      type="button"
+                    <ReferenceListItem
                       key={project.project_id}
+                      tone="amber"
+                      isSelected={isSelected}
                       onClick={() => handleSelectProject(project)}
-                      aria-label={`Выбрать ${project.project_name}`}
-                      aria-current={isSelected ? 'true' : undefined}
-                      className={cn(
-                        'w-full p-3 rounded-xl border text-left transition-all group cursor-pointer',
-                        'focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2',
-                        'active:scale-[0.98]',
-                        isSelected
-                          ? 'bg-amber-50 border-amber-300 shadow-sm'
-                          : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm',
-                        !project.is_active && 'opacity-80'
-                      )}
+                      ariaLabel={`Выбрать ${project.project_name}`}
+                      disabled={!project.is_active}
                     >
                       <div className="flex items-start gap-3">
                         <div
@@ -226,9 +207,8 @@ export default function ProjectsReferenceContent({ user, tabsSlot }: { user: Use
                             </div>
                           )}
                         </div>
-
                       </div>
-                    </button>
+                    </ReferenceListItem>
                   );
                 })}
               </div>
@@ -263,54 +243,16 @@ export default function ProjectsReferenceContent({ user, tabsSlot }: { user: Use
   const modeLabel = isCreateMode ? 'Создать' : isEditing ? 'Редактирование' : 'Просмотр';
 
   const rightPanel = selectedProject || isCreateMode ? (
-    <div className="p-4">
-      <div className="rounded-3xl shadow-glass border border-white/30 overflow-hidden glass-card max-w-3xl animate-scale">
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-400/80 to-orange-400/80 text-white backdrop-blur-md">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <span className="inline-flex items-center text-sm px-2.5 py-1 rounded-full font-semibold bg-white/20 text-white backdrop-blur-sm">
-                {modeLabel}
-              </span>
-            </div>
-            {canEdit && (
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {editingMode ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={isCreateMode ? handleCancelCreate : handleCancelEdit}
-                      aria-label="Отменить редактирование"
-                      className="p-2 hover:bg-white/20 rounded-xl transition-all text-white/80 hover:text-white"
-                    >
-                      <X className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={isCreateMode ? handleCreateInline : handleSaveEdit}
-                      aria-label="Сохранить"
-                      className="p-2 hover:bg-white/20 rounded-xl transition-all text-white"
-                    >
-                      <Check className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => selectedProject && openEditForm(selectedProject)}
-                    aria-label="Редактировать"
-                    className="p-2 hover:bg-white/20 rounded-xl transition-all text-white/80 hover:text-white"
-                  >
-                    <Pencil className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="p-4 sm:p-6 space-y-5">
-          <section>
-            <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Название</h4>
+    <GradientDetailCard
+      modeLabel={modeLabel}
+      isEditing={editingMode}
+      canEdit={canEdit}
+      gradientClassName="from-amber-400/80 to-orange-400/80"
+      onEdit={selectedProject ? () => openEditForm(selectedProject) : undefined}
+      onSave={isCreateMode ? handleCreateInline : handleSaveEdit}
+      onCancel={isCreateMode ? handleCancelCreate : handleCancelEdit}
+    >
+          <DetailSection title="Название" colorScheme="amber">
             {editingMode ? (
               <input
                 type="text"
@@ -320,14 +262,13 @@ export default function ProjectsReferenceContent({ user, tabsSlot }: { user: Use
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               />
             ) : (
-              <p className="text-sm text-slate-700 bg-white/60 rounded-xl border border-gray-100 p-3">
+              <div className="glass-card p-3 rounded-2xl text-slate-700 bg-white/40 leading-snug">
                 {selectedProject?.project_name}
-              </p>
+              </div>
             )}
-          </section>
+          </DetailSection>
 
-          <section>
-            <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Описание</h4>
+          <DetailSection title="Описание" colorScheme="amber">
             {editingMode ? (
               <textarea
                 value={formData.description}
@@ -336,14 +277,13 @@ export default function ProjectsReferenceContent({ user, tabsSlot }: { user: Use
                 rows={3}
               />
             ) : (
-              <p className="text-sm text-slate-700 bg-white/60 rounded-xl border border-gray-100 p-3">
+              <div className="glass-card p-3 rounded-2xl text-slate-700 bg-white/40 leading-snug">
                 {selectedProject?.description || 'Без описания'}
-              </p>
+              </div>
             )}
-          </section>
+          </DetailSection>
 
-          <section>
-            <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">Департаменты</h4>
+          <DetailSection title="Департаменты" colorScheme="amber">
             {editingMode ? (
               <div className="flex flex-wrap gap-2">
                 {departments.map((dept) => {
@@ -352,7 +292,7 @@ export default function ProjectsReferenceContent({ user, tabsSlot }: { user: Use
                     <label
                       key={dept.department_id}
                       className={cn(
-                        'inline-flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer transition-all',
+                        'inline-flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer transition-colors',
                         'focus-within:ring-2 focus-within:ring-amber-500',
                         selected ? 'border-amber-300 bg-amber-50' : 'border-slate-200 hover:bg-slate-50 bg-white/60'
                       )}
@@ -386,15 +326,14 @@ export default function ProjectsReferenceContent({ user, tabsSlot }: { user: Use
                 )}
               </>
             )}
-          </section>
+          </DetailSection>
 
-          <section>
-            <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Статус</h4>
+          <DetailSection title="Статус" colorScheme="amber">
             {editingMode ? (
               <div className="grid grid-cols-1">
                 <label
                   className={cn(
-                    'flex items-center justify-center gap-2 p-3 rounded-xl border cursor-pointer transition-all',
+                    'flex items-center justify-center gap-2 p-3 rounded-xl border cursor-pointer transition-colors',
                     'focus-within:ring-2 focus-within:ring-amber-500',
                     formData.is_active ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50 bg-white/60'
                   )}
@@ -420,11 +359,9 @@ export default function ProjectsReferenceContent({ user, tabsSlot }: { user: Use
                 </span>
               </div>
             )}
-          </section>
+          </DetailSection>
 
-        </div>
-      </div>
-    </div>
+    </GradientDetailCard>
   ) : (
     <ReferenceDetailsEmptyState
       icon={<Folder className="h-16 w-16" aria-hidden="true" />}
@@ -435,14 +372,12 @@ export default function ProjectsReferenceContent({ user, tabsSlot }: { user: Use
 
   return (
     <>
-      <ReferencesTwoPanelLayout
+      <TwoPanelLayout
         leftPanel={leftPanel}
         rightPanel={rightPanel}
         isDrawerOpen={isDrawerOpen}
         onDrawerClose={handleCloseDetails}
-        initialPanelWidth={480}
         rightPanelClassName={cn('overscroll-contain', (selectedProject || isCreateMode) ? 'bg-amber-50/30' : 'bg-transparent')}
-        mobileDrawerContentClassName="p-3 pb-6"
         resizerClassName="hover:bg-amber-300/50 active:bg-amber-400/50"
       />
     </>

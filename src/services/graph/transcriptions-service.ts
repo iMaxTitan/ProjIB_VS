@@ -396,7 +396,7 @@ export class GraphTranscriptionsService {
       logger.info(`[Транскрипт] Всего сообщений в чате:`, messages.length);
       // Ключевые слова для поиска
       const keywords = ['transcript', 'транскрипт', 'transcription'];
-      let foundAttachments: FoundAttachment[] = [];
+      const foundAttachments: FoundAttachment[] = [];
       for (const msg of messages) {
         if (!msg.attachments || !Array.isArray(msg.attachments)) continue;
         for (const att of msg.attachments) {
@@ -450,7 +450,7 @@ export class GraphTranscriptionsService {
       if (!token) throw new Error('Нет accessToken для Graph API');
       const apiBase = GraphAuthService.apiBaseUrl;
       let url = `${apiBase}/chats/${meetingChatId}/messages?$top=50`;
-      let foundVtt: Array<{ name: string, url: string, messageId: string, created: string }> = [];
+      const foundVtt: Array<{ name: string, url: string, messageId: string, created: string }> = [];
       let totalMessages = 0;
       while (url) {
         const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
