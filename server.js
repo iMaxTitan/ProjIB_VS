@@ -1,0 +1,125 @@
+const { createServer } = require('https');
+const http = require('http');
+const { parse } = require('url');
+const next = require('next');
+const fs = require('fs');
+const path = require('path');
+
+const dev = process.env.NODE_ENV !== 'production';
+const app = next({
+  dev,
+  hostname: 'maxtitan.me',
+  port: 443
+});
+const handle = app.getRequestHandler();
+
+const certPath = path.join(__dirname, 'certificates/maxtitan.pem');
+const keyPath = path.join(__dirname, 'certificates/maxtitan-key.pem');
+
+const httpsOptions = {
+  key: fs.readFileSync(keyPath),
+  cert: fs.readFileSync(certPath),
+};
+
+// PostgREST proxy target (DB VPS)
+const POSTGREST_HOST = process.env.POSTGREST_HOST || '10.0.0.3';
+const POSTGREST_PORT = parseInt(process.env.POSTGREST_PORT || '3000', 10);
+
+// n8n proxy target (local)
+const N8N_PORT = parseInt(process.env.N8N_PORT || '5678', 10);
+
+function proxyToPostgREST(req, res) {
+  // Strip /rest/v1 prefix — PostgREST serves at /
+  const targetPath = req.url.replace(/^\/rest\/v1/, '') || '/';
+
+  // Forward only safe headers (skip hop-by-hop and TLS-specific)
+  const fwdHeaders = {};
+  for (const [key, val] of Object.entries(req.headers)) {
+    if (['host', 'connection', 'transfer-encoding', 'upgrade', 'http2-settings'].includes(key)) continue;
+    fwdHeaders[key] = val;
+  }
+  fwdHeaders['host'] = `${POSTGREST_HOST}:${POSTGREST_PORT}`;
+
+  const proxyReq = http.request({
+    hostname: POSTGREST_HOST,
+    port: POSTGREST_PORT,
+    path: targetPath,
+    method: req.method,
+    headers: fwdHeaders,
+  }, (proxyRes) => {
+    // Remove hop-by-hop headers from response
+    const resHeaders = { ...proxyRes.headers };
+    delete resHeaders['transfer-encoding'];
+    res.writeHead(proxyRes.statusCode, resHeaders);
+    proxyRes.pipe(res, { end: true });
+  });
+
+  proxyReq.on('error', (err) => {
+    console.error('PostgREST proxy error:', err.message);
+    res.writeHead(502);
+    res.end('Bad Gateway');
+  });
+
+  req.pipe(proxyReq, { end: true });
+}
+
+app.prepare().then(() => {
+  const server = createServer(httpsOptions, async (req, res) => {
+    // Устанавливаем CORS заголовки для *всех* ответов
+    res.setHeader('Access-Control-Allow-Origin', 'https://maxtitan.me');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Accept, Authorization, apikey, Prefer, Range');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Content-Location');
+
+    // Обработка preflight запросов OPTIONS
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204); // No Content
+      res.end();
+      return;
+    }
+
+    // Proxy /rest/v1/* to PostgREST on DB VPS
+    if (req.url.startsWith('/rest/v1')) {
+      return proxyToPostgREST(req, res);
+    }
+
+    // Proxy /n8n/* to local n8n instance
+    if (req.url.startsWith('/n8n')) {
+      const n8nReq = http.request({
+        hostname: '127.0.0.1',
+        port: N8N_PORT,
+        path: req.url,
+        method: req.method,
+        headers: { ...req.headers, host: `127.0.0.1:${N8N_PORT}` },
+      }, (proxyRes) => {
+        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        proxyRes.pipe(res, { end: true });
+      });
+      n8nReq.on('error', (err) => {
+        console.error('n8n proxy error:', err.message);
+        res.writeHead(502);
+        res.end('n8n unavailable');
+      });
+      req.pipe(n8nReq, { end: true });
+      return;
+    }
+
+    try {
+      const parsedUrl = parse(req.url, true);
+      await handle(req, res, parsedUrl);
+    } catch (err) {
+      console.error('Error occurred handling', req.url, err);
+      res.statusCode = 500;
+      res.end('Internal Server Error');
+    }
+  });
+
+  const port = parseInt(process.env.PORT || '443', 10);
+  server.listen(port, '0.0.0.0', (err) => {
+    if (err) throw err;
+    console.log(`> Ready on https://0.0.0.0:${port} (доступен как https://maxtitan.me:${port})`);
+  });
+}).catch(err => {
+  console.error('Error occurred starting server:', err);
+});

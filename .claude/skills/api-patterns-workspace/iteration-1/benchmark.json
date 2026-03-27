@@ -1,0 +1,97 @@
+{
+  "metadata": {
+    "skill_name": "api-patterns",
+    "skill_path": "C:\\Proj\\ProjIB_VS\\.claude\\skills\\api-patterns",
+    "executor_model": "claude-opus-4-6",
+    "analyzer_model": "claude-opus-4-6",
+    "timestamp": "2026-03-10T21:02:19Z",
+    "evals_run": ["vacation-balance-get", "report-comment-post", "calendar-free-slots"],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_name": "vacation-balance-get",
+      "configuration": "with_skill",
+      "pass_rate": 1.0,
+      "total_tokens": 39523,
+      "duration_seconds": 47.5,
+      "passed": 9,
+      "failed": 0,
+      "total": 9
+    },
+    {
+      "eval_name": "vacation-balance-get",
+      "configuration": "without_skill",
+      "pass_rate": 0.33,
+      "total_tokens": 19610,
+      "duration_seconds": 22.7,
+      "passed": 3,
+      "failed": 6,
+      "total": 9
+    },
+    {
+      "eval_name": "report-comment-post",
+      "configuration": "with_skill",
+      "pass_rate": 1.0,
+      "total_tokens": 22772,
+      "duration_seconds": 31.2,
+      "passed": 9,
+      "failed": 0,
+      "total": 9
+    },
+    {
+      "eval_name": "report-comment-post",
+      "configuration": "without_skill",
+      "pass_rate": 0.22,
+      "total_tokens": 19316,
+      "duration_seconds": 17.9,
+      "passed": 2,
+      "failed": 7,
+      "total": 9
+    },
+    {
+      "eval_name": "calendar-free-slots",
+      "configuration": "with_skill",
+      "pass_rate": 1.0,
+      "total_tokens": 40858,
+      "duration_seconds": 82.5,
+      "passed": 8,
+      "failed": 0,
+      "total": 8
+    },
+    {
+      "eval_name": "calendar-free-slots",
+      "configuration": "without_skill",
+      "pass_rate": 1.0,
+      "total_tokens": 31859,
+      "duration_seconds": 59.7,
+      "passed": 8,
+      "failed": 0,
+      "total": 8
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "mean_pass_rate": 1.0,
+      "stddev_pass_rate": 0.0,
+      "mean_tokens": 34384,
+      "mean_duration_seconds": 53.7
+    },
+    "without_skill": {
+      "mean_pass_rate": 0.52,
+      "stddev_pass_rate": 0.36,
+      "mean_tokens": 23595,
+      "mean_duration_seconds": 33.4
+    },
+    "delta": {
+      "pass_rate": "+0.48 (52% → 100%)",
+      "time_seconds": "+20.3s (+61%)",
+      "tokens": "+10789 (+46%)"
+    }
+  },
+  "notes": [
+    "Test 3 (calendar-free-slots) baseline scored 100% because the agent read CLAUDE.md and project files despite being told not to use skills. This is a test isolation issue, not a skill effectiveness measure.",
+    "no-console-log assertion is too narrow: catches console.log but misses console.error. Should use regex console\\.(log|error|warn) for stricter checking.",
+    "no-client-supabase assertion catches '@/lib/supabase' but misses createClient() anti-pattern. Needs broader check."
+  ]
+}

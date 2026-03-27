@@ -1,0 +1,2728 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CS Platform — Дизайн 3 (План2 + Кабінет)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwindcss.config = {
+      theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════════════════════
+       DESIGN TOKENS — єдиний довідник елементів дизайну
+       ═══════════════════════════════════════════════════════════
+
+       SHARED BASE CLASSES (use on both views):
+       ─────────────────────────────────────────
+       .data-cell      — базова комірка даних
+                         padding: 5px 8px; border-left: 3px; radius: 8px
+                         hover: translateY(-1px), shadow 0 4px 16px
+                         selected: border-left 4px + indigo outline
+         → .cal-block      подія календаря (Кабінет)
+         → .pp-matrix-cell план × місяць (План2)
+
+       .task-row       — базовий рядок задачі
+                         flex; gap 8px; border-bottom 1px; hover bg
+         → .pp-task-row    задача плану (План2)
+         → .draft-row      чернетка / нещодавня задача (Кабінет)
+
+       PANELS:
+       .glass-panel    — скляна панель (сайдбар, stats, nav)
+       .glass-detail   — права панель (грід, календар, деталі)
+       .detail-hdr     — заголовок правої панелі
+       .plan-item      — картка сайдбару (процес, процедура)
+
+       CONTROLS:
+       .nav-group/btn  — навігація (рік, квартал, тиждень)
+
+       JS HELPERS (shared):
+       statChip()      — чіп статистики (value 13px/700, label 9px/600)
+       pctChipStyle()  — кольори % чіпа (≥80 green, ≥50 amber, <50 indigo)
+       progressColor() — колір % (≥100 green, ≥70 blue, ≥40 amber, <40 red)
+       summary-row     — підсумки (border-top 1px, bg f1f5f9/50%)
+    ═══════════════════════════════════════════════════════════ */
+
+    /* ── Shared: data-cell (cal-block, pp-matrix-cell) ── */
+    .data-cell { border-radius: 8px; padding: 5px 8px; cursor: pointer; border-left: 3px solid transparent; transition: all 0.15s ease; }
+    .data-cell:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .data-cell.selected { border-left-width: 4px; outline: 2px solid rgba(99,102,241,0.4); outline-offset: -1px; }
+
+    /* ── Shared: task-row (pp-task-row, draft-row) ── */
+    .task-row { display: flex; align-items: center; gap: 8px; transition: background 0.1s; border-bottom: 1px solid rgba(226,232,240,0.3); }
+    .task-row:hover { background: rgba(255,255,255,0.6); }
+    .task-row:last-child { border-bottom: none; }
+
+    /* ════════════════════════════════════════════════════
+       DESIGN TOKENS — single source for all depth values
+       Change here → changes everywhere
+       ════════════════════════════════════════════════════ */
+    :root {
+      /* L1: Zone (glass-panel) */
+      --depth-zone-bg: rgba(255,255,255, 0.52);
+      --depth-zone-blur: 16px;
+      --depth-zone-border: rgba(255,255,255, 0.45);
+      --depth-zone-border-top: rgba(255,255,255, 0.7);
+      --depth-zone-border-bottom: rgba(203,213,225, 0.3);
+      /* L2: Element (element-card) */
+      --depth-element-bg: rgba(255,255,255, 0.92);
+      --depth-element-border: rgba(255,255,255, 0.75);
+      --depth-element-border-top: rgba(255,255,255, 0.9);
+      --depth-element-border-bottom: rgba(203,213,225, 0.25);
+      /* 3D shadow components */
+      --shadow-accent: rgba(99,102,241, 0.06);
+      --shadow-3d-inset-top: rgba(255,255,255, 0.6);
+      --shadow-3d-inset-bottom: rgba(0,0,0, 0.02);
+      /* Action button colors */
+      --action-color-default: #cbd5e1;
+      --action-color-hover: #6366f1;
+      --action-color-del: #ef4444;
+      --action-color-assign: #10b981;
+      --action-color-assign-hover: #059669;
+      /* Accent: selected/active/header bg (same everywhere) */
+      --accent-selected-bg: rgba(99,102,241, 0.1);
+      --accent-selected-border: rgba(99,102,241, 0.25);
+      --accent-primary: #6366f1;
+    }
+
+    body { font-family: 'Inter', system-ui, sans-serif; background: linear-gradient(135deg, #f0f2f8 0%, #e8eaf4 50%, #f5f0ff 100%); min-height: 100vh; }
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    /* ════════════════════════════════════════════════════════════
+       DESIGN HIERARCHY (3 levels of depth)
+       ─────────────────────────────────────────────────────────
+       L0  body          — page background (gradient, darkest)
+       L1  .glass-panel  — zone (semi-transparent, mid-tone, 3D)
+       L2  .element-card — element inside zone (white, 3D)
+           aliases: .plan-item, .proc-item, .cal-table
+       L3  .data-cell    — item inside element (colored card)
+           aliases: .cal-block, .task-row, .draft-row
+       ════════════════════════════════════════════════════════════ */
+
+    /* ── L1: Zone ── */
+    .glass-panel {
+      background: var(--depth-zone-bg);
+      backdrop-filter: blur(var(--depth-zone-blur));
+      -webkit-backdrop-filter: blur(var(--depth-zone-blur));
+      border: 1px solid var(--depth-zone-border);
+      border-top: 1px solid var(--depth-zone-border-top);
+      border-bottom: 1px solid var(--depth-zone-border-bottom);
+      box-shadow:
+        0 4px 24px var(--shadow-accent),
+        0 2px 6px rgba(0, 0, 0, 0.06),
+        0 1px 2px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 var(--shadow-3d-inset-top),
+        inset 0 -1px 0 var(--shadow-3d-inset-bottom);
+    }
+
+    /* ── L2: Element (shared base for all elements inside zones) ── */
+    .element-card {
+      background: var(--depth-element-bg);
+      border-radius: 10px;
+      border: 1px solid var(--depth-element-border);
+      border-top: 1px solid var(--depth-element-border-top);
+      border-bottom: 1px solid var(--depth-element-border-bottom);
+      box-shadow:
+        0 2px 8px var(--shadow-accent),
+        0 1px 2px rgba(0,0,0,0.04),
+        inset 0 1px 0 rgba(255,255,255,0.95),
+        inset 0 -1px 0 var(--shadow-3d-inset-bottom);
+      transition: all 0.15s ease;
+    }
+
+    /* ── L1 variants (kept for backward compat, avoid in new code) ── */
+    .glass-detail {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      box-shadow:
+        0 8px 32px rgba(99, 102, 241, 0.08),
+        0 2px 8px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+    .glass-header {
+      background: rgba(255, 255, 255, 0.5);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+    }
+    .glass-meta {
+      background: rgba(248, 250, 252, 0.5);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.4);
+    }
+    .glass-input {
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(226, 232, 240, 0.6);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    /* ── L2: Element aliases (extend .element-card) ── */
+    .plan-item { /* sidebar card — extends .element-card */ }
+    .plan-item:hover { background: rgba(255,255,255,0.97); box-shadow: 0 4px 14px rgba(99,102,241,0.1), 0 1px 3px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,1); }
+    .plan-item.active { background: var(--accent-selected-bg); border-color: var(--accent-selected-border); border-left: 2px solid var(--accent-primary); box-shadow: 0 4px 16px rgba(99,102,241,0.12), 0 1px 3px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.7); }
+    .section-toggle { cursor: pointer; user-select: none; }
+    .section-toggle .chevron { transition: transform 0.2s ease; }
+    .section-toggle.open .chevron { transform: rotate(90deg); }
+    .progress-ring { transform: rotate(-90deg); }
+    .meta-divider { width: 1px; height: 16px; background: rgba(226, 232, 240, 0.6); }
+
+    /* Nav */
+    .nav-btn { padding: 4px 0; width: 44px; text-align: center; font-size: 12px; font-weight: 500; border-radius: 6px; cursor: pointer; border: none; transition: all 0.15s; background: transparent; color: #94a3b8; }
+    .nav-btn.wide { width: auto; padding: 5px 16px; }
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.8);
+      color: #64748b;
+      box-shadow: 0 2px 6px rgba(99,102,241,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
+    }
+    .nav-btn.active {
+      background: rgba(99, 102, 241, 0.08);
+      color: #4f46e5;
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08), inset 0 1px 0 rgba(255,255,255,0.6);
+    }
+    /* Parent-context: selected but not current level — faded active */
+    .nav-btn.ctx {
+      background: rgba(99, 102, 241, 0.28);
+      color: white;
+      transform: translateY(-1px);
+      box-shadow:
+        0 4px 12px rgba(99, 102, 241, 0.22),
+        0 1px 3px rgba(79, 70, 229, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+    .nav-btn.ctx:hover {
+      background: rgba(99, 102, 241, 0.38);
+      color: white;
+    }
+    .nav-group {
+      display: inline-flex; align-items: center; padding: 2px;
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 8px;
+      box-shadow:
+        0 4px 16px rgba(99, 102, 241, 0.07),
+        0 1px 3px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+    .nav-separator { color: #cbd5e1; margin: 0 2px; }
+
+    /* Employee cards */
+    .emp-card {
+      border: 1px solid rgba(226, 232, 240, 0.6);
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.5);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+      transition: box-shadow 0.15s;
+    }
+    .emp-card:hover { box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08); }
+
+    /* Quarter/month cards in detail */
+    .child-card {
+      border-radius: 10px;
+      background: rgba(255,255,255,0.68);
+      border: 1px solid rgba(255,255,255,0.55);
+      box-shadow: 0 2px 8px rgba(99,102,241,0.05), 0 1px 2px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.8);
+      transition: all 0.15s;
+    }
+    .child-card:hover { background: rgba(255,255,255,0.85); box-shadow: 0 4px 14px rgba(99,102,241,0.1), 0 1px 3px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.9); }
+    .child-card.empty { background: rgba(255,255,255,0.35); border-style: dashed; border-color: rgba(148,163,184,0.35); box-shadow: none; }
+    .child-card.empty:hover { background: rgba(255,255,255,0.55); box-shadow: none; }
+
+    /* ===== REUSABLE STRUCTURE CLASSES ===== */
+    /* Glass content card (detail panel sections) */
+    .info-card  { margin:3px 16px 4px; background:rgba(255,255,255,0.72); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.5); border-radius:12px; box-shadow:0 4px 16px rgba(99,102,241,0.06),0 1px 3px rgba(0,0,0,0.04),inset 0 1px 0 rgba(255,255,255,0.8); overflow:hidden; }
+    /* Uppercase section heading */
+    .sec-label  { font-size:10px; font-weight:600; color:#94a3b8; letter-spacing:0.06em; text-transform:uppercase; margin:0; }
+    /* Property row label */
+    .prop-label { font-size:10px; font-weight:600; color:#94a3b8; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:4px; }
+    /* Hours/stats 3-column grid */
+    .hours-grid { padding:3px 16px 4px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+    /* Individual stat cell */
+    .stat-cell  { background:rgba(241,245,249,0.65); border:1px solid rgba(203,213,225,0.5); border-radius:10px; padding:10px 12px; box-shadow:inset 0 2px 5px rgba(99,102,241,0.06),inset 0 -1px 0 rgba(255,255,255,0.85),0 1px 0 rgba(255,255,255,0.95); }
+    /* Inset content box */
+    .inset-box  { background:rgba(241,245,249,0.65); border:1px solid rgba(203,213,225,0.5); border-radius:10px; padding:11px 14px; box-shadow:inset 0 2px 5px rgba(99,102,241,0.09),inset 0 1px 2px rgba(0,0,0,0.07),inset 0 -1px 0 rgba(255,255,255,0.85),0 1px 0 rgba(255,255,255,0.95); }
+    /* Breadcrumb/meta strip */
+    .meta-strip { display:flex; align-items:center; gap:8px; padding:4px 16px 6px; }
+    /* Status switcher pill */
+    .status-wrap{ display:flex; align-items:center; gap:0; flex-shrink:0; background:rgba(241,245,249,0.8); border:1px solid rgba(203,213,225,0.6); border-radius:8px; padding:2px; box-shadow:inset 0 1px 2px rgba(0,0,0,0.06); }
+    /* Top bar role badge */
+    .role-badge { background:rgba(255,255,255,0.22); border:1px solid rgba(255,255,255,0.35); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+    /* Detail panel header */
+    .detail-hdr { flex-shrink:0; background:var(--accent-selected-bg); }
+    /* Header separator line */
+    .hdr-sep    { height:4px; background:rgba(220,228,240,0.5); box-shadow:inset 0 2px 3px rgba(99,102,241,0.13),inset 0 1px 1px rgba(0,0,0,0.08),0 1px 0 rgba(255,255,255,0.95); }
+
+    /* Mobile back button */
+    .mobile-back { display: none; }
+
+    /* ===== MOBILE RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .desktop-only { display: none !important; }
+      .mobile-back { display: flex; }
+
+      /* Single column layout */
+      .layout-row { flex-direction: column !important; height: auto !important; }
+      .left-col { width: 100% !important; flex-shrink: 1 !important; }
+      .left-col.mobile-hidden { display: none !important; }
+      .right-col.mobile-hidden { display: none !important; }
+
+      /* Compact nav */
+      .nav-btn { width: 36px; font-size: 11px; padding: 3px 0; }
+      .nav-group { gap: 0; }
+
+      /* Shorter list */
+      #plan-list { max-height: 45vh; }
+
+      /* Detail takes full height */
+      .right-col { border-radius: 12px !important; }
+
+      /* Section tabs scrollable */
+      .sec-tab { padding: 8px 10px; font-size: 12px; }
+
+      /* Top bar compact */
+      .top-bar-inner { padding-left: 12px; padding-right: 12px; }
+    }
+
+    @media (max-width: 480px) {
+      .nav-btn { width: 30px; font-size: 10px; }
+      .sec-tab { padding: 7px 8px; font-size: 11px; gap: 4px; }
+      .plan-item { padding: 8px 10px !important; }
+    }
+
+    /* ===== CABINET MOBILE ===== */
+    @media (max-width: 768px) {
+      #cabinet-view > div { flex-direction: column !important; height: auto !important; }
+      #cabinet-view > div > div:first-child { display: none !important; } /* hide left sidebar */
+      #cal-grid-panel { border-radius: 12px !important; min-height: calc(100vh - 120px); overflow-y: auto !important; }
+      .desktop-day-headers { display: none !important; }
+
+      /* Mobile day tabs */
+      .mob-day-tabs { display: flex !important; gap: 2px; padding: 4px; }
+      .mob-day-tab { flex: 1; text-align: center; padding: 8px 4px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer; border: none; transition: all 0.15s; background: rgba(255,255,255,0.5); color: #94a3b8; }
+      .mob-day-tab.active { background: rgba(99,102,241,0.12); color: #4f46e5; box-shadow: 0 2px 6px rgba(99,102,241,0.12); }
+      .mob-day-tab.today { font-weight: 700; }
+      .mob-day-tab .mob-day-num { font-size: 16px; line-height: 1.2; }
+      .mob-day-tab .mob-day-name { font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+      /* Hide all day columns except active */
+      .cal-day-col-wrap { display: none !important; }
+      .cal-day-col-wrap.mob-active { display: block !important; flex: 1 !important; }
+
+      /* Bottom sheet */
+      .mob-bottom-sheet { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; max-height: 60vh; border-radius: 16px 16px 0 0; background: rgba(255,255,255,0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 -4px 24px rgba(0,0,0,0.12); transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); overflow: hidden; display: flex; flex-direction: column; }
+      .mob-bottom-sheet.open { transform: translateY(0); }
+      .mob-sheet-handle { width: 36px; height: 4px; background: #cbd5e1; border-radius: 2px; margin: 8px auto 4px; flex-shrink: 0; }
+      .mob-sheet-body { overflow-y: auto; flex: 1; padding-bottom: env(safe-area-inset-bottom, 12px); }
+
+      /* Mobile FAB buttons */
+      .mob-fab-row { display: flex !important; position: fixed; bottom: 12px; left: 12px; right: 12px; gap: 8px; z-index: 40; }
+      .mob-fab { flex: 1; padding: 10px; border-radius: 12px; border: none; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: all 0.15s; }
+      .mob-fab.procs { background: rgba(99,102,241,0.9); color: white; box-shadow: 0 4px 12px rgba(99,102,241,0.35); }
+      .mob-fab.tasks { background: rgba(245,158,11,0.9); color: white; box-shadow: 0 4px 12px rgba(245,158,11,0.35); }
+
+      /* Always show actions on mobile (no hover) */
+      .cal-block .cal-actions { opacity: 0.6; }
+      /* Pad bottom for FAB row */
+      #cal-grid-panel { padding-bottom: 60px !important; }
+      /* My Tasks hidden on mobile (shown in bottom sheet) */
+      #my-tasks-panel { display: none !important; }
+
+      /* Mobile view toggle */
+      .mob-view-toggle { display: flex; align-items: center; gap: 2px; padding: 2px; background: rgba(241,245,249,0.8); border: 1px solid rgba(203,213,225,0.6); border-radius: 8px; flex-shrink: 0; }
+      .mob-view-btn { padding: 5px 8px; border: none; border-radius: 6px; background: transparent; color: #94a3b8; cursor: pointer; display: flex; align-items: center; transition: all 0.15s; }
+      .mob-view-btn.active { background: rgba(99,102,241,0.12); color: #4f46e5; }
+
+      /* Week view: show all 5 columns, compact */
+      .mob-week-mode .cal-day-col-wrap { display: block !important; flex: 1 !important; }
+      .mob-week-mode .cal-block { padding: 2px 3px !important; border-left-width: 2px !important; border-radius: 4px !important; }
+      .mob-week-mode .cal-block .cal-subj { font-size: 8px !important; -webkit-line-clamp: 1 !important; }
+      .mob-week-mode .cal-block .cal-time { display: none !important; }
+      .mob-week-mode .cal-block .cal-proc { display: none !important; }
+      .mob-week-mode .cal-block .cal-icons { display: none !important; }
+      .mob-week-mode .cal-block .cal-actions { display: none !important; }
+      .mob-week-mode .cal-block .cal-badge { width: 8px !important; height: 8px !important; top: 2px !important; right: 2px !important; }
+      .mob-week-mode .mob-day-tabs { display: none !important; }
+      .mob-week-mode .desktop-day-headers { display: flex !important; }
+      .mob-week-mode .desktop-day-headers > div:not(:first-child) { padding: 6px 2px 4px !important; }
+      .mob-week-mode .desktop-day-headers > div:not(:first-child) > div:first-child { font-size: 8px !important; }
+      .mob-week-mode .desktop-day-headers > div:not(:first-child) > div:last-child { font-size: 13px !important; }
+      .mob-week-mode .desktop-day-headers > div:first-child { width: 28px !important; }
+      /* Compact time labels in week view */
+      .mob-week-mode .cal-time-col { width: 28px !important; }
+      .mob-week-mode .cal-time-col span { font-size: 8px !important; }
+    }
+
+    /* Desktop: hide mobile-only elements */
+    @media (min-width: 769px) {
+      .mob-day-tabs { display: none !important; }
+      .mob-fab-row { display: none !important; }
+      .mob-bottom-sheet { display: none !important; }
+      .mob-view-toggle { display: none !important; }
+    }
+
+    /* ===== CALENDAR GRID ===== */
+    /* ── cal-table — calendar grid wrapper (inset box with rounded corners) ── */
+    .cal-table { /* extends .element-card */ border-radius:12px; overflow:hidden; }
+    .cal-footer { display:flex; flex-wrap:wrap; gap:6px; padding:8px 16px; border-top:1px solid rgba(226,232,240,0.3); background:rgba(248,250,252,0.4); flex-shrink:0; }
+    .cal-day-col { position: relative; min-height: 576px; /* 18 rows * 32px */ }
+    .cal-slot-line { height: 32px; border-bottom: 1px solid rgba(203,213,225,0.55); }
+    .cal-slot-line:nth-child(odd) { border-bottom-style: dashed; border-bottom-color: rgba(203,213,225,0.35); }
+    .cal-slot-line:first-child { border-bottom: none; }
+    .cal-block { /* extends .data-cell */
+      position: absolute; left: 2px; right: 2px;
+      overflow: hidden;
+      transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      z-index: 2;
+    }
+    .cal-block:hover {
+      z-index: 30;
+      height: auto !important;
+      min-height: var(--block-h, auto);
+      overflow: visible;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1) !important;
+    }
+    .cal-block .cal-subj { font-size: 11px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .cal-block:hover .cal-subj { -webkit-line-clamp: unset; display: block; white-space: normal; word-break: break-word; }
+    .cal-block .cal-time { font-size: 9px; font-weight: 500; opacity: 0.7; margin-top: 1px; }
+    .cal-block .cal-proc { font-size: 9px; opacity: 0.6; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cal-block:hover .cal-proc { white-space: normal; }
+    .cal-block .cal-badge { position: absolute; top: 4px; right: 6px; width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .cal-block .cal-icons { display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; vertical-align: middle; }
+    .cal-block .cal-actions { position: absolute; bottom: 3px; right: 4px; display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s; }
+    .cal-block:hover .cal-actions { opacity: 1; }
+    /* Resize handle (plan blocks only) */
+    .cal-resize-handle { position:absolute; bottom:0; left:0; right:0; height:6px; cursor:ns-resize; opacity:0; transition:opacity 0.15s; }
+    .cal-block:hover .cal-resize-handle { opacity:1; }
+    .cal-resize-handle::after { content:''; display:block; width:16px; height:2px; border-radius:1px; background:rgba(148,163,184,0.5); margin:2px auto 0; }
+
+    /* Calendar block status colors */
+    /* ── Shared: data-cell status colors (used by cal-block & pp-matrix-cell) ── */
+    .data-cell.st-distributed { background: rgba(59,130,246,0.12); border-left-color: #3b82f6; color: #1e3a5f; box-shadow: 0 2px 8px rgba(59,130,246,0.1); }
+    .data-cell.st-distributed:hover { box-shadow: 0 4px 16px rgba(59,130,246,0.2); }
+    .data-cell.st-synced { background: rgba(16,185,129,0.12); border-left-color: #10b981; color: #065f46; box-shadow: 0 2px 8px rgba(16,185,129,0.1); }
+    .data-cell.st-synced:hover { box-shadow: 0 4px 16px rgba(16,185,129,0.2); }
+    .data-cell.st-draft-task, .data-cell.st-returned { background: rgba(245,158,11,0.12); border-left-color: #f59e0b; color: #92400e; box-shadow: 0 2px 8px rgba(245,158,11,0.1); }
+    .data-cell.st-draft-task:hover, .data-cell.st-returned:hover { box-shadow: 0 4px 16px rgba(245,158,11,0.2); }
+    .data-cell.st-in-task, .data-cell.st-completed { background: rgba(16,185,129,0.12); border-left-color: #10b981; color: #065f46; box-shadow: 0 2px 8px rgba(16,185,129,0.1); }
+    .data-cell.st-in-task:hover, .data-cell.st-completed:hover { box-shadow: 0 4px 16px rgba(16,185,129,0.2); }
+    .data-cell.st-external, .data-cell.st-draft { background: rgba(148,163,184,0.1); border-left-color: #94a3b8; color: #475569; box-shadow: 0 2px 8px rgba(100,116,139,0.08); }
+    .data-cell.st-external:hover, .data-cell.st-draft:hover { box-shadow: 0 4px 16px rgba(100,116,139,0.15); }
+    .data-cell.st-submitted { background: rgba(59,130,246,0.12); border-left-color: #3b82f6; color: #1e3a5f; box-shadow: 0 2px 8px rgba(59,130,246,0.1); }
+    .data-cell.st-submitted:hover { box-shadow: 0 4px 16px rgba(59,130,246,0.2); }
+    .data-cell.st-approved { background: rgba(8,145,178,0.12); border-left-color: #0891b2; color: #164e63; box-shadow: 0 2px 8px rgba(8,145,178,0.1); }
+    .data-cell.st-approved:hover { box-shadow: 0 4px 16px rgba(8,145,178,0.2); }
+    .data-cell.st-active { background: rgba(99,102,241,0.12); border-left-color: #6366f1; color: #312e81; box-shadow: 0 2px 8px rgba(99,102,241,0.1); }
+    .data-cell.st-active:hover { box-shadow: 0 4px 16px rgba(99,102,241,0.2); }
+    .data-cell.st-failed { background: rgba(239,68,68,0.12); border-left-color: #ef4444; color: #991b1b; box-shadow: 0 2px 8px rgba(239,68,68,0.1); }
+    .data-cell.st-failed:hover { box-shadow: 0 4px 16px rgba(239,68,68,0.2); }
+    .data-cell.dimmed { opacity: 0.3; }
+
+    /* Now line */
+    .cal-now-line { position: absolute; left: 0; right: 0; height: 2px; background: #ef4444; z-index: 15; pointer-events: none; }
+    .cal-now-line::before { content: ''; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
+
+    /* Lunch zone */
+    .cal-lunch-zone { background: repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(251,191,36,0.04) 3px, rgba(251,191,36,0.04) 6px); }
+
+    /* Sidebar procedure items */
+    .proc-item { /* extends .element-card */ padding: 10px 12px; cursor: grab; }
+    .proc-item:hover { background: rgba(99,102,241,0.06); border-color: rgba(99,102,241,0.12); }
+    .proc-item.proc-active { background: var(--accent-selected-bg); border-color: var(--accent-selected-border); border-left: 3px solid var(--accent-primary); }
+    /* Drag states */
+    .proc-item.dragging { opacity:0.5; transform:scale(1.02); box-shadow:0 8px 25px rgba(99,102,241,0.2); cursor:grabbing; }
+    .cal-slot-line.drop-target { background:rgba(99,102,241,0.06); border-bottom-color:rgba(99,102,241,0.2) !important; }
+
+    /* Process view tiles */
+    .pp-tile { padding: 12px 14px; border-radius: 10px; cursor: pointer; transition: all 0.15s ease; border: 1px solid; }
+    .pp-tile:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .pp-tile.selected { ring: 2px; box-shadow: 0 4px 12px rgba(99,102,241,0.2); }
+    .pp-tile .pp-name { font-size: 13px; font-weight: 600; line-height: 1.3; }
+    .pp-tile .pp-dept { font-size: 10px; opacity: 0.7; margin-top: 2px; }
+    .pp-tile .pp-meta { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 10px; font-weight: 600; }
+    .pp-tile .pp-bar { flex: 1; height: 4px; border-radius: 2px; overflow: hidden; }
+    .pp-tile .pp-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+    /* Plan cards in process view */
+    .pp-plan-card { border-radius: 12px; overflow: hidden; transition: all 0.15s; }
+    .pp-plan-card:hover { box-shadow: 0 4px 16px rgba(99,102,241,0.1); }
+    .pp-plan-hdr { padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+    .pp-plan-hdr:hover { filter: brightness(0.97); }
+    .pp-task-row { /* extends .task-row */ padding: 8px 16px; }
+    .pp-task-check { width: 16px; height: 16px; border-radius: 4px; border: 2px solid; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    .pp-task-check.done { border-color: #10b981; background: #10b981; }
+    .pp-task-check.pending { border-color: #cbd5e1; background: transparent; }
+    /* ── action-btn-small ──────────────────────────────────────
+       Small icon button, hidden until parent hover.
+       Containers: .row-actions (in task-row), .cal-actions (in cal-block)
+       Default hover → indigo (like cal-action-btn). Roles override hover color. */
+    .action-btn-small { display:flex;align-items:center;justify-content:center;padding:2px;border-radius:4px;border:none;background:none;cursor:pointer;color:var(--action-color-default);transition:color 0.15s; }
+    .action-btn-small:hover { color:var(--action-color-hover); }
+    .action-btn-small.act-del:hover { color:var(--action-color-del); }
+    .action-btn-small.act-assign { color:#94a3b8; }
+    .action-btn-small.act-assign.ready { color:var(--action-color-assign); }
+    .action-btn-small.act-assign.ready:hover { color:var(--action-color-assign-hover); }
+    /* Containers — hide children until parent hover */
+    .row-actions { display:flex;align-items:center;gap:2px;opacity:0;transition:opacity 0.15s;flex-shrink:0; }
+    .task-row:hover .row-actions { opacity:1; }
+
+    /* Metrics: use shared statChip() JS helper (see HELPERS section) */
+
+    /* Process view: matrix */
+    /* Process grid — floating cards + background grid lines */
+    .pp-grid-wrap { position:relative;display:grid;gap:8px;padding:12px 16px; }
+    .pp-grid-wrap::before { content:'';position:absolute;inset:0;pointer-events:none;
+      background:
+        repeating-linear-gradient(to bottom, transparent 0px, transparent 87px, rgba(203,213,225,0.35) 87px, rgba(203,213,225,0.35) 88px),
+        repeating-linear-gradient(to right, transparent 0px, transparent calc(100% / var(--pp-cols) - 1px), rgba(203,213,225,0.25) calc(100% / var(--pp-cols)), rgba(203,213,225,0.25) calc(100% / var(--pp-cols)));
+    }
+
+    .pp-matrix-cell { /* extends .data-cell */
+      text-align:left;min-height:60px;display:flex;flex-direction:column;justify-content:center;gap:2px;
+    }
+    .pp-matrix-cell.selected { box-shadow:0 4px 16px rgba(99,102,241,0.2);transform:translateY(-1px);z-index:3;filter:brightness(1.08); }
+    .pp-matrix-cell.empty { background:transparent;cursor:default;border-left-color:transparent;min-height:60px;backdrop-filter:none; }
+    .pp-matrix-cell.empty:hover { transform:none;box-shadow:none; }
+    .pp-matrix-cell .cell-pct { font-size:11px;font-weight:600;line-height:1.2; }
+    .pp-matrix-cell .cell-hours { font-size:10px;font-weight:500;opacity:0.8; }
+    .pp-matrix-cell .cell-meta { display:flex;align-items:center;gap:4px;font-size:9px;opacity:0.7;margin-top:1px; }
+    .pp-matrix-cell .cell-bar { width:100%;height:3px;border-radius:1.5px;background:rgba(0,0,0,0.08);overflow:hidden;margin-top:2px; }
+    .pp-matrix-cell .cell-bar-fill { height:100%;border-radius:1.5px;transition:width 0.3s; }
+    .pp-grid-hdr { font-size:12px;font-weight:700;color:#475569;text-align:center;padding:10px 4px;letter-spacing:0.02em;border-bottom:1px solid rgba(226,232,240,0.4); }
+    .pp-grid-hdr:first-child { text-align:left;padding-left:16px;font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;background:rgba(241,245,249,0.5); }
+    .pp-grid-proc { font-size:12px;font-weight:600;color:#1e293b;padding:10px 12px;display:flex;flex-direction:column;gap:3px;transition:all 0.15s;border-right:1px solid rgba(226,232,240,0.4);background:rgba(241,245,249,0.5); }
+    .pp-grid-proc.row-selected { }
+    .pp-grid-proc-bar { height:3px;border-radius:1.5px;background:rgba(226,232,240,0.4);overflow:hidden;max-width:80px; }
+    .pp-grid-proc-bar-fill { height:100%;border-radius:1.5px; }
+    .pp-matrix-proc { font-size:11px;color:#64748b;font-weight:500;text-align:left;padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px; }
+
+    /* Process view: employee workload bars */
+    .pp-emp-row { display:flex;align-items:center;gap:8px;padding:5px 12px;border-bottom:1px solid rgba(226,232,240,0.2); }
+    .pp-emp-row:last-child { border-bottom:none; }
+    .pp-emp-bar { flex:1;height:6px;border-radius:3px;background:rgba(226,232,240,0.3);overflow:hidden; }
+    .pp-emp-bar-fill { height:100%;border-radius:3px;transition:width 0.3s; }
+
+    /* Process view: tasks panel header (like "Мої задачі" in cabinet) */
+    .pp-tasks-hdr { display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border-top:1px solid rgba(226,232,240,0.4);background:rgba(248,250,252,0.4); }
+    .pp-tasks-hdr:hover { background:rgba(248,250,252,0.7); }
+
+    /* Calendar toolbar buttons */
+    .cal-tool-btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px; font-weight: 500; border-radius: 8px; border: 1px solid rgba(203,213,225,0.6); background: rgba(255,255,255,0.7); color: #475569; cursor: pointer; transition: all 0.15s; backdrop-filter: blur(8px); }
+    .cal-tool-btn:hover { background: rgba(255,255,255,0.9); border-color: rgba(99,102,241,0.3); color: #4f46e5; box-shadow: 0 2px 8px rgba(99,102,241,0.1); }
+    .cal-tool-btn.primary { background: linear-gradient(145deg, #6366f1, #4f46e5); color: white; border-color: transparent; box-shadow: 0 4px 12px rgba(99,102,241,0.35); }
+    .cal-tool-btn.primary:hover { box-shadow: 0 6px 16px rgba(99,102,241,0.45); transform: translateY(-1px); }
+
+    /* Status legend chips */
+    .cal-legend-chip { display: inline-flex; align-items: center; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 6px; backdrop-filter: blur(4px); }
+
+    /* ===== MY TASKS PANEL (separate zone below calendar) ===== */
+    #my-tasks-panel { display: flex; flex-direction: column; flex: 1 1 0; min-height: 200px; overflow-y: auto; }
+    #my-tasks-panel .cal-table { overflow: visible; flex-shrink: 0; }
+    .tasks-panel { overflow: hidden; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .tasks-panel-hdr { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; cursor: pointer; user-select: none; flex-shrink: 0; }
+    .tasks-panel-hdr:hover { background: rgba(241,245,249,0.5); }
+    .tasks-panel-body { overflow-y: auto; flex: 1; min-height: 0; }
+    .tasks-panel-body::-webkit-scrollbar { width: 4px; }
+    .tasks-panel-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    .draft-row { /* extends .task-row */ padding: 8px 16px; }
+
+    .draft-date { font-size: 11px; font-family: ui-monospace, monospace; color: #94a3b8; width: 44px; flex-shrink: 0; }
+    .draft-desc { font-size: 12px; color: #334155; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .draft-hours { font-size: 11px; font-weight: 600; flex-shrink: 0; padding: 1px 6px; border-radius: 4px; }
+
+    .draft-select { font-size: 11px; padding: 3px 6px; border-radius: 6px; border: 1px solid rgba(203,213,225,0.6); background: rgba(255,255,255,0.8); color: #475569; outline: none; max-width: 180px; }
+    .draft-select:focus { border-color: rgba(245,158,11,0.5); box-shadow: 0 0 0 2px rgba(245,158,11,0.12); }
+
+    .draft-assign-btn { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; border: none; cursor: pointer; display: flex; align-items: center; gap: 3px; transition: all 0.15s; }
+    .draft-assign-btn.ready { background: #10b981; color: white; }
+    .draft-assign-btn.ready:hover { background: #059669; }
+    .draft-assign-btn.disabled { background: rgba(226,232,240,0.6); color: #94a3b8; cursor: default; }
+
+
+
+    .section-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px 2px 6px; border-radius: 5px; }
+    .section-badge.amber { color: #b45309; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.25); }
+    .section-badge.sky   { color: #0369a1; background: rgba(14,165,233,0.1);  border: 1px solid rgba(14,165,233,0.2);  }
+
+    .ai-suggest-btn { display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(99,102,241,0.25); background: rgba(99,102,241,0.06); color: #6366f1; cursor: pointer; transition: all 0.15s; }
+    .ai-suggest-btn:hover { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.4); }
+
+    /* Task picker dropdown (L2 element-card popup) */
+    .task-picker { position:absolute; width:280px; z-index:50; border-radius:12px; overflow:hidden; box-shadow:0 12px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(99,102,241,0.08); }
+    .task-picker-item { display:flex; align-items:center; gap:8px; padding:6px 12px; font-size:11px; color:#334155; cursor:pointer; transition:background 0.1s; border-bottom:1px solid rgba(226,232,240,0.3); }
+    .task-picker-item:last-child { border-bottom:none; }
+    .task-picker-item:hover { background:rgba(99,102,241,0.06); }
+    .task-picker-item .tpi-icon { width:14px; height:14px; flex-shrink:0; }
+    .task-picker-section { padding:4px 12px; }
+
+    .cal-action-btn { display:flex; align-items:center; justify-content:center; padding:5px; border:none; background:none; color:var(--action-color-default); cursor:pointer; transition:color 0.15s; }
+    .cal-action-btn:hover { color:var(--action-color-hover); }
+    .cal-action-btn.accent { color:#a5b4fc; }
+    .cal-action-btn.accent:hover { color:var(--action-color-hover); }
+
+    /* cal-block-act → action-btn-small on calendar tiles */
+    .cal-block-act { display:flex; align-items:center; justify-content:center; padding:2px; border-radius:4px; border:none; background:none; cursor:pointer; color:var(--action-color-default); transition:color 0.15s; }
+    .cal-block-act:hover { color:var(--action-color-hover); }
+    .cal-block-act.act-del:hover { color:var(--action-color-del); }
+
+    .quick-input-row { display: flex; gap: 6px; padding: 8px 14px; border-bottom: 1px solid rgba(226,232,240,0.4); background: rgba(248,250,252,0.5); }
+    .quick-input { flex: 1; padding: 6px 10px; font-size: 12px; border-radius: 8px; border: 1px solid rgba(203,213,225,0.6); background: rgba(255,255,255,0.8); outline: none; font-family: inherit; color: #334155; }
+    .quick-input:focus { border-color: rgba(245,158,11,0.5); box-shadow: 0 0 0 2px rgba(245,158,11,0.12); }
+    .quick-input::placeholder { color: #94a3b8; }
+    .quick-add-btn { padding: 6px 12px; font-size: 11px; font-weight: 600; border-radius: 8px; border: none; background: linear-gradient(145deg, #f59e0b, #d97706); color: white; cursor: pointer; box-shadow: 0 2px 6px rgba(245,158,11,0.35); transition: all 0.15s; }
+    .quick-add-btn:hover { box-shadow: 0 4px 10px rgba(245,158,11,0.45); transform: translateY(-1px); }
+
+    /* ===== ELEMENT LABELS OVERLAY ===== */
+    /* Floating tooltip follows cursor */
+    #el-tooltip {
+      position: fixed; z-index: 99999; pointer-events: none;
+      font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; line-height: 1.3;
+      padding: 4px 10px; border-radius: 6px; white-space: nowrap;
+      opacity: 0; transition: opacity 0.12s;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    }
+    #el-tooltip.visible { opacity: 1; }
+    #el-tooltip.cat-base { background: #4f46e5; color: white; }
+    #el-tooltip.cat-extend { background: #d97706; color: white; }
+    #el-tooltip.cat-nav { background: #059669; color: white; }
+    #el-tooltip.cat-glass { background: #7c3aed; color: white; }
+    #el-tooltip.cat-detail { background: #2563eb; color: white; }
+    #el-tooltip.cat-action { background: #dc2626; color: white; }
+    #el-tooltip.cat-zone { background: #1e293b; color: #e2e8f0; }
+
+    /* Outline per category */
+    .el-out-base { outline: 2px dashed rgba(99,102,241,0.5) !important; outline-offset: -1px; }
+    .el-out-extend { outline: 2px dashed rgba(217,119,6,0.5) !important; outline-offset: -1px; }
+    .el-out-nav { outline: 2px dashed rgba(5,150,105,0.5) !important; outline-offset: -1px; }
+    .el-out-glass { outline: 2px dashed rgba(124,58,237,0.5) !important; outline-offset: -1px; }
+    .el-out-detail { outline: 2px dashed rgba(37,99,235,0.5) !important; outline-offset: -1px; }
+    .el-out-action { outline: 2px dashed rgba(220,38,38,0.5) !important; outline-offset: -1px; }
+    .el-out-zone { outline: 2px dashed rgba(30,41,59,0.4) !important; outline-offset: -1px; }
+    /* Hovered element highlight */
+    .el-hover { outline-style: solid !important; outline-width: 2px !important; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-700">
+
+  <!-- ===== TOP APP BAR ===== -->
+  <div style="background: linear-gradient(135deg, #4f46e5 0%, #6366f1 60%, #818cf8 100%); box-shadow: 0 2px 16px rgba(79,70,229,0.25);">
+    <div class="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="role-badge px-3 py-1 rounded-lg text-xs font-semibold text-white">Руководитель</span>
+        <span class="role-badge px-3 py-1 rounded-lg text-xs font-semibold text-white">УИБК</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="label-toggle-btn" onclick="toggleLabels()" style="padding:4px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.35);background:rgba(255,255,255,0.18);color:white;font-size:11px;font-weight:600;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:4px;" title="Показати/сховати назви елементів">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path d="M6 6h.008v.008H6V6z"/></svg>
+          Імена
+        </button>
+        <div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.3);border:2px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;">
+          <svg width="16" height="16" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.35);display:flex;align-items:center;justify-content:center;cursor:pointer;">
+          <svg width="14" height="14" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION TABS ===== -->
+  <div style="background: rgba(255,255,255,0.75); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(226,232,240,0.6); box-shadow: 0 1px 8px rgba(99,102,241,0.05);">
+    <div class="max-w-7xl mx-auto px-4">
+      <div class="flex items-center gap-1 overflow-x-auto" style="scrollbar-width:none;">
+        <style>.sec-tab{padding:10px 14px;font-size:13px;font-weight:500;color:#94a3b8;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:6px;transition:all 0.15s;}.sec-tab:hover{color:#64748b;}.sec-tab.active{color:#6366f1;border-bottom-color:#6366f1;font-weight:600;}</style>
+        <div class="sec-tab active" id="tab-plans-process" onclick="switchTab('plans-process')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>План2</div>
+        <div class="sec-tab" id="tab-planner" onclick="switchTab('planner')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Планувальник</div>
+        <div class="sec-tab" id="tab-cabinet" onclick="switchTab('cabinet')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Кабинет</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PLANS PROCESS VIEW ===== -->
+  <div id="plans-process-view" class="max-w-7xl mx-auto px-2 pt-2 pb-2">
+    <div class="flex gap-2 layout-row" style="height: calc(100vh - 110px);">
+      <!-- LEFT: filter-zone + list-zone + stats-zone -->
+      <div class="w-[420px] flex-shrink-0 flex flex-col gap-2 left-col" id="pp-left-col">
+        <!-- Filter zone -->
+        <div class="glass-panel rounded-xl p-2 flex-shrink-0" id="pp-filters">
+          <div class="flex items-center gap-0" id="pp-nav-bar"></div>
+        </div>
+        <!-- List zone -->
+        <div class="flex-1 overflow-y-auto custom-scroll glass-panel rounded-xl p-1" id="pp-sidebar"></div>
+        <!-- Stats zone -->
+        <div class="flex items-center text-xs glass-panel rounded-xl p-2" style="gap:1px;" id="pp-stats"></div>
+      </div>
+      <!-- RIGHT: content-zone + detail-zone -->
+      <div class="flex-1 min-w-0 flex flex-col gap-2 overflow-hidden" id="pp-right-col">
+        <!-- Content zone (header + matrix grid) -->
+        <div class="glass-panel rounded-xl p-2 flex-1 overflow-y-auto custom-scroll" id="pp-content-zone">
+          <div class="element-card cal-table overflow-hidden flex flex-col">
+            <!-- Header (filters + action buttons) -->
+            <div class="detail-hdr" id="pp-right-nav" style="flex-shrink:0;"></div>
+            <!-- Body + Footer (summary) -->
+            <div>
+              <div id="pp-grid"></div>
+              <div id="pp-grid-summary"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Detail zone (selected plan) -->
+        <div class="glass-panel rounded-xl p-2 flex-shrink-0 overflow-y-auto custom-scroll" style="max-height:30%;" id="pp-detail-zone">
+          <div class="element-card cal-table overflow-hidden" id="pp-detail" style="display:flex;flex-direction:column;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CABINET VIEW ===== -->
+  <div id="cabinet-view" class="max-w-7xl mx-auto px-2 pt-2 pb-2" style="display:none;">
+    <div class="flex gap-2" style="height: calc(100vh - 110px);">
+
+      <!-- ===== LEFT COLUMN: filters + procedures + stats ===== -->
+      <div class="w-[420px] flex-shrink-0 flex flex-col gap-2">
+        <!-- Filter zone (year/month + weeks) -->
+        <div class="glass-panel rounded-xl p-2 flex flex-col gap-1 flex-shrink-0" id="cal-filters">
+          <div class="flex items-center gap-1" id="cal-ym-nav"></div>
+          <div class="flex items-center gap-0" id="cal-nav"></div>
+        </div>
+        <!-- Procedure list -->
+        <div class="flex-1 overflow-y-auto custom-scroll glass-panel rounded-xl p-1" id="cal-sidebar"></div>
+        <!-- Stats -->
+        <div class="flex items-center text-xs glass-panel rounded-xl p-2" style="gap:1px;" id="cal-stats"></div>
+      </div>
+
+      <!-- ===== RIGHT COLUMN: calendar grid + tasks panel ===== -->
+      <div class="flex-1 min-w-0 flex flex-col gap-2 overflow-hidden">
+        <div class="flex-shrink-0 glass-panel rounded-xl flex flex-col overflow-visible p-2" id="cal-grid-panel"></div>
+        <div class="glass-panel rounded-xl flex-shrink-0 p-2 custom-scroll" id="my-tasks-panel"></div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+// ========== STATE ==========
+const state = {
+  currentTab: 'plans-process', // 'plans-process' | 'cabinet'
+  year: 2026,
+  quarter: null,  // null = annual level
+  month: null,    // null = quarterly level
+  selectedPlan: null,
+  filter: 'active',
+  mobileView: 'list', // 'list' | 'detail'
+  editMode: false,     // true = right panel shows edit form
+  confirmMode: null,   // null | 'delete' | 'copy'
+  calSelectedProc: null, // highlighted procedure in calendar sidebar
+  mobileCalDay: 0,       // 0-4 (Пн-Пт) for mobile single-day view
+  mobileCalPanel: null,  // null | 'procs' | 'tasks' — bottom sheet
+  mobileCalView: 'day',  // 'day' | 'week' — mobile calendar layout
+  calYear: 2026,
+  calMonth: 3,         // 1-12
+  calWeekIdx: 0,       // week offset within month (0 = first week)
+  // Process view state
+  ppSelectedProcess: null,  // process name
+  ppFilter: 'all',          // 'all' | 'active' | 'preparing' | 'done'
+  ppExpandedCards: {},       // planId → boolean
+  ppTasksExpanded: true,    // bottom tasks panel expanded
+  ppSelectedCell: null,     // { procedureId, month } — clicked matrix cell
+  ppViewMode: 'matrix',     // 'matrix' | 'employees' — right panel middle section
+};
+function resetPanelMode() { state.editMode = false; state.confirmMode = null; }
+
+function isMobile() { return window.innerWidth <= 768; }
+
+// ── Mobile: Plan2 list ↔ detail toggle ──
+function updatePPMobileView() {
+  const left = document.getElementById('pp-left-col');
+  const right = document.getElementById('pp-right-col');
+  if (!left || !right) return;
+  if (!isMobile()) {
+    left.classList.remove('mobile-hidden');
+    right.classList.remove('mobile-hidden');
+    return;
+  }
+  if (state.mobileView === 'detail' && state.ppSelectedProcess) {
+    left.classList.add('mobile-hidden');
+    right.classList.remove('mobile-hidden');
+    right.style.height = 'calc(100vh - 110px)';
+  } else {
+    state.mobileView = 'list';
+    left.classList.remove('mobile-hidden');
+    right.classList.add('mobile-hidden');
+    left.style.height = 'auto';
+  }
+}
+function ppMobileBack() {
+  state.mobileView = 'list';
+  updatePPMobileView();
+}
+window.addEventListener('resize', () => {
+  if (state.currentTab === 'plans-process') updatePPMobileView();
+});
+
+// ========== TYPE DEFINITIONS ==========
+/**
+ * @typedef {'draft'|'returned'|'submitted'|'approved'|'active'|'completed'|'failed'} PlanStatus
+ * @typedef {'by_servers'|'by_workstations'|'even'} DistributionType
+ * @typedef {1|2|3|4} Quarter
+ *
+ * @typedef {{ id:string, hours:number, planned:number, status:PlanStatus }} PlanBase
+ *
+ * @typedef {PlanBase & { dept:string, goal:string, result:string, author:string, budget:number }} AnnualPlan
+ * @typedef {PlanBase & { annualId:string, quarter:Quarter, process:string, goal:string, result:string }} QuarterlyPlan
+ * @typedef {PlanBase & { quarterlyId:string, month:number, companies:string[],
+ *   distributionType:DistributionType, procedure:string, description:string,
+ *   employees:Employee[] }} MonthlyPlan
+ *
+ * @typedef {{ id:string, name:string, servers:number, workstations:number }} Company
+ * @typedef {{ date:string, desc:string, hours:number }} Task
+ * @typedef {{ name:string, initials:string, color:string,
+ *   hours:number, plannedHours:number, tasks:Task[] }} Employee
+ */
+
+// ========== DATA ==========
+const annualPlans = [
+  { id: 'a1', dept: 'ОКБ', goal: 'Контроль за правами доступу користувачів і захист від несанкціонованого доступу', result: 'Зменшення впливу інцидентів ІБ на бізнес-процеси і можливі втрати', author: 'Іванов Максим Володимирович', budget: 2500000, hours: 812, planned: 1008, status: 'active' },
+  { id: 'a2', dept: 'СМУР', goal: 'Організація проведення навчання у сфері ІБ співробітниками КСС', result: 'Підвищення рівня обізнаності персоналу', author: 'Іванов Максим Володимирович', budget: 800000, hours: 165, planned: 147, status: 'active' },
+  { id: 'a3', dept: 'СМУР', goal: 'Обробка ризиків ІБ', result: 'Зниження загального рівня ризиків ІБ', author: 'Іванов Максим Володимирович', budget: 1200000, hours: 321, planned: 534, status: 'submitted' },
+  { id: 'a4', dept: 'ОКБ', goal: 'Захист IT інфраструктури компаній та інформаційних систем на всіх етапах життєвого циклу', result: 'Забезпечення безперервного захисту інфраструктури', author: 'Іванов Максим Володимирович', budget: 3000000, hours: 242, planned: 600, status: 'approved' },
+  { id: 'a5', dept: 'СВК', goal: 'Забезпечення конфіденційності інформаційних активів', result: 'Зменшення витоків конфіденційної інформації', author: 'Казаков Володимир Сергійович', budget: 900000, hours: 190, planned: 180, status: 'completed' },
+  { id: 'a6', dept: 'ОКБ', goal: 'Виявлення та усунення вразливостей у IT-інфраструктурі компаній', result: 'Зменшення кількості критичних вразливостей', author: 'Іванов Максим Володимирович', budget: 500000, hours: 51, planned: 81, status: 'draft' },
+  { id: 'a7', dept: 'СВК', goal: 'Підготовка щомісячної звітності по підприємствах', result: 'Своєчасне надання звітності', author: 'Казаков Володимир Сергійович', budget: 600000, hours: 39, planned: 114, status: 'returned' },
+];
+
+const quarterlyPlans = [
+  { id: 'q1', annualId: 'a1', quarter: 1, process: 'Управління правами доступу', goal: 'Аудит та організація управління правами доступу', result: 'Проведення повного аудиту прав доступу', hours: 812, planned: 1008, status: 'active' },
+  { id: 'q2', annualId: 'a1', quarter: 2, process: 'Управління правами доступу', goal: 'Ревізія привілейованих облікових записів', result: 'Оптимізація привілейованого доступу', hours: 0, planned: 480, status: 'submitted' },
+  { id: 'q3', annualId: 'a2', quarter: 1, process: 'Навчання ІБ', goal: 'Організація навчання ІБ Q1', result: 'Проведення навчальних сесій', hours: 165, planned: 147, status: 'approved' },
+  { id: 'q4', annualId: 'a3', quarter: 1, process: 'Управління ризиками', goal: 'Оцінка та обробка ризиків ІБ Q1', result: 'Актуалізація реєстру ризиків', hours: 321, planned: 534, status: 'draft' },
+  { id: 'q5', annualId: 'a4', quarter: 1, process: 'Захист інфраструктури', goal: 'Захист IT інфраструктури Q1', result: 'Безперервний захист', hours: 242, planned: 600, status: 'completed' },
+  { id: 'q6', annualId: 'a5', quarter: 1, process: 'Конфіденційність', goal: 'Забезпечення конфіденційності Q1', result: 'Контроль конфіденційності', hours: 190, planned: 180, status: 'active' },
+  { id: 'q7', annualId: 'a2', quarter: 2, process: 'Навчання ІБ', goal: 'Навчання ІБ Q2', result: 'Проведення тренінгів', hours: 48, planned: 96, status: 'active' },
+  { id: 'q8', annualId: 'a3', quarter: 2, process: 'Управління ризиками', goal: 'Управління ризиками Q2', result: 'Оновлення реєстру ризиків', hours: 110, planned: 200, status: 'active' },
+  { id: 'q9', annualId: 'a4', quarter: 2, process: 'Захист інфраструктури', goal: 'Захист інфраструктури Q2', result: 'Оновлення засобів захисту', hours: 85, planned: 160, status: 'submitted' },
+  { id: 'q10', annualId: 'a6', quarter: 1, process: 'Захист інфраструктури', goal: 'Сканування вразливостей Q1', result: 'Виявлення вразливостей', hours: 51, planned: 81, status: 'active' },
+  { id: 'q11', annualId: 'a5', quarter: 2, process: 'Конфіденційність', goal: 'Конфіденційність Q2', result: 'Аудит DLP', hours: 42, planned: 90, status: 'draft' },
+  { id: 'q12', annualId: 'a7', quarter: 1, process: 'Конфіденційність', goal: 'Звітність Q1', result: 'Щомісячна звітність', hours: 39, planned: 114, status: 'active' },
+];
+
+const companies = [
+  { id: 'c1', name: 'АТБ Маркет',  servers: 45, workstations: 280 },
+  { id: 'c2', name: 'КСС',         servers: 32, workstations: 185 },
+  { id: 'c3', name: 'УМВС',        servers: 18, workstations: 120 },
+  { id: 'c4', name: 'Фурлендер',   servers:  8, workstations:  45 },
+];
+
+const DIST_TYPES = [
+  { key: 'by_servers',      label: 'По серверам' },
+  { key: 'by_workstations', label: 'По станциям' },
+  { key: 'even',            label: 'Поровну'     },
+];
+
+function calcShares(companyIds, distType) {
+  const shares = new Map();
+  if (!companyIds || companyIds.length === 0) return shares;
+  if (distType === 'even') {
+    const p = Math.round(100 / companyIds.length);
+    companyIds.forEach(id => shares.set(id, p));
+    return shares;
+  }
+  const field = distType === 'by_servers' ? 'servers' : 'workstations';
+  const vals = companyIds.map(id => { const c = companies.find(x => x.id === id); return { id, val: c ? c[field] : 0 }; });
+  const total = vals.reduce((s, v) => s + v.val, 0);
+  if (total === 0) return shares;
+  vals.forEach(v => shares.set(v.id, Math.round(v.val / total * 100)));
+  return shares;
+}
+
+const monthlyPlans = [
+  { id: 'm1', quarterlyId: 'q1', month: 1, companies: ['c1','c2'], distributionType: 'by_servers', procedure: 'Процедура аудиту управління правами доступу', description: 'Перевірка та аналіз прав доступу користувачів до інформаційних систем, серверів та мережевого обладнання. Виявлення надлишкових і невідповідних прав, формування звіту з рекомендаціями.', hours: 120, planned: 105, status: 'completed',
+    employees: [
+      { name: 'Василиненко В.М.', initials: 'ВВ', color: 'indigo', hours: 65, plannedHours: 60, tasks: [
+        { date: '15.01', desc: 'Аудит прав доступу серверів АТБ Маркет', hours: 8 },
+        { date: '16.01', desc: 'Перевірка облікових записів AD', hours: 6 },
+        { date: '20.01', desc: 'Формування звіту аудиту', hours: 4 },
+      ]},
+      { name: 'Шленськовий О.А.', initials: 'ШО', color: 'emerald', hours: 55, plannedHours: 45, tasks: [
+        { date: '15.01', desc: 'Аудит прав доступу мережевого обладнання', hours: 8 },
+        { date: '17.01', desc: 'Перевірка прав VPN-доступу', hours: 6 },
+      ]},
+    ]},
+  { id: 'm2', quarterlyId: 'q1', month: 1, companies: ['c2'], distributionType: 'even', procedure: 'Процедура організації управління правами доступу', description: 'Розробка та впровадження політик управління доступом, налаштування рольової моделі, регламентація процесів надання та відкликання прав.', hours: 130, planned: 111, status: 'active',
+    employees: [
+      { name: 'Василиненко В.М.', initials: 'ВВ', color: 'indigo', hours: 70, plannedHours: 111, tasks: [
+        { date: '22.01', desc: 'Розробка політики управління доступом', hours: 8 },
+      ]},
+    ]},
+  { id: 'm3', quarterlyId: 'q1', month: 2, companies: ['c1','c3'], distributionType: 'by_servers', procedure: 'Процедура аудиту управління правами доступу', description: 'Перевірка та аналіз прав доступу користувачів до інформаційних систем, серверів та мережевого обладнання. Виявлення надлишкових і невідповідних прав, формування звіту з рекомендаціями.', hours: 115, planned: 101, status: 'active',
+    employees: [
+      { name: 'Казаков В.С.', initials: 'КВ', color: 'amber', hours: 60, plannedHours: 101, tasks: [
+        { date: '05.02', desc: 'Перевірка прав доступу до БД', hours: 8 },
+      ]},
+    ]},
+  { id: 'm4', quarterlyId: 'q1', month: 2, companies: ['c2','c3'], distributionType: 'by_workstations', procedure: 'Процедура організації управління правами доступу', description: 'Розробка та впровадження політик управління доступом, налаштування рольової моделі, регламентація процесів надання та відкликання прав.', hours: 118, planned: 103, status: 'draft',
+    employees: []},
+  { id: 'm5', quarterlyId: 'q1', month: 3, companies: ['c1','c2','c3'], distributionType: 'by_servers', procedure: 'Процедура організації управління правами доступу', description: 'Розробка та впровадження політик управління доступом, налаштування рольової моделі, регламентація процесів надання та відкликання прав.', hours: 5, planned: 56, status: 'active',
+    employees: [
+      { name: 'Василиненко В.М.', initials: 'ВВ', color: 'indigo', hours: 5, plannedHours: 24, tasks: [
+        { date: '03.03', desc: 'Сканування серверної інфраструктури АТБ (Nessus)', hours: 2.5 },
+        { date: '04.03', desc: 'Аналіз результатів та формування звіту', hours: 2.5 },
+      ]},
+      { name: 'Шленськовий О.А.', initials: 'ШО', color: 'emerald', hours: 0, plannedHours: 16, tasks: [] },
+      { name: 'Казаков В.С.', initials: 'КВ', color: 'amber', hours: 0, plannedHours: 16, tasks: [] },
+    ]},
+  { id: 'm6', quarterlyId: 'q1', month: 3, companies: ['c3'], distributionType: 'even', procedure: 'Процедура аудиту управління правами доступу', description: 'Перевірка та аналіз прав доступу користувачів до інформаційних систем, серверів та мережевого обладнання. Виявлення надлишкових і невідповідних прав, формування звіту з рекомендаціями.', hours: 8, planned: 52, status: 'active',
+    employees: [
+      { name: 'Шаферистов П.В.', initials: 'ШП', color: 'purple', hours: 8, plannedHours: 52, tasks: [
+        { date: '03.03', desc: 'Ревізія привілейованих облікових записів', hours: 4 },
+        { date: '05.03', desc: 'Оновлення бази вразливостей та патчів', hours: 4 },
+      ]},
+    ]},
+  // ── Навчання ІБ (q3, q7) ──
+  { id: 'm7', quarterlyId: 'q3', month: 1, companies: ['c1','c2','c3'], distributionType: 'even', procedure: 'Тренінги з кібергігієни', description: 'Проведення тренінгів для персоналу з питань кібербезпеки, фішингу, парольної політики та безпечної роботи з email.', hours: 80, planned: 72, status: 'completed',
+    employees: [
+      { name: 'Кравченко І.П.', initials: 'КІ', color: 'sky', hours: 48, plannedHours: 40, tasks: [
+        { date: '10.01', desc: 'Тренінг кібергігієна АТБ', hours: 6 },
+        { date: '12.01', desc: 'Тренінг кібергігієна КСС', hours: 6 },
+        { date: '15.01', desc: 'Тренінг кібергігієна УМВС', hours: 6 },
+      ]},
+      { name: 'Бондаренко Т.О.', initials: 'БТ', color: 'rose', hours: 32, plannedHours: 32, tasks: [
+        { date: '11.01', desc: 'Підготовка матеріалів тренінгу', hours: 8 },
+        { date: '14.01', desc: 'Тестування знань персоналу', hours: 4 },
+      ]},
+    ]},
+  { id: 'm8', quarterlyId: 'q3', month: 2, companies: ['c1'], distributionType: 'even', procedure: 'Симуляція фішингових атак', description: 'Проведення контрольованих фішингових кампаній для оцінки готовності персоналу та виявлення слабких ланок.', hours: 45, planned: 40, status: 'active',
+    employees: [
+      { name: 'Кравченко І.П.', initials: 'КІ', color: 'sky', hours: 45, plannedHours: 40, tasks: [
+        { date: '03.02', desc: 'Налаштування фішинг-платформи', hours: 4 },
+        { date: '05.02', desc: 'Запуск фішинг-кампанії АТБ', hours: 3 },
+        { date: '12.02', desc: 'Аналіз результатів кампанії', hours: 6 },
+      ]},
+    ]},
+  { id: 'm9', quarterlyId: 'q3', month: 3, companies: ['c2','c3'], distributionType: 'even', procedure: 'Тренінги з кібергігієни', description: 'Проведення тренінгів для персоналу з питань кібербезпеки.', hours: 40, planned: 35, status: 'active',
+    employees: [
+      { name: 'Бондаренко Т.О.', initials: 'БТ', color: 'rose', hours: 40, plannedHours: 35, tasks: [
+        { date: '01.03', desc: 'Тренінг по інцидентах КСС', hours: 6 },
+        { date: '03.03', desc: 'Тренінг по інцидентах УМВС', hours: 6 },
+      ]},
+    ]},
+  { id: 'm20', quarterlyId: 'q7', month: 4, companies: ['c1','c4'], distributionType: 'even', procedure: 'Тренінги з кібергігієни', description: 'Проведення тренінгів Q2.', hours: 28, planned: 48, status: 'active',
+    employees: [
+      { name: 'Кравченко І.П.', initials: 'КІ', color: 'sky', hours: 28, plannedHours: 48, tasks: [
+        { date: '08.04', desc: 'Тренінг для нових співробітників АТБ', hours: 6 },
+      ]},
+    ]},
+  { id: 'm21', quarterlyId: 'q7', month: 5, companies: ['c2'], distributionType: 'even', procedure: 'Симуляція фішингових атак', description: 'Фішинг-тестування Q2.', hours: 20, planned: 48, status: 'draft',
+    employees: []},
+  // ── Управління ризиками (q4, q8) ──
+  { id: 'm10', quarterlyId: 'q4', month: 1, companies: ['c1','c2','c3','c4'], distributionType: 'by_servers', procedure: 'Оцінка ризиків ІБ', description: 'Ідентифікація та оцінка ризиків інформаційної безпеки по всіх компаніях, визначення рівня ризику та пріоритетів обробки.', hours: 150, planned: 180, status: 'active',
+    employees: [
+      { name: 'Козлов А.І.', initials: 'КА', color: 'violet', hours: 90, plannedHours: 100, tasks: [
+        { date: '08.01', desc: 'Ідентифікація активів АТБ', hours: 8 },
+        { date: '10.01', desc: 'Оцінка загроз та вразливостей', hours: 8 },
+        { date: '15.01', desc: 'Розрахунок рівнів ризику', hours: 6 },
+      ]},
+      { name: 'Василиненко В.М.', initials: 'ВВ', color: 'indigo', hours: 60, plannedHours: 80, tasks: [
+        { date: '09.01', desc: 'Аналіз ризиків мережевої безпеки', hours: 8 },
+        { date: '12.01', desc: 'Формування реєстру ризиків', hours: 6 },
+      ]},
+    ]},
+  { id: 'm11', quarterlyId: 'q4', month: 2, companies: ['c1','c3'], distributionType: 'by_servers', procedure: 'План обробки ризиків', description: 'Розробка заходів зниження ризиків, призначення відповідальних, визначення термінів реалізації.', hours: 95, planned: 178, status: 'active',
+    employees: [
+      { name: 'Козлов А.І.', initials: 'КА', color: 'violet', hours: 55, plannedHours: 90, tasks: [
+        { date: '04.02', desc: 'Розробка заходів зниження ризиків', hours: 8 },
+        { date: '07.02', desc: 'Узгодження з керівництвом', hours: 4 },
+      ]},
+      { name: 'Казаков В.С.', initials: 'КВ', color: 'amber', hours: 40, plannedHours: 88, tasks: [
+        { date: '05.02', desc: 'Оцінка вартості заходів', hours: 6 },
+      ]},
+    ]},
+  { id: 'm12', quarterlyId: 'q4', month: 3, companies: ['c2'], distributionType: 'even', procedure: 'Оцінка ризиків ІБ', description: 'Оцінка ризиків для КСС.', hours: 76, planned: 176, status: 'draft',
+    employees: [
+      { name: 'Козлов А.І.', initials: 'КА', color: 'violet', hours: 76, plannedHours: 176, tasks: [
+        { date: '02.03', desc: 'Повторна оцінка ризиків КСС', hours: 8 },
+      ]},
+    ]},
+  { id: 'm22', quarterlyId: 'q8', month: 4, companies: ['c1','c2'], distributionType: 'by_servers', procedure: 'Оцінка ризиків ІБ', description: 'Q2 оцінка ризиків.', hours: 65, planned: 100, status: 'active',
+    employees: [
+      { name: 'Козлов А.І.', initials: 'КА', color: 'violet', hours: 65, plannedHours: 100, tasks: [
+        { date: '02.04', desc: 'Переоцінка ризиків після інциденту', hours: 8 },
+      ]},
+    ]},
+  { id: 'm23', quarterlyId: 'q8', month: 5, companies: ['c3','c4'], distributionType: 'even', procedure: 'План обробки ризиків', description: 'Q2 план обробки ризиків.', hours: 45, planned: 100, status: 'active',
+    employees: [
+      { name: 'Казаков В.С.', initials: 'КВ', color: 'amber', hours: 45, plannedHours: 100, tasks: [
+        { date: '05.05', desc: 'Моніторинг виконання заходів', hours: 6 },
+      ]},
+    ]},
+  // ── Захист інфраструктури (q5, q10, q9) ──
+  { id: 'm13', quarterlyId: 'q5', month: 1, companies: ['c1','c2'], distributionType: 'by_servers', procedure: 'Моніторинг захисту серверів', description: 'Постійний моніторинг стану захищеності серверної інфраструктури, аналіз подій безпеки, реагування на інциденти.', hours: 95, planned: 100, status: 'completed',
+    employees: [
+      { name: 'Шленськовий О.А.', initials: 'ШО', color: 'emerald', hours: 55, plannedHours: 50, tasks: [
+        { date: '05.01', desc: 'Налаштування моніторингу серверів', hours: 8 },
+        { date: '08.01', desc: 'Аналіз логів безпеки', hours: 6 },
+      ]},
+      { name: 'Шаферистов П.В.', initials: 'ШП', color: 'purple', hours: 40, plannedHours: 50, tasks: [
+        { date: '06.01', desc: 'Перевірка антивірусного захисту', hours: 4 },
+        { date: '09.01', desc: 'Оновлення сигнатур IDS/IPS', hours: 6 },
+      ]},
+    ]},
+  { id: 'm14', quarterlyId: 'q5', month: 2, companies: ['c3','c4'], distributionType: 'by_workstations', procedure: 'Захист робочих станцій', description: 'Впровадження та підтримка засобів захисту на робочих станціях, контроль оновлень, антивірусний захист.', hours: 82, planned: 100, status: 'completed',
+    employees: [
+      { name: 'Шаферистов П.В.', initials: 'ШП', color: 'purple', hours: 82, plannedHours: 100, tasks: [
+        { date: '03.02', desc: 'Масове оновлення Windows patches', hours: 8 },
+        { date: '06.02', desc: 'Перевірка EDR агентів', hours: 6 },
+      ]},
+    ]},
+  { id: 'm15', quarterlyId: 'q5', month: 3, companies: ['c1'], distributionType: 'even', procedure: 'Моніторинг захисту серверів', description: 'Моніторинг серверів АТБ.', hours: 65, planned: 100, status: 'active',
+    employees: [
+      { name: 'Шленськовий О.А.', initials: 'ШО', color: 'emerald', hours: 65, plannedHours: 100, tasks: [
+        { date: '01.03', desc: 'Аналіз інцидентів за лютий', hours: 8 },
+      ]},
+    ]},
+  { id: 'm16', quarterlyId: 'q10', month: 1, companies: ['c1','c2','c3'], distributionType: 'by_servers', procedure: 'Сканування вразливостей', description: 'Регулярне сканування інфраструктури на вразливості за допомогою Nessus/OpenVAS, формування звітів.', hours: 28, planned: 27, status: 'completed',
+    employees: [
+      { name: 'Василиненко В.М.', initials: 'ВВ', color: 'indigo', hours: 28, plannedHours: 27, tasks: [
+        { date: '20.01', desc: 'Сканування Nessus АТБ/КСС/УМВС', hours: 6 },
+        { date: '22.01', desc: 'Аналіз результатів сканування', hours: 4 },
+      ]},
+    ]},
+  { id: 'm17', quarterlyId: 'q10', month: 2, companies: ['c1','c4'], distributionType: 'even', procedure: 'Сканування вразливостей', description: 'Сканування вразливостей лютий.', hours: 23, planned: 27, status: 'active',
+    employees: [
+      { name: 'Василиненко В.М.', initials: 'ВВ', color: 'indigo', hours: 23, plannedHours: 27, tasks: [
+        { date: '15.02', desc: 'Повторне сканування після патчів', hours: 4 },
+      ]},
+    ]},
+  { id: 'm18', quarterlyId: 'q10', month: 3, companies: ['c2','c3'], distributionType: 'by_servers', procedure: 'Сканування вразливостей', description: 'Сканування вразливостей березень.', hours: 0, planned: 27, status: 'draft',
+    employees: []},
+  { id: 'm24', quarterlyId: 'q9', month: 4, companies: ['c1','c2'], distributionType: 'by_servers', procedure: 'Моніторинг захисту серверів', description: 'Q2 моніторинг серверів.', hours: 45, planned: 80, status: 'active',
+    employees: [
+      { name: 'Шленськовий О.А.', initials: 'ШО', color: 'emerald', hours: 45, plannedHours: 80, tasks: [
+        { date: '02.04', desc: 'Аналіз логів SIEM за березень', hours: 8 },
+      ]},
+    ]},
+  { id: 'm25', quarterlyId: 'q9', month: 5, companies: ['c3','c4'], distributionType: 'even', procedure: 'Захист робочих станцій', description: 'Q2 захист робочих станцій.', hours: 40, planned: 80, status: 'submitted',
+    employees: [
+      { name: 'Шаферистов П.В.', initials: 'ШП', color: 'purple', hours: 40, plannedHours: 80, tasks: [
+        { date: '08.05', desc: 'Розгортання нового EDR-агенту', hours: 8 },
+      ]},
+    ]},
+  // ── Конфіденційність (q6, q12, q11) ──
+  { id: 'm26', quarterlyId: 'q6', month: 1, companies: ['c1','c2'], distributionType: 'by_workstations', procedure: 'Контроль DLP', description: 'Моніторинг та налаштування DLP-системи для запобігання витокам конфіденційної інформації.', hours: 72, planned: 60, status: 'completed',
+    employees: [
+      { name: 'Бондаренко Т.О.', initials: 'БТ', color: 'rose', hours: 42, plannedHours: 30, tasks: [
+        { date: '08.01', desc: 'Аналіз DLP-інцидентів за грудень', hours: 6 },
+        { date: '10.01', desc: 'Оновлення DLP-правил', hours: 4 },
+      ]},
+      { name: 'Козлов А.І.', initials: 'КА', color: 'violet', hours: 30, plannedHours: 30, tasks: [
+        { date: '09.01', desc: 'Перевірка каналів витоку', hours: 6 },
+      ]},
+    ]},
+  { id: 'm27', quarterlyId: 'q6', month: 2, companies: ['c1','c3'], distributionType: 'even', procedure: 'Класифікація інформації', description: 'Класифікація інформаційних активів за рівнем конфіденційності, оновлення реєстру.', hours: 65, planned: 60, status: 'active',
+    employees: [
+      { name: 'Козлов А.І.', initials: 'КА', color: 'violet', hours: 65, plannedHours: 60, tasks: [
+        { date: '03.02', desc: 'Інвентаризація інформаційних активів', hours: 8 },
+        { date: '06.02', desc: 'Присвоєння грифів конфіденційності', hours: 6 },
+      ]},
+    ]},
+  { id: 'm28', quarterlyId: 'q6', month: 3, companies: ['c2'], distributionType: 'even', procedure: 'Контроль DLP', description: 'Контроль DLP березень.', hours: 53, planned: 60, status: 'active',
+    employees: [
+      { name: 'Бондаренко Т.О.', initials: 'БТ', color: 'rose', hours: 53, plannedHours: 60, tasks: [
+        { date: '01.03', desc: 'Щомісячний аудит DLP-логів', hours: 8 },
+      ]},
+    ]},
+  { id: 'm29', quarterlyId: 'q12', month: 1, companies: ['c1','c2','c3','c4'], distributionType: 'even', procedure: 'Щомісячна звітність', description: 'Підготовка та надання звітності по підприємствах.', hours: 14, planned: 38, status: 'completed',
+    employees: [
+      { name: 'Казаков В.С.', initials: 'КВ', color: 'amber', hours: 14, plannedHours: 38, tasks: [
+        { date: '25.01', desc: 'Збір даних та формування звітів', hours: 8 },
+      ]},
+    ]},
+  { id: 'm30', quarterlyId: 'q12', month: 2, companies: ['c1','c2','c3','c4'], distributionType: 'even', procedure: 'Щомісячна звітність', description: 'Звітність лютий.', hours: 12, planned: 38, status: 'active',
+    employees: [
+      { name: 'Казаков В.С.', initials: 'КВ', color: 'amber', hours: 12, plannedHours: 38, tasks: [
+        { date: '24.02', desc: 'Формування звітів за лютий', hours: 6 },
+      ]},
+    ]},
+  { id: 'm31', quarterlyId: 'q12', month: 3, companies: ['c1','c2','c3','c4'], distributionType: 'even', procedure: 'Щомісячна звітність', description: 'Звітність березень.', hours: 13, planned: 38, status: 'active',
+    employees: [
+      { name: 'Казаков В.С.', initials: 'КВ', color: 'amber', hours: 13, plannedHours: 38, tasks: [
+        { date: '25.03', desc: 'Формування звітів за березень', hours: 6 },
+      ]},
+    ]},
+  { id: 'm32', quarterlyId: 'q11', month: 4, companies: ['c1','c2'], distributionType: 'even', procedure: 'Контроль DLP', description: 'Q2 аудит DLP.', hours: 22, planned: 45, status: 'draft',
+    employees: [
+      { name: 'Бондаренко Т.О.', initials: 'БТ', color: 'rose', hours: 22, plannedHours: 45, tasks: [
+        { date: '03.04', desc: 'Аналіз DLP за Q1', hours: 8 },
+      ]},
+    ]},
+  { id: 'm33', quarterlyId: 'q11', month: 5, companies: ['c3'], distributionType: 'even', procedure: 'Класифікація інформації', description: 'Q2 класифікація.', hours: 20, planned: 45, status: 'draft',
+    employees: []},
+];
+
+const monthNames = { 1: 'Янв', 2: 'Фев', 3: 'Мар', 4: 'Апр', 5: 'Май', 6: 'Июн', 7: 'Июл', 8: 'Авг', 9: 'Сен', 10: 'Окт', 11: 'Ноя', 12: 'Дек' };
+const monthFullNames = { 1: 'Январь', 2: 'Февраль', 3: 'Март', 4: 'Апрель', 5: 'Май', 6: 'Июнь', 7: 'Июль', 8: 'Август', 9: 'Сентябрь', 10: 'Октябрь', 11: 'Ноябрь', 12: 'Декабрь' };
+const quarterMonths = { 1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12] };
+
+// ========== HELPERS ==========
+function pct(h, p) { return p > 0 ? Math.round(h / p * 100) : 0; }
+function progressColor(p) { return p >= 100 ? '#10b981' : p >= 70 ? '#3b82f6' : p >= 40 ? '#f59e0b' : p < 1 ? '#e2e8f0' : '#ef4444'; }
+function ringOffset(p) { return Math.max(0, 88 - (88 * Math.min(p, 120) / 120)); }
+const statChip = (val, unit, label, bg, border, numColor, txtColor) => `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;padding:2px 6px;border-radius:8px;background:${bg};border:1px solid ${border};flex:1;">
+  <span style="font-size:13px;font-weight:700;color:${numColor};">${val} <span style="font-weight:500;font-size:11px;">${unit}</span></span>
+  <span style="font-size:9px;font-weight:600;color:${txtColor};text-transform:uppercase;letter-spacing:0.04em;">${label}</span>
+</div>`;
+function pctChipStyle(p) {
+  const g = p >= 80, a = !g && p >= 50;
+  return { color: g ? '#059669' : a ? '#b45309' : '#4f46e5', txt: g ? '#065f46' : a ? '#92400e' : '#312e81',
+    bg: g ? 'rgba(16,185,129,0.10)' : a ? 'rgba(245,158,11,0.10)' : 'rgba(99,102,241,0.10)',
+    border: g ? 'rgba(16,185,129,0.25)' : a ? 'rgba(245,158,11,0.25)' : 'rgba(99,102,241,0.25)' };
+}
+
+function ring(percent, size = 40) {
+  const c = '#34d399';
+  const glow = 'rgba(52,211,153,0.3)';
+  const SEGS = 6;
+  const filled = percent === 0 ? 0 : Math.max(1, Math.min(Math.round(percent / 100 * SEGS), SEGS));
+  const segH = 5, segW = 10, gap = 2;
+  let segs = '';
+  // Render top→bottom in DOM, fill bottom→top: segment i=0 is bottom, i=SEGS-1 is top
+  for (let i = SEGS - 1; i >= 0; i--) {
+    const on = i < filled; // fill from bottom (low i) upward
+    const bg = on ? c : 'rgba(226,232,240,0.55)';
+    segs += `<div style="width:${segW}px;height:${segH}px;border-radius:3px;background:${bg};"></div>`;
+  }
+  return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;width:${size}px;">
+    <div style="display:flex;flex-direction:column;gap:${gap}px;padding:3px;border-radius:6px;
+      background:rgba(255,255,255,0.6);backdrop-filter:blur(8px);
+      border:1px solid rgba(255,255,255,0.5);
+      box-shadow:0 4px 12px ${glow},0 1px 4px rgba(0,0,0,0.06),inset 0 1px 0 rgba(255,255,255,0.9);">
+      ${segs}
+    </div>
+    <span style="font-size:10px;font-weight:700;color:${percent > 0 ? c : '#94a3b8'};line-height:1;">${percent}%</span>
+  </div>`;
+}
+
+function hbar(percent) {
+  const c = '#34d399';
+  const cLight = '#6ee7b7';
+  const glow = 'rgba(52,211,153,0.35)';
+  const SEGS = 6;
+  const filled = percent === 0 ? 0 : Math.max(1, Math.min(Math.round(percent / 100 * SEGS), SEGS));
+  let segs = '';
+  for (let i = 0; i < SEGS; i++) {
+    const on = i < filled;
+    const bg = on
+      ? `linear-gradient(180deg, ${cLight} 0%, ${c} 100%)`
+      : 'linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(226,232,240,0.5) 100%)';
+    const shadow = on ? `box-shadow:0 1px 3px ${glow},inset 0 1px 0 rgba(255,255,255,0.45);` : 'box-shadow:inset 0 1px 2px rgba(0,0,0,0.06);';
+    segs += `<div style="flex:1;height:6px;border-radius:2px;background:${bg};${shadow}"></div>`;
+  }
+  return `<div style="flex:1;display:flex;gap:2px;padding:3px 4px;border-radius:5px;
+    background:rgba(241,245,249,0.7);
+    border:1px solid rgba(226,232,240,0.5);
+    box-shadow:inset 0 2px 4px rgba(0,0,0,0.07),inset 0 1px 2px rgba(0,0,0,0.04),0 1px 0 rgba(255,255,255,0.9);">${segs}</div>
+  <span style="font-size:10px;font-weight:700;color:${percent > 0 ? c : '#94a3b8'};min-width:28px;text-align:right;">${percent}%</span>`;
+}
+
+function initials(name) { return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(); }
+
+// ========== STATUS SYSTEM — единый источник истины ==========
+// Все статусы, цвета, воркфлоу, группы фильтров — в одном месте.
+const STATUS_CONFIG = {
+  draft:     { label: 'Чернетка',      dot: '#94a3b8', grad: 'linear-gradient(145deg,#94a3b8,#64748b)', glow: 'rgba(100,116,139,0.4)', group: 'preparing', workflow: true,  workflowOrder: 0 },
+  returned:  { label: 'Повернуто',     dot: '#f59e0b', grad: 'linear-gradient(145deg,#94a3b8,#64748b)', glow: 'rgba(100,116,139,0.4)', group: 'preparing', workflow: false, mapTo: 'draft'      },
+  submitted: { label: 'На узгодженні', dot: '#3b82f6', grad: 'linear-gradient(145deg,#60a5fa,#3b82f6)', glow: 'rgba(59,130,246,0.4)',  group: 'approving', workflow: true,  workflowOrder: 1 },
+  approved:  { label: 'Погоджено',     dot: '#0891b2', grad: 'linear-gradient(145deg,#22d3ee,#0891b2)', glow: 'rgba(8,145,178,0.4)',   group: 'approving', workflow: true,  workflowOrder: 2 },
+  active:    { label: 'В роботі',      dot: '#6366f1', grad: 'linear-gradient(145deg,#6366f1,#4f46e5)', glow: 'rgba(99,102,241,0.4)',  group: 'active',    workflow: true,  workflowOrder: 3 },
+  completed: { label: 'Завершено',     dot: '#34d399', grad: 'linear-gradient(145deg,#34d399,#059669)', glow: 'rgba(16,185,129,0.4)',  group: 'done',      workflow: true,  workflowOrder: 4 },
+  failed:    { label: 'Провалено',     dot: '#ef4444', grad: 'linear-gradient(145deg,#f87171,#ef4444)', glow: 'rgba(239,68,68,0.4)',   group: 'done',      workflow: false, mapTo: 'completed'  },
+};
+
+// ── Тоны для бейджей и иконок ─────────────────────────────────────────────
+const BADGE_TONES = {
+  blue:   { color: '#2563eb', bg: 'rgba(147,197,253,0.15)', bgAct: 'rgba(147,197,253,0.24)', border: 'rgba(147,197,253,0.4)',  borderAct: 'rgba(147,197,253,0.55)' },
+  purple: { color: '#7c3aed', bg: 'rgba(167,139,250,0.12)', bgAct: 'rgba(167,139,250,0.22)', border: 'rgba(167,139,250,0.35)', borderAct: 'rgba(167,139,250,0.5)'  },
+};
+// Inline-бейдж (отдел, квартал, месяц)
+function planBadge(text, tone, active = false) {
+  const t = BADGE_TONES[tone] || BADGE_TONES.blue;
+  return `<span style="font-size:10px;font-weight:700;color:${t.color};padding:2px 7px;border-radius:5px;flex-shrink:0;background:${active ? t.bgAct : t.bg};border:1px solid ${active ? t.borderAct : t.border};backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 2px 8px rgba(0,0,0,0.07),inset 0 1px 0 rgba(255,255,255,0.7);">${text}</span>`;
+}
+// Единый 32×32 элемент для всех collapsibleGroup (планы, сотрудники)
+function groupIcon(text, tone, active = false) {
+  const t = BADGE_TONES[tone] || BADGE_TONES.blue;
+  return `<div style="width:32px;height:32px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:${active ? t.bgAct : t.bg};border:1px solid ${active ? t.borderAct : t.border};backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);"><span style="font-size:11px;font-weight:700;color:${t.color};">${text}</span></div>`;
+}
+function statusDot(s) {
+  const c = (STATUS_CONFIG[s] || STATUS_CONFIG.draft).dot;
+  return `<div style="width:7px;height:7px;border-radius:50%;background:${c};flex-shrink:0;box-shadow:0 0 4px ${c}88;"></div>`;
+}
+
+// ── Reusable collapsible group (emp-card pattern) ──────────────────────────
+// icon   — HTML for the 32×32 left slot (avatar or badge)
+// title  — primary text
+// meta   — secondary text below title (optional)
+// hours  — top-right value (e.g. "65 ч." or "812/1008 ч.")
+// count  — bottom-right number
+// label  — bottom-right label (e.g. "задач", "мес.", "план")
+// pct    — progress bar fill 0-100
+// open   — expanded by default
+// rows   — array of row HTML strings (from groupRow())
+// footer — optional HTML appended inside tl after rows
+function collapsibleGroup({ icon, title, meta, hours, count, label, open = false, rows = [], footer = '' }) {
+  const chevronSvg = `<svg class="ch w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>`;
+  return `<div class="emp-card">
+    <button class="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left" onclick="this.parentElement.querySelector('.tl').classList.toggle('hidden'); this.querySelector('.ch').classList.toggle('rotate-90')">
+      ${icon}
+      <div class="flex-1 min-w-0">
+        <span style="font-size:13px;font-weight:500;color:#334155;">${title}</span>
+        ${meta ? `<div class="text-[10px] text-slate-400 mt-0.5">${meta}</div>` : ''}
+      </div>
+      <div class="flex items-center gap-3 flex-shrink-0">
+        <div class="text-right">
+          <div class="text-xs font-semibold text-slate-700">${hours}</div>
+          <div class="text-[10px] text-slate-400">${count} ${label}</div>
+        </div>
+        ${chevronSvg}
+      </div>
+    </button>
+    <div class="tl border-t border-slate-100 bg-slate-50/40 ${open ? '' : 'hidden'}">
+      <div class="divide-y divide-slate-100">${rows.join('')}</div>
+      ${footer ? `<div class="border-t border-slate-100">${footer}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── Reusable row inside collapsibleGroup (task-row pattern) ────────────────
+// col1    — narrow left column text (date, month abbr) — omit to hide column
+// text    — main flexible text
+// right   — right-side value (hours, %)
+// actions — hover action buttons HTML (optional)
+// onclick — click handler string (optional)
+function groupRow({ col1 = null, text, right = '', actions = '', onclick = '' }) {
+  return `<div class="flex items-center gap-3 px-4 py-2.5 hover:bg-white/60 group ${onclick ? 'cursor-pointer' : ''}" ${onclick ? `onclick="${onclick}"` : ''}>
+    ${col1 !== null ? `<span class="text-xs text-slate-400 w-12 flex-shrink-0 tabular-nums">${col1}</span>` : ''}
+    <p style="font-size:13px;color:#334155;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0;">${text}</p>
+    ${right ? `<span class="text-xs font-medium text-slate-500 flex-shrink-0 tabular-nums">${right}</span>` : ''}
+    ${actions ? `<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">${actions}</div>` : ''}
+  </div>`;
+}
+
+
+
+// ========== TAB SWITCHING ==========
+function switchTab(tab) {
+  if (tab !== 'plans-process' && tab !== 'cabinet') { alert('Розділ «' + tab + '» не реалізовано в демо'); return; }
+  state.currentTab = tab;
+  document.querySelectorAll('.sec-tab').forEach(t => t.classList.remove('active'));
+  const tabEl = document.getElementById('tab-' + tab);
+  if (tabEl) tabEl.classList.add('active');
+  document.getElementById('plans-process-view').style.display = tab === 'plans-process' ? '' : 'none';
+  document.getElementById('cabinet-view').style.display = tab === 'cabinet' ? '' : 'none';
+  if (tab === 'cabinet') {
+    const todayIdx = calWeek.days.findIndex(d => d.isToday);
+    if (todayIdx >= 0) state.mobileCalDay = todayIdx;
+    renderCalendar();
+  } else if (tab === 'plans-process') {
+    renderProcessView();
+  }
+}
+
+// ========== CABINET / CALENDAR ==========
+const CAL = { START: 9, END: 18, ROW_H: 32, LUNCH: 13 };
+const CAL_ROWS = (CAL.END - CAL.START) * 2;
+const CAL_GRID_H = CAL_ROWS * CAL.ROW_H;
+
+const calWeek = {
+  weekNum: 10,
+  days: [
+    { label: 'Пн', date: 2, full: 'Понеділок', isToday: true },
+    { label: 'Вт', date: 3, full: 'Вівторок' },
+    { label: 'Ср', date: 4, full: 'Середа' },
+    { label: 'Чт', date: 5, full: 'Четвер' },
+    { label: 'Пт', date: 6, full: "П'ятниця" },
+  ],
+};
+
+const CAL_STATUS_COLORS = {
+  'distributed': { accent: '#3b82f6', label: 'Розподілено' },
+  'synced':      { accent: '#10b981', label: 'Синхронізовано' },
+  'draft-task':  { accent: '#f59e0b', label: 'Чернетка задачі' },
+  'in-task':     { accent: '#22c55e', label: 'В задачі' },
+  'external':    { accent: '#94a3b8', label: 'Зовнішня подія' },
+};
+
+const calEntries = [
+  // Monday
+  { id:'e1',  day:0, start:'09:00', dur:90,  subj:'Аудит прав доступу серверів АТБ',        proc:'Аудит управління правами доступу',              st:'synced' },
+  { id:'e2',  day:0, start:'11:00', dur:60,  subj:'Щотижнева нарада з ІБ',                  proc:null,  st:'external', transcript:true, aiSummary:true },
+  { id:'e3',  day:0, start:'14:00', dur:60,  subj:'Перевірка облікових записів AD',          proc:'Аудит управління правами доступу',              st:'distributed' },
+  { id:'e4',  day:0, start:'15:30', dur:30,  subj:'Стендап УІБК',                            proc:null,  st:'external' },
+  // Tuesday
+  { id:'e5',  day:1, start:'09:30', dur:90,  subj:'Організація управління правами КСС',      proc:'Організація управління правами доступу',  st:'draft-task', drafted:true },
+  { id:'e6',  day:1, start:'11:30', dur:30,  subj:'1:1 з керівником',                        proc:null,  st:'external' },
+  { id:'e7',  day:1, start:'14:00', dur:90,  subj:'Сканування вразливостей Nessus',          proc:'Сканування вразливостей',          st:'distributed' },
+  // Wednesday
+  { id:'e8',  day:2, start:'10:00', dur:60,  subj:'Стендап команди',                         proc:null,  st:'external' },
+  { id:'e9',  day:2, start:'11:00', dur:90,  subj:'Аудит мережевого обладнання',             proc:'Аудит управління правами доступу',              st:'in-task', drafted:true },
+  { id:'e10', day:2, start:'14:00', dur:60,  subj:'Формування звіту аудиту',                 proc:'Аудит управління правами доступу',              st:'synced' },
+  { id:'e11', day:2, start:'15:30', dur:60,  subj:'Робоча зустріч з СВК',                    proc:null,  st:'external', transcript:true },
+  // Thursday
+  { id:'e12', day:3, start:'09:00', dur:60,  subj:'Перевірка VPN-доступу',                   proc:'Аудит управління правами доступу',              st:'distributed' },
+  { id:'e13', day:3, start:'11:00', dur:60,  subj:'Зустріч з замовником',                    proc:null,  st:'external', transcript:true, aiSummary:true },
+  { id:'e14', day:3, start:'14:00', dur:120, subj:'Розробка політики управління доступом',    proc:'Організація управління правами доступу',  st:'draft-task' },
+  // Friday
+  { id:'e15', day:4, start:'09:00', dur:90,  subj:'Звітність по УМВС',                       proc:'Звітність по підприємствах',       st:'distributed' },
+  { id:'e16', day:4, start:'11:00', dur:30,  subj:'Ретро спринту',                           proc:null,  st:'external' },
+  { id:'e17', day:4, start:'14:00', dur:60,  subj:'Оновлення бази вразливостей',             proc:'Сканування вразливостей',          st:'synced' },
+  { id:'e18', day:4, start:'15:30', dur:60,  subj:'Перегляд нових CVE',                      proc:'Сканування вразливостей',          st:'distributed' },
+];
+
+// Imported monthly plans for March (from monthlyPlans m5, m6 + extra)
+const calProcs = [
+  { id:'m5', monthlyId:'m5', name:'Організація управління правами доступу', process:'Управління ІБ', dept:'ОКБ', planned:480, status:'active',  color:'indigo' },
+  { id:'m6', monthlyId:'m6', name:'Аудит управління правами доступу',       process:'Аудит ІБ',      dept:'ОКБ', planned:360, status:'active',  color:'violet' },
+  { id:'m7', monthlyId:'m7', name:'Сканування вразливостей',                process:'Аудит ІБ',      dept:'ОКБ', planned:240, status:'active',  color:'cyan'   },
+  { id:'m8', monthlyId:'m8', name:'Звітність по підприємствах',             process:'Звітність',     dept:'СВК', planned:180, status:'draft',   color:'amber'  },
+];
+
+// Color map for procedure accent
+const PROC_COLORS = {
+  indigo: { bg:'rgba(99,102,241,0.08)', border:'#6366f1', text:'#4f46e5' },
+  violet: { bg:'rgba(139,92,246,0.08)', border:'#8b5cf6', text:'#7c3aed' },
+  cyan:   { bg:'rgba(6,182,212,0.08)',  border:'#06b6d4', text:'#0891b2' },
+  amber:  { bg:'rgba(245,158,11,0.08)', border:'#f59e0b', text:'#d97706' },
+  emerald:{ bg:'rgba(16,185,129,0.08)', border:'#10b981', text:'#059669' },
+  rose:   { bg:'rgba(244,63,94,0.08)',  border:'#f43f5e', text:'#e11d48' },
+  sky:    { bg:'rgba(14,165,233,0.08)', border:'#0ea5e9', text:'#0284c7' },
+  orange: { bg:'rgba(249,115,22,0.08)', border:'#f97316', text:'#ea580c' },
+};
+
+// ── My Tasks mock data ──────────────────────────────────
+const myDrafts = [
+  { id: 'd1', date: '03.03', desc: 'Консультація з IT-відділом щодо оновлення антивірусу', hours: 1.5 },
+  { id: 'd2', date: '04.03', desc: 'Перевірка налаштувань брандмауера Фурлендер', hours: 2 },
+  { id: 'd3', date: '05.03', desc: 'Підготовка матеріалів для навчання ІБ', hours: 3 },
+];
+
+const myRecentTasks = [
+  { id: 't1', date: '02.03', desc: 'Аудит прав доступу серверів АТБ Маркет', hours: 8, procedure: 'Аудит управління правами доступу' },
+  { id: 't2', date: '02.03', desc: 'Перевірка облікових записів AD', hours: 6, procedure: 'Аудит управління правами доступу' },
+  { id: 't3', date: '03.03', desc: 'Сканування серверної інфраструктури АТБ (Nessus)', hours: 2.5, procedure: 'Сканування вразливостей' },
+];
+
+// Active plans for assignment dropdown (grouped by process)
+const myActivePlans = [
+  { group: 'Управління правами доступу', plans: [
+    { id: 'm5', name: 'Організація управління правами доступу' },
+    { id: 'm6', name: 'Аудит управління правами доступу' },
+  ]},
+  { group: 'Сканування вразливостей', plans: [
+    { id: 'm7', name: 'Сканування вразливостей' },
+  ]},
+  { group: 'Звітність', plans: [
+    { id: 'm8', name: 'Звітність по підприємствах' },
+  ]},
+];
+
+let tasksExpanded = true;
+let showQuickInput = false;
+
+// ── Calendar helpers ────────────────────────────────────
+function calTop(timeStr) {
+  const [h, m] = timeStr.split(':').map(Number);
+  return ((h - CAL.START) * 60 + m) / 30 * CAL.ROW_H;
+}
+function calH(dur) { return dur / 30 * CAL.ROW_H; }
+function calTimeLabel(row) {
+  const totalMin = CAL.START * 60 + row * 30;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+function calProcMinutes(procName) {
+  return calEntries.filter(e => e.proc === procName).reduce((s, e) => s + e.dur, 0);
+}
+function calProcSynced(procName) {
+  return calEntries.filter(e => e.proc === procName && (e.st === 'synced' || e.st === 'in-task')).reduce((s, e) => s + e.dur, 0);
+}
+
+// ── Calendar week nav (left panel, like nav-bar) ────────
+const CAL_MONTH_NAMES = ['','Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
+
+// Get weeks (Mon-Fri) for a given month/year
+function getMonthWeeks(year, month) {
+  const weeks = [];
+  const d = new Date(year, month - 1, 1);
+  // Find first Monday
+  while (d.getDay() !== 1) d.setDate(d.getDate() + 1);
+  while (d.getMonth() === month - 1 || (weeks.length > 0 && d.getDay() !== 1)) {
+    const mon = new Date(d);
+    const fri = new Date(d); fri.setDate(fri.getDate() + 4);
+    weeks.push({ mon, fri });
+    d.setDate(d.getDate() + 7);
+    if (mon.getMonth() !== month - 1 && fri.getMonth() !== month - 1) break;
+  }
+  return weeks;
+}
+
+function fmtWeekLabel(w) {
+  const d1 = w.mon.getDate();
+  const d2 = w.fri.getDate();
+  const m = w.mon.getMonth() + 1 !== w.fri.getMonth() + 1
+    ? `${d1} ${CAL_MONTH_NAMES[w.mon.getMonth()+1].slice(0,3).toLowerCase()} – ${d2} ${CAL_MONTH_NAMES[w.fri.getMonth()+1].slice(0,3).toLowerCase()}`
+    : `${d1} – ${d2} ${CAL_MONTH_NAMES[w.mon.getMonth()+1].slice(0,3).toLowerCase()}`;
+  return m;
+}
+
+function setCalYear(y) {
+  state.calYear = y;
+  state.calWeekIdx = 0;
+  renderCalYMNav();
+  renderCalNav();
+}
+function setCalMonth(m) {
+  if (m < 1) { state.calYear--; m = 12; }
+  if (m > 12) { state.calYear++; m = 1; }
+  state.calMonth = m;
+  state.calWeekIdx = 0;
+  renderCalYMNav();
+  renderCalNav();
+}
+function setCalWeek(idx) {
+  const weeks = getMonthWeeks(state.calYear, state.calMonth);
+  if (idx < 0) {
+    // Go to prev month, last week
+    setCalMonth(state.calMonth - 1);
+    const prevWeeks = getMonthWeeks(state.calYear, state.calMonth);
+    state.calWeekIdx = prevWeeks.length - 1;
+    renderCalNav();
+    return;
+  }
+  if (idx >= weeks.length) {
+    // Go to next month, first week
+    setCalMonth(state.calMonth + 1);
+    state.calWeekIdx = 0;
+    renderCalNav();
+    return;
+  }
+  state.calWeekIdx = idx;
+  renderCalNav();
+}
+
+function renderCalYMNav() {
+  const el = document.getElementById('cal-ym-nav');
+  if (!el) return;
+  const y = state.calYear;
+  const m = state.calMonth;
+  const prevM = m === 1 ? 12 : m - 1;
+  const nextM = m === 12 ? 1 : m + 1;
+
+  let html = '<div class="nav-group" style="flex-shrink:0;">';
+  [y - 1, y, y + 1].forEach(yr => {
+    const cls = yr === y ? 'active' : '';
+    html += `<button class="nav-btn ${cls}" style="width:44px;" onclick="setCalYear(${yr})">${yr}</button>`;
+  });
+  html += '</div>';
+
+  html += '<div style="width:6px;flex-shrink:0;"></div>';
+  html += '<div class="nav-group" style="flex:1;min-width:0;">';
+  [prevM, m, nextM].forEach(mo => {
+    const cls = mo === m ? 'active' : '';
+    html += `<button class="nav-btn ${cls}" style="flex:1;width:auto;" onclick="setCalMonth(${mo})">${CAL_MONTH_NAMES[mo]}</button>`;
+  });
+  html += '</div>';
+
+  el.innerHTML = html;
+}
+
+function renderCalNav() {
+  const el = document.getElementById('cal-nav');
+  const weeks = getMonthWeeks(state.calYear, state.calMonth);
+  const wi = state.calWeekIdx;
+  // Show 3 weeks: prev, current, next
+  const items = [];
+  if (wi > 0) items.push({ idx: wi - 1, label: fmtWeekLabel(weeks[wi - 1]) });
+  else {
+    const prevWeeks = getMonthWeeks(state.calYear, state.calMonth === 1 ? 12 : state.calMonth - 1);
+    items.push({ idx: wi - 1, label: fmtWeekLabel(prevWeeks[prevWeeks.length - 1]) });
+  }
+  items.push({ idx: wi, label: fmtWeekLabel(weeks[wi] || weeks[0]) });
+  if (wi < weeks.length - 1) items.push({ idx: wi + 1, label: fmtWeekLabel(weeks[wi + 1]) });
+  else {
+    const nextWeeks = getMonthWeeks(state.calYear, state.calMonth === 12 ? 1 : state.calMonth + 1);
+    items.push({ idx: wi + 1, label: fmtWeekLabel(nextWeeks[0]) });
+  }
+
+  el.innerHTML = `<div class="nav-group" style="flex:1;">
+    ${items.map(it => {
+      const cls = it.idx === wi ? 'active' : '';
+      return `<button class="nav-btn ${cls}" style="flex:1;padding:4px 8px;font-size:12px;font-weight:${it.idx === wi ? '600' : '500'};" onclick="setCalWeek(${it.idx})">${it.label}</button>`;
+    }).join('')}
+  </div>`;
+}
+
+// ── Calendar sidebar ────────────────────────────────────
+function calProcSynced(procName) {
+  return calEntries.filter(e => e.proc === procName && (e.st === 'synced' || e.st === 'in-task')).reduce((s, e) => s + e.dur, 0);
+}
+
+function renderCalSidebar() {
+  const el = document.getElementById('cal-sidebar');
+
+  // Procedure cards
+  const cardsHtml = calProcs.map(p => {
+    const dist = calProcMinutes(p.name);
+    const sync = calProcSynced(p.name);
+    const unsynced = dist - sync;
+    const isActive = state.calSelectedProc === p.id;
+    const distH = (dist/60).toFixed(1).replace('.0','');
+    const syncH = (sync/60).toFixed(1).replace('.0','');
+    const unsyncH = (unsynced/60).toFixed(1).replace('.0','');
+    const plannedH = (p.planned/60).toFixed(0);
+    const pct = p.planned > 0 ? Math.round(dist / p.planned * 100) : 0;
+
+    // Dual progress bar: synced (green) + distributed (blue)
+    const syncW = p.planned > 0 ? Math.round(sync / p.planned * 100) : 0;
+    const distW = p.planned > 0 ? Math.round(dist / p.planned * 100) : 0;
+
+    return `<div class="element-card plan-item proc-item ${isActive ? 'active' : ''}" style="cursor:grab;border-left:3px solid ${isActive ? '#6366f1' : 'transparent'};" draggable="true" ondragstart="onProcDragStart(event,'${p.id}','${p.name.replace(/'/g,"")}')" ondragend="onProcDragEnd(event)" onclick="toggleCalProc('${p.id}')">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        ${planBadge(p.dept, 'blue')}
+        <span style="font-size:10px;color:#94a3b8;">${p.process}</span>
+        <span style="margin-left:auto;font-size:11px;font-weight:700;color:${progressColor(pct)};">${pct}%</span>
+      </div>
+      <p style="font-size:13px;font-weight:500;line-height:1.35;color:${isActive ? '#1e3a5f' : '#334155'};margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${p.name}</p>
+      <!-- Dual progress bar -->
+      <div style="height:5px;border-radius:3px;background:rgba(226,232,240,0.5);overflow:hidden;position:relative;margin-bottom:5px;">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:${distW}%;background:#3b82f6;opacity:0.3;border-radius:3px;"></div>
+        <div style="position:absolute;left:0;top:0;bottom:0;width:${syncW}%;background:#10b981;border-radius:3px;"></div>
+      </div>
+      <!-- Hours breakdown -->
+      <div style="display:flex;align-items:center;gap:3px;font-size:10px;font-family:ui-monospace,monospace;">
+        <span style="color:#10b981;" title="Синхронізовано">✓${syncH}</span>
+        <span style="color:#94a3b8;">·</span>
+        ${unsynced > 0 ? `<span style="color:#1e3a5f;" title="Не синхронізовано">+${unsyncH}</span><span style="color:#94a3b8;">·</span>` : ''}
+        <span style="color:#64748b;" title="Заплановано">/ ${plannedH}г</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="padding:4px 4px;" class="space-y-1">
+      ${cardsHtml}
+    </div>`;
+}
+
+function calSidebarBar(dist, planned, synced) {
+  const pDist = planned > 0 ? Math.round(dist / planned * 100) : 0;
+  const pSync = planned > 0 ? Math.round(synced / planned * 100) : 0;
+  return `<div style="height:4px;border-radius:2px;background:rgba(226,232,240,0.5);overflow:hidden;position:relative;">
+    <div style="position:absolute;left:0;top:0;bottom:0;width:${pDist}%;background:rgba(99,102,241,0.35);border-radius:2px;"></div>
+    <div style="position:absolute;left:0;top:0;bottom:0;width:${pSync}%;background:#10b981;border-radius:2px;"></div>
+  </div>`;
+}
+
+function toggleCalProc(procId) {
+  state.calSelectedProc = state.calSelectedProc === procId ? null : procId;
+  renderCalGrid();
+  renderCalSidebar();
+}
+function clearCalProc() {
+  if (!state.calSelectedProc) return;
+  state.calSelectedProc = null;
+  renderCalGrid();
+  renderCalSidebar();
+}
+
+function showTaskPicker(btn) {
+  const picker = document.getElementById('mock-task-picker');
+  if (!picker) return;
+  const block = btn.closest('.cal-block');
+  if (!block) return;
+  const rect = block.getBoundingClientRect();
+  const panel = document.getElementById('cal-grid-panel');
+  const panelRect = panel.getBoundingClientRect();
+  picker.style.display = 'block';
+  picker.style.top = (rect.bottom - panelRect.top + 6) + 'px';
+  picker.style.left = (rect.left - panelRect.left) + 'px';
+  event.stopPropagation();
+  // Close on click outside
+  setTimeout(() => document.addEventListener('click', function h() {
+    picker.style.display = 'none';
+    document.removeEventListener('click', h);
+  }), 10);
+}
+
+// ── Drag & Drop (procedure → calendar) ─────────────────
+function onProcDragStart(e, procId, procName) {
+  e.dataTransfer.setData('text/plain', JSON.stringify({ procId, procName }));
+  e.dataTransfer.effectAllowed = 'copy';
+  e.currentTarget.classList.add('dragging');
+}
+function onProcDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+}
+function onSlotDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  e.currentTarget.classList.add('drop-target');
+}
+function onSlotDragLeave(e) {
+  e.currentTarget.classList.remove('drop-target');
+}
+function onSlotDrop(e, date, time) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drop-target');
+  try {
+    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+    alert(`Розподілити процедуру:\n\n"${data.procName}"\n\nна ${date} о ${time}\n\n→ Створюється новий блок у календарі`);
+  } catch(_) {}
+}
+
+// ── Block resize (plan entries only) ────────────────────
+let resizeState = null;
+function onResizeStart(e, blockId) {
+  e.stopPropagation();
+  e.preventDefault();
+  const block = e.currentTarget.parentElement;
+  const startY = e.clientY;
+  const startH = block.offsetHeight;
+  block.style.transition = 'none';
+  block.style.zIndex = '40';
+
+  function onMove(ev) {
+    const delta = ev.clientY - startY;
+    const newH = Math.max(CAL.ROW_H, Math.round((startH + delta) / CAL.ROW_H) * CAL.ROW_H);
+    block.style.height = newH + 'px';
+  }
+  function onUp(ev) {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    block.style.transition = '';
+    block.style.zIndex = '';
+    const finalH = block.offsetHeight;
+    const minutes = Math.round(finalH / CAL.ROW_H) * 30;
+    block.querySelector('.cal-time').textContent = block.querySelector('.cal-time').textContent.split('–')[0].trim() + ' – ' + minutes + ' хв';
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+// ── Calendar grid ───────────────────────────────────────
+function renderCalGrid() {
+  const el = document.getElementById('cal-grid-panel');
+  const selProc = state.calSelectedProc ? calProcs.find(p => p.id === state.calSelectedProc)?.name : null;
+
+  // Day headers
+  const dayHeaders = calWeek.days.map((d, i) => {
+    const today = d.isToday;
+    return `<div style="flex:1;text-align:center;padding:10px 4px 8px;border-left:1px solid rgba(203,213,225,0.5);">
+      <div style="font-size:10px;font-weight:600;color:${today ? '#6366f1' : '#94a3b8'};text-transform:uppercase;letter-spacing:0.06em;">${d.label}</div>
+      <div style="font-size:18px;font-weight:700;color:${today ? '#4f46e5' : '#334155'};line-height:1.3;${today ? 'background:rgba(99,102,241,0.1);border-radius:8px;padding:2px 8px;display:inline-block;' : ''}">${d.date}</div>
+    </div>`;
+  }).join('');
+
+  // Time labels column
+  const timeLabels = Array.from({length: CAL_ROWS}, (_, i) => {
+    const label = calTimeLabel(i);
+    const isHour = i % 2 === 0;
+    return `<div style="height:${CAL.ROW_H}px;display:flex;align-items:flex-start;justify-content:flex-end;padding-right:8px;">
+      ${isHour ? `<span style="font-size:10px;font-weight:500;color:#94a3b8;transform:translateY(-5px);">${label}</span>` : ''}
+    </div>`;
+  }).join('');
+
+  // Day columns with blocks
+  const dayCols = calWeek.days.map((d, dayIdx) => {
+    const dayEntries = calEntries.filter(e => e.day === dayIdx);
+    const isLunchRow = (CAL.LUNCH - CAL.START) * 2;
+    const slots = Array.from({length: CAL_ROWS}, (_, i) => {
+      const isLunch = i >= isLunchRow && i < isLunchRow + 2;
+      const slotTime = String(CAL.START + Math.floor(i/2)).padStart(2,'0') + ':' + (i%2===0?'00':'30');
+      return `<div class="cal-slot-line ${isLunch ? 'cal-lunch-zone' : ''}" data-time="${slotTime}" ondragover="onSlotDragOver(event)" ondragleave="onSlotDragLeave(event)" ondrop="onSlotDrop(event,'${d.date}','${slotTime}')"></div>`;
+    }).join('');
+
+    const blocks = dayEntries.map(e => {
+      const top = calTop(e.start);
+      const h = calH(e.dur);
+      const dimmed = selProc && e.proc !== selProc ? 'dimmed' : '';
+      const [sh, sm] = e.start.split(':');
+      const endMin = parseInt(sh)*60 + parseInt(sm) + e.dur;
+      const endH = String(Math.floor(endMin/60)).padStart(2,'0');
+      const endM = String(endMin%60).padStart(2,'0');
+
+      // Icons (inline, before subject text)
+      let icons = '';
+      if (e.st === 'external' && e.aiSummary) {
+        // Sparkles — AI summary available
+        icons += `<svg class="cal-ico" width="10" height="10" fill="none" stroke="#8b5cf6" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0;"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3zM5 19l1 3 1-3 3-1-3-1-1-3-1 3-3 1 3 1z"/></svg>`;
+      } else if (e.st === 'external' && e.transcript) {
+        // ScrollText — transcript available (no AI summary)
+        icons += `<svg class="cal-ico" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0;opacity:0.5;"><path d="M8 21h12a2 2 0 002-2v-2H10v2a2 2 0 01-2 2zm0 0a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11"/><path d="M13 3v4a1 1 0 001 1h4"/></svg>`;
+      }
+      if (e.drafted) {
+        // FileText — draft task created from this event
+        icons += `<svg class="cal-ico" width="10" height="10" fill="none" stroke="#10b981" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
+      }
+      const iconsHtml = icons ? `<span class="cal-icons">${icons}</span> ` : '';
+
+      // Action buttons (visible on hover)
+      let actions = '';
+      if (e.st === 'external' && !e.drafted) {
+        // ClipboardList — link to procedure/task template
+        actions += `<button class="cal-block-act" title="Прив'язати до задачі" onclick="showTaskPicker(this)"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg></button>`;
+        // FileText — create draft task
+        actions += `<button class="cal-block-act" title="Створити чернетку" onclick="event.stopPropagation();alert('Створити чернетку з: ${e.subj.replace(/'/g, "\\'")}')"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></button>`;
+      }
+      if (e.proc) {
+        actions += `<button class="cal-block-act act-del" title="Видалити" onclick="event.stopPropagation();alert('Видалити блок')"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>`;
+      }
+      const actionsHtml = actions ? `<div class="cal-actions">${actions}</div>` : '';
+
+      return `<div class="data-cell cal-block st-${e.st} ${dimmed}" style="top:${top}px;height:${h}px;--block-h:${h}px;" title="${e.subj}\n${e.start}–${endH}:${endM}${e.proc ? '\n'+e.proc : ''}">
+        ${actionsHtml}
+        <div class="cal-subj" style="${h < 40 ? 'font-size:10px;-webkit-line-clamp:1;' : ''}">${iconsHtml}${e.subj}</div>
+        ${h >= 48 ? `<div class="cal-time">${e.start} – ${endH}:${endM}</div>` : ''}
+        ${e.proc ? `<div class="cal-proc">${e.proc}</div>` : ''}
+        ${e.proc && e.st !== 'external' ? `<div class="cal-resize-handle" onpointerdown="onResizeStart(event,'${e.id}')" title="Змінити тривалість"></div>` : ''}
+      </div>`;
+    }).join('');
+
+    // Now line for today
+    const nowLine = d.isToday ? (() => {
+      const now = new Date();
+      const nowH = 10, nowM = 45; // hardcoded for demo
+      if (nowH < CAL.START || nowH >= CAL.END) return '';
+      const top = ((nowH - CAL.START) * 60 + nowM) / 30 * CAL.ROW_H;
+      return `<div class="cal-now-line" style="top:${top}px;"></div>`;
+    })() : '';
+
+    return `<div class="cal-day-col-wrap ${dayIdx === state.mobileCalDay ? 'mob-active' : ''}" style="flex:1;position:relative;border-left:1px solid rgba(203,213,225,0.5);min-width:0;">
+      ${slots}${blocks}${nowLine}
+    </div>`;
+  }).join('');
+
+  // Action buttons (right panel header, like detailHeader)
+  const icoAI = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.663 17h4.674M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>`;
+  const icoCopy = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
+  const icoSync = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>`;
+  const icoCloud = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>`;
+
+  const legendGlass = {
+    'distributed': { bg:'rgba(59,130,246,0.10)', border:'rgba(59,130,246,0.25)', color:'#3b82f6' },
+    'synced':      { bg:'rgba(16,185,129,0.10)', border:'rgba(16,185,129,0.25)', color:'#059669' },
+    'draft-task':  { bg:'rgba(245,158,11,0.10)', border:'rgba(245,158,11,0.25)', color:'#b45309' },
+    'in-task':     { bg:'rgba(34,197,94,0.10)',  border:'rgba(34,197,94,0.25)',  color:'#16a34a' },
+    'external':    { bg:'rgba(148,163,184,0.10)',border:'rgba(148,163,184,0.25)',color:'#64748b' },
+  };
+  const legendHtml = Object.entries(CAL_STATUS_COLORS).map(([k, v]) => {
+    const g = legendGlass[k] || legendGlass.external;
+    return `<div class="cal-legend-chip" style="background:${g.bg};border:1px solid ${g.border};color:${g.color};">${v.label}</div>`;
+  }).join('');
+
+  // Mobile day tabs
+  const mobDayTabs = calWeek.days.map((d, i) => {
+    const isActive = i === state.mobileCalDay;
+    const todayCls = d.isToday ? 'today' : '';
+    const evCount = calEntries.filter(e => e.day === i).length;
+    return `<button class="mob-day-tab ${isActive ? 'active' : ''} ${todayCls}" onclick="setMobileCalDay(${i})">
+      <div class="mob-day-name">${d.label}</div>
+      <div class="mob-day-num">${d.date}</div>
+      ${evCount > 0 ? `<div style="font-size:8px;color:${isActive ? '#6366f1' : '#94a3b8'};">${evCount} подій</div>` : ''}
+    </button>`;
+  }).join('');
+
+  // Mobile view toggle (day / week)
+  const icoDayView = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/><path d="M8 2v4M16 2v4"/></svg>`;
+  const icoWeekView = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 4v18M16 4v18"/></svg>`;
+  const mobViewToggle = `<div class="mob-view-toggle">
+    <button class="mob-view-btn ${state.mobileCalView === 'day' ? 'active' : ''}" onclick="setMobileCalView('day')" title="1 день">${icoDayView}</button>
+    <button class="mob-view-btn ${state.mobileCalView === 'week' ? 'active' : ''}" onclick="setMobileCalView('week')" title="5 днів">${icoWeekView}</button>
+  </div>`;
+
+  // Apply week mode class
+  const weekModeClass = state.mobileCalView === 'week' ? 'mob-week-mode' : '';
+
+  el.className = `flex-shrink-0 glass-panel rounded-xl flex flex-col p-2 ${weekModeClass}`;
+
+  el.innerHTML = `
+    <!-- Calendar table (rounded, inset style — includes header + grid + legend) -->
+    <div class="element-card cal-table">
+    <!-- Header with action buttons -->
+    <div class="detail-hdr">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px 12px;gap:12px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;font-weight:600;color:#64748b;">Тижневий календар</span>
+          ${mobViewToggle}
+        </div>
+        <div style="display:flex;align-items:center;gap:3px;">
+          <button class="cal-action-btn" title="AI Suggest" onclick="alert('AI Suggest')">${icoAI}</button>
+          <button class="cal-action-btn" title="Копіювати тиждень" onclick="alert('Копіювати тиждень')">${icoCopy}</button>
+          <button class="cal-action-btn" title="Pull з Outlook" onclick="alert('Pull з Outlook')">${icoSync}</button>
+          <button class="cal-action-btn accent" title="Push до Outlook" onclick="alert('Push до Outlook')">${icoCloud}</button>
+        </div>
+      </div>
+      <div class="hdr-sep"></div>
+    </div>
+    <!-- Mobile day tabs (day view only) -->
+    <div class="mob-day-tabs">${mobDayTabs}</div>
+      <!-- Day headers -->
+      <div class="glass-meta desktop-day-headers" style="display:flex;flex-shrink:0;padding-top:4px;padding-bottom:4px;position:relative;z-index:2;">
+        <div style="width:48px;flex-shrink:0;" class="cal-time-col"></div>
+        ${dayHeaders}
+      </div>
+      <!-- Grid -->
+      <div style="position:relative;flex-shrink:0;" onclick="if(event.target.closest('.cal-block'))return;clearCalProc()">
+        <div style="display:flex;min-height:${CAL_GRID_H}px;padding-top:4px;">
+          <div style="width:48px;flex-shrink:0;" class="cal-time-col">${timeLabels}</div>
+          ${dayCols}
+        </div>
+      </div>
+    <!-- Legend (cal-footer) -->
+    <div class="cal-footer">${legendHtml}</div>
+    </div>
+
+    <!-- Mock: Task Picker dropdown (shown on one block as demo) -->
+    <div class="element-card task-picker" id="mock-task-picker" style="display:none;top:0;left:0;">
+      <div class="detail-hdr" style="padding:8px 12px;">
+        <span style="font-size:11px;font-weight:600;color:#475569;">Призначити задачу</span>
+      </div>
+      <div class="task-picker-section">
+        <span class="section-badge" style="color:#4f46e5;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);">📋 Шаблони</span>
+      </div>
+      <div class="task-picker-item" onclick="alert('Шаблон: Аудит прав доступу')">
+        <svg class="tpi-icon" fill="none" stroke="#6366f1" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        <span>Аудит прав доступу</span>
+      </div>
+      <div class="task-picker-item" onclick="alert('Шаблон: Перевірка облікових записів')">
+        <svg class="tpi-icon" fill="none" stroke="#6366f1" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        <span>Перевірка облікових записів</span>
+      </div>
+      <div class="task-picker-section">
+        <span class="section-badge amber">⚠ В роботі (2)</span>
+      </div>
+      <div class="task-picker-item" onclick="alert('Задача: Сканування вразливостей')">
+        <svg class="tpi-icon" fill="none" stroke="#f59e0b" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <span>Сканування вразливостей АТБ</span>
+      </div>
+      <div class="task-picker-section">
+        <span class="section-badge" style="color:#7c3aed;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.2);">👤 Керівник</span>
+      </div>
+      <div class="task-picker-item" onclick="alert('Задача від керівника')">
+        <svg class="tpi-icon" fill="none" stroke="#7c3aed" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/></svg>
+        <span>Формування звіту аудиту</span>
+        <span style="font-size:9px;color:#7c3aed;background:rgba(139,92,246,0.1);padding:1px 4px;border-radius:3px;margin-left:auto;">HEAD</span>
+      </div>
+    </div>
+  `;
+
+  renderMyTasks();
+  renderMobileFabs();
+}
+
+// ── Mobile calendar helpers ──────────────────────────────
+function setMobileCalDay(idx) {
+  state.mobileCalDay = idx;
+  renderCalGrid();
+  renderCalSidebar();
+}
+
+function setMobileCalView(view) {
+  state.mobileCalView = view;
+  renderCalGrid();
+}
+
+function toggleMobilePanel(panel) {
+  state.mobileCalPanel = state.mobileCalPanel === panel ? null : panel;
+  renderMobileFabs();
+  renderMobileSheet();
+}
+
+function renderMobileFabs() {
+  // Remove existing
+  document.querySelectorAll('.mob-fab-row').forEach(el => el.remove());
+  if (window.innerWidth > 768 || state.currentTab !== 'cabinet') return;
+
+  const icoPlans = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
+  const icoTasks = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>`;
+
+  const div = document.createElement('div');
+  div.className = 'mob-fab-row';
+  div.innerHTML = `
+    <button class="mob-fab procs" onclick="toggleMobilePanel('procs')">${icoPlans} Плани</button>
+    <button class="mob-fab tasks" onclick="toggleMobilePanel('tasks')">${icoTasks} Задачі</button>
+  `;
+  document.body.appendChild(div);
+}
+
+function renderMobileSheet() {
+  // Remove existing
+  document.querySelectorAll('.mob-bottom-sheet').forEach(el => el.remove());
+  if (!state.mobileCalPanel || window.innerWidth > 768) return;
+
+  const sheet = document.createElement('div');
+  sheet.className = 'mob-bottom-sheet';
+
+  let content = '';
+  if (state.mobileCalPanel === 'procs') {
+    const sidebar = document.getElementById('cal-sidebar');
+    content = sidebar ? sidebar.innerHTML : '<div style="padding:16px;color:#94a3b8;">Немає процедур</div>';
+  } else if (state.mobileCalPanel === 'tasks') {
+    const tasks = document.getElementById('my-tasks-panel');
+    content = tasks ? tasks.innerHTML : '<div style="padding:16px;color:#94a3b8;">Немає задач</div>';
+  }
+
+  sheet.innerHTML = `
+    <div style="padding:4px 0 8px;cursor:pointer;" onclick="toggleMobilePanel(null)">
+      <div class="mob-sheet-handle"></div>
+    </div>
+    <div style="padding:0 12px 4px;font-size:12px;font-weight:600;color:#64748b;">
+      ${state.mobileCalPanel === 'procs' ? 'Процедури' : 'Мої задачі'}
+    </div>
+    <div class="mob-sheet-body">${content}</div>
+  `;
+
+  document.body.appendChild(sheet);
+  // Trigger animation
+  requestAnimationFrame(() => sheet.classList.add('open'));
+}
+
+// Touch swipe for mobile day switching
+let touchStartX = 0;
+document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+document.addEventListener('touchend', e => {
+  if (window.innerWidth > 768 || state.currentTab !== 'cabinet') return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  if (Math.abs(dx) < 60) return;
+  if (dx < 0 && state.mobileCalDay < 4) setMobileCalDay(state.mobileCalDay + 1);
+  if (dx > 0 && state.mobileCalDay > 0) setMobileCalDay(state.mobileCalDay - 1);
+});
+
+// ── My Tasks panel ──────────────────────────────────────
+function toggleTasksPanel() {
+  tasksExpanded = !tasksExpanded;
+  renderMyTasks();
+}
+function toggleQuickInput() {
+  showQuickInput = !showQuickInput;
+  renderMyTasks();
+}
+
+function renderMyTasks() {
+  const el = document.getElementById('my-tasks-panel');
+  if (!el) return;
+
+  const totalCount = myDrafts.length + myRecentTasks.length;
+  const chevron = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="transition:transform 0.2s;${tasksExpanded ? 'transform:rotate(180deg);' : ''}"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>`;
+  const icoClipboard = `<svg width="14" height="14" fill="none" stroke="#f59e0b" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>`;
+  const icoPlus = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>`;
+  const icoTrash = `<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`;
+  const icoArrow = `<svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>`;
+  const icoAI = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.663 17h4.674M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>`;
+  const icoWarn = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+  const icoList = `<svg width="12" height="12" fill="none" stroke="#0284c7" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>`;
+
+  // Plan options for dropdown
+  const planOptions = myActivePlans.map(g =>
+    `<optgroup label="${g.group}">${g.plans.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}</optgroup>`
+  ).join('');
+
+  // Drafts section
+  const draftsHtml = myDrafts.length > 0 ? `
+    <div style="border-bottom:1px solid rgba(245,158,11,0.15);">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;background:rgba(245,158,11,0.06);">
+        <span class="section-badge amber">${icoWarn} Чернетки (${myDrafts.length})</span>
+        <button class="cal-action-btn" title="Розібрати — AI розподіл чернеток по планах" onclick="alert('AI Розібрати — розподіл чернеток по планах')">${icoAI}</button>
+      </div>
+      <div>
+        ${myDrafts.map(d => `
+          <div class="task-row draft-row">
+            <span class="draft-date">${d.date}</span>
+            <span class="draft-desc">${d.desc}</span>
+            <select class="draft-select" onchange="this.parentElement.querySelector('.draft-assign-btn').className='draft-assign-btn '+(this.value?'ready':'disabled')">
+              <option value="">Оберіть план...</option>
+              ${planOptions}
+            </select>
+            <span class="draft-hours" style="color:#b45309;background:rgba(245,158,11,0.1);">${d.hours}г</span>
+            <div class="row-actions"><button class="action-btn-small act-assign disabled" onclick="alert('Привʼязати чернетку до плану')">${icoArrow}</button><button class="action-btn-small act-del" onclick="alert('Видалити чернетку')">${icoTrash}</button></div>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : '';
+
+  // Recent tasks section
+  const recentHtml = myRecentTasks.length > 0 ? `
+    <div>
+      <div style="padding:6px 14px;background:rgba(14,165,233,0.04);">
+        <span class="section-badge sky">${icoList} Незавершені (${myRecentTasks.length})</span>
+      </div>
+      <div>
+        ${myRecentTasks.map(t => `
+          <div class="task-row draft-row" style="cursor:pointer;" onclick="alert('Редагувати задачу: ${t.desc.replace(/'/g, "\\'")}')">
+            <span class="draft-date">${t.date}</span>
+            <span class="draft-desc">${t.desc}</span>
+            <span style="font-size:10px;color:#64748b;flex-shrink:0;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.procedure}</span>
+            <span class="draft-hours" style="color:#0369a1;background:rgba(14,165,233,0.08);">${t.hours}г</span>
+            <div class="row-actions"><button class="action-btn-small act-del" onclick="event.stopPropagation();alert('Видалити задачу')">${icoTrash}</button></div>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : '';
+
+  // Quick input
+  const quickHtml = showQuickInput ? `
+    <div class="quick-input-row">
+      <input type="text" class="quick-input" placeholder="аудит сервера 2ч" onkeydown="if(event.key==='Enter')alert('Додати чернетку: '+this.value)">
+      <button class="quick-add-btn" onclick="alert('Додати чернетку')">Додати</button>
+    </div>` : '';
+
+  // Empty state
+  const emptyHtml = myDrafts.length === 0 && myRecentTasks.length === 0 ? `
+    <div style="text-align:center;padding:20px 16px;">
+      <div style="color:#cbd5e1;margin-bottom:6px;">${icoClipboard.replace('stroke="#f59e0b"', 'stroke="#cbd5e1"').replace('width="14"', 'width="28"').replace('height="14"', 'height="28"')}</div>
+      <p style="font-size:13px;color:#94a3b8;">Немає задач</p>
+    </div>` : '';
+
+  el.innerHTML = `
+    <div class="element-card cal-table">
+    <div class="tasks-panel ${tasksExpanded ? 'expanded' : 'collapsed'}">
+      <div class="tasks-panel-hdr" onclick="toggleTasksPanel()">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${icoClipboard}
+          <span style="font-size:12px;font-weight:600;color:#475569;">Мої задачі</span>
+          <span style="font-size:10px;font-weight:600;color:#94a3b8;background:rgba(241,245,249,0.8);padding:1px 6px;border-radius:4px;">${totalCount}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          ${tasksExpanded ? `<button class="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600" onclick="event.stopPropagation();toggleQuickInput()" title="Додати задачу">${icoPlus}</button>` : ''}
+          <div style="color:#94a3b8;">${chevron}</div>
+        </div>
+      </div>
+      ${tasksExpanded ? `
+        <div class="tasks-panel-body">
+          ${quickHtml}
+          ${draftsHtml}
+          ${recentHtml}
+          ${emptyHtml}
+        </div>
+      ` : ''}
+    </div>
+    </div>
+  `;
+}
+
+// ── Calendar stats ──────────────────────────────────────
+function renderCalStats() {
+  const el = document.getElementById('cal-stats');
+  const planEntries = calEntries.filter(e => e.proc);
+  const extEntries = calEntries.filter(e => !e.proc);
+  const totalDist = planEntries.reduce((s, e) => s + e.dur, 0);
+  const totalSync = planEntries.filter(e => e.st === 'synced' || e.st === 'in-task').reduce((s, e) => s + e.dur, 0);
+  const totalExt = extEntries.reduce((s, e) => s + e.dur, 0);
+  const totalPlanned = calProcs.reduce((s, p) => s + p.planned, 0);
+  const distPct = totalPlanned > 0 ? Math.round(totalDist / totalPlanned * 100) : 0;
+
+  const { color: pctColor, txt: pctTxt, bg: pctBg, border: pctBorder } = pctChipStyle(distPct);
+
+  el.innerHTML = `
+    ${statChip((totalDist/60).toFixed(1).replace('.0','') + ' / ' + (totalPlanned/60).toFixed(0), 'ч', 'розподілено', 'rgba(59,130,246,0.10)', 'rgba(59,130,246,0.25)', '#1e3a5f', 'rgba(30,58,95,0.6)')}
+    ${statChip((totalSync/60).toFixed(1).replace('.0',''), 'ч', 'синхронізовано', 'rgba(16,185,129,0.10)', 'rgba(16,185,129,0.25)', '#065f46', 'rgba(6,95,70,0.6)')}
+    ${statChip((totalExt/60).toFixed(1).replace('.0',''), 'ч', 'зовнішніх', 'rgba(148,163,184,0.10)', 'rgba(148,163,184,0.25)', '#475569', 'rgba(71,85,105,0.6)')}
+    ${statChip(distPct + '', '%', 'покриття', pctBg, pctBorder, pctTxt, pctTxt + '99')}
+  `;
+}
+
+// ── Calendar main render ────────────────────────────────
+function renderCalendar() {
+  renderCalYMNav();
+  renderCalNav();
+  renderCalSidebar();
+  renderCalGrid();
+  renderCalStats();
+}
+
+// ========== MAIN RENDER ==========
+// ========== PROCESS VIEW ==========
+const PP_COLORS = [
+  { bg: 'rgba(14,165,233,0.12)', border: 'rgba(14,165,233,0.3)', text: '#0369a1', fill: '#0ea5e9', ring: 'rgba(14,165,233,0.35)' },
+  { bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)', text: '#047857', fill: '#10b981', ring: 'rgba(16,185,129,0.35)' },
+  { bg: 'rgba(139,92,246,0.12)',  border: 'rgba(139,92,246,0.3)',  text: '#6d28d9', fill: '#8b5cf6', ring: 'rgba(139,92,246,0.35)' },
+  { bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)', text: '#b45309', fill: '#f59e0b', ring: 'rgba(245,158,11,0.35)' },
+  { bg: 'rgba(244,63,94,0.12)',  border: 'rgba(244,63,94,0.3)',  text: '#be123c', fill: '#f43f5e', ring: 'rgba(244,63,94,0.35)' },
+  { bg: 'rgba(6,182,212,0.12)',  border: 'rgba(6,182,212,0.3)',  text: '#0e7490', fill: '#06b6d4', ring: 'rgba(6,182,212,0.35)' },
+  { bg: 'rgba(249,115,22,0.12)', border: 'rgba(249,115,22,0.3)', text: '#c2410c', fill: '#f97316', ring: 'rgba(249,115,22,0.35)' },
+  { bg: 'rgba(99,102,241,0.12)', border: 'rgba(99,102,241,0.3)', text: '#4338ca', fill: '#6366f1', ring: 'rgba(99,102,241,0.35)' },
+];
+
+function getProcesses() {
+  // Group by process from quarterly plans, filtered by selected quarter
+  const processMap = new Map();
+  quarterlyPlans
+    .filter(q => !state.quarter || q.quarter === state.quarter)
+    .forEach(q => {
+      const key = q.process;
+      if (!processMap.has(key)) {
+        const annual = annualPlans.find(a => a.id === q.annualId);
+        processMap.set(key, { name: key, dept: annual?.dept || '', plans: [], quarters: [] });
+      }
+      const proc = processMap.get(key);
+      proc.quarters.push(q);
+      const mPlans = monthlyPlans.filter(m => m.quarterlyId === q.id);
+      proc.plans.push(...mPlans);
+    });
+  return [...processMap.values()];
+}
+
+function renderProcessView() {
+  // Auto-select first quarter with plans if none selected
+  if (!state.quarter) {
+    const quartersWithPlans = [...new Set(quarterlyPlans.map(q => q.quarter))].sort((a,b) => a - b);
+    state.quarter = quartersWithPlans[0] || 1;
+  }
+  renderProcessNav();
+  renderProcessSidebar();
+  renderProcessRightNav();
+  renderProcessGrid();
+  renderProcessDetail();
+  renderProcessStats();
+}
+
+function renderProcessNav() {
+  const nav = document.getElementById('pp-nav-bar');
+  // Year carousel — cabinet style: 3 items in nav-group (prev, active, next)
+  const y = state.year;
+  let html = '<div class="nav-group" style="flex-shrink:0;">';
+  html += `<button class="nav-btn" onclick="state.year=${y-1};renderProcessView()">${y-1}</button>`;
+  html += `<button class="nav-btn active">${y}</button>`;
+  html += `<button class="nav-btn" onclick="state.year=${y+1};renderProcessView()">${y+1}</button>`;
+  html += '</div>';
+
+  html += '<div style="width:6px;flex-shrink:0;"></div>';
+
+  // Quarter pills — always one selected, no toggle off
+  const quartersWithPlans = new Set(quarterlyPlans.map(q => q.quarter));
+  html += '<div class="nav-group" style="flex-shrink:0;">';
+  [1,2,3,4].forEach(q => {
+    const hasPlans = quartersWithPlans.has(q);
+    const dis = !hasPlans ? 'opacity:0.3;cursor:default;pointer-events:none;' : '';
+    const isActive = state.quarter === q;
+    const cls = isActive ? 'active' : '';
+    html += `<button class="nav-btn ${cls}" style="width:36px;${dis}" onclick="state.quarter=${q};state.ppSelectedCell=null;renderProcessView()">Q${q}</button>`;
+  });
+  html += '</div>';
+  nav.innerHTML = html;
+}
+
+function renderProcessSidebar() {
+  const el = document.getElementById('pp-sidebar');
+  const processes = getProcesses();
+
+  if (processes.length === 0) {
+    el.innerHTML = '<div class="flex items-center justify-center py-10 text-sm text-slate-400">Немає процесів</div>';
+    return;
+  }
+
+  // NO auto-select — null means "all processes"
+
+  const ppClick = (name) => `state.ppSelectedProcess=${name ? "'" + name.replace(/'/g, "\\\\'") + "'" : 'null'};state.ppSelectedCell=null;state.mobileView='detail';renderProcessSidebar();renderProcessRightNav();renderProcessGrid();renderProcessDetail();renderProcessStats();updatePPMobileView();`;
+
+  // Helper: render one sidebar card — exact Cabinet plan-item pattern
+  function ppSidebarCard(label, dept, totalH, totalP, planCount, color, isSelected, onclick) {
+    const p = pct(totalH, totalP);
+    const barW = totalP > 0 ? Math.min(Math.round(totalH / totalP * 100), 100) : 0;
+    const remaining = totalP - totalH;
+    return `<div class="element-card plan-item ${isSelected ? 'active' : ''}" style="padding:10px 12px;cursor:pointer;border-left:3px solid ${isSelected ? '#6366f1' : 'transparent'};" onclick="${onclick}">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        ${planBadge(dept, 'blue')}
+        <span style="font-size:10px;color:#94a3b8;">${planCount} ${planCount === 1 ? 'план' : planCount < 5 ? 'плани' : 'планів'}</span>
+        <span style="margin-left:auto;font-size:11px;font-weight:700;color:${p >= 100 ? '#10b981' : progressColor(p)};">${p}%</span>
+      </div>
+      <p style="font-size:13px;font-weight:500;line-height:1.35;color:${isSelected ? '#1e3a5f' : '#334155'};margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${label}</p>
+      <div style="height:5px;border-radius:3px;background:rgba(226,232,240,0.5);overflow:hidden;position:relative;margin-bottom:5px;">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:${barW}%;background:${progressColor(p)};opacity:0.3;border-radius:3px;"></div>
+        <div style="position:absolute;left:0;top:0;bottom:0;width:${Math.min(barW, 100)}%;background:${progressColor(p)};border-radius:3px;"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:3px;font-size:10px;font-family:ui-monospace,monospace;">
+        <span style="color:${progressColor(p)};">✓${totalH}</span>
+        <span style="color:#94a3b8;">·</span>
+        ${remaining > 0 ? `<span style="color:#1e3a5f;">+${remaining}</span><span style="color:#94a3b8;">·</span>` : ''}
+        <span style="color:#64748b;">/ ${totalP}г</span>
+      </div>
+    </div>`;
+  }
+
+  let html = '<div style="padding:4px 4px;" class="space-y-1">';
+
+  // "All processes" tile
+  const allSelected = !state.ppSelectedProcess;
+  const allH = processes.reduce((s, p) => s + p.plans.reduce((ss, m) => ss + m.hours, 0), 0);
+  const allP = processes.reduce((s, p) => s + p.plans.reduce((ss, m) => ss + m.planned, 0), 0);
+  const allCount = processes.reduce((s, p) => s + p.plans.length, 0);
+  html += ppSidebarCard('Усі процеси', processes.length + ' проц.', allH, allP, allCount, '#6366f1', allSelected, ppClick(null));
+
+  processes.forEach((proc, i) => {
+    const c = PP_COLORS[i % PP_COLORS.length];
+    const isSelected = state.ppSelectedProcess === proc.name;
+    const totalH = proc.plans.reduce((s, m) => s + m.hours, 0);
+    const totalP = proc.plans.reduce((s, m) => s + m.planned, 0);
+    html += ppSidebarCard(proc.name, proc.dept, totalH, totalP, proc.plans.length, c.fill, isSelected, ppClick(proc.name));
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ─── RIGHT PANEL: NAV (quarters + status filters) ───────────────────────────
+function renderProcessRightNav() {
+  const el = document.getElementById('pp-right-nav');
+
+  const statusFilters = [
+    { key: 'all',       label: 'Усі',         grad: 'linear-gradient(145deg,#94a3b8,#64748b)', glow: 'rgba(100,116,139,0.4)' },
+    { key: 'active',    label: 'В роботі',    grad: 'linear-gradient(145deg,#6366f1,#4f46e5)', glow: 'rgba(99,102,241,0.4)' },
+    { key: 'preparing', label: 'Підготовка',   grad: 'linear-gradient(145deg,#64748b,#475569)', glow: 'rgba(100,116,139,0.4)' },
+    { key: 'done',      label: 'Завершено',    grad: 'linear-gradient(145deg,#34d399,#059669)', glow: 'rgba(16,185,129,0.4)' },
+  ];
+
+  const icoReport = '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+  const icoAI = '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a4 4 0 014 4c0 1.95-1.4 3.58-3.25 3.93L12 22l-.75-12.07A4.001 4.001 0 0112 2z"/></svg>';
+  const icoExport = '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+
+  const backBtn = `<button onclick="ppMobileBack()" class="mobile-back items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-colors" style="margin:8px 16px 4px;">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    До списку
+  </button>`;
+
+  el.innerHTML = `
+    ${backBtn}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;gap:8px;">
+      <div class="status-wrap" style="flex:1;display:flex;">
+        ${statusFilters.map(f => {
+          const isActive = state.ppFilter === f.key;
+          const btnStyle = isActive
+            ? `background:${f.grad};color:white;box-shadow:0 2px 8px ${f.glow},0 1px 2px rgba(0,0,0,0.12),inset 0 1px 0 rgba(255,255,255,0.2);font-weight:600;`
+            : '';
+          return `<button style="flex:1;text-align:center;padding:4px 12px;font-size:11px;font-weight:500;border:none;border-radius:6px;background:transparent;color:#64748b;transition:all 0.15s;cursor:pointer;${btnStyle}" onclick="state.ppFilter='${f.key}';state.ppSelectedCell=null;renderProcessRightNav();renderProcessGrid();renderProcessDetail()">${f.label}</button>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;align-items:center;gap:3px;flex-shrink:0;">
+        <button class="cal-action-btn" title="AI аналіз">${icoAI}</button>
+        <button class="cal-action-btn" title="Звіт">${icoReport}</button>
+        <button class="cal-action-btn accent" title="Експорт">${icoExport}</button>
+      </div>
+    </div>
+    <div class="hdr-sep"></div>`;
+}
+
+// ─── RIGHT PANEL: MAIN GRID (procedures × months) ───────────────────────────
+function renderProcessGrid() {
+  const el = document.getElementById('pp-grid');
+  const processes = getProcesses();
+
+  // Collect all plans: from selected process or ALL processes
+  let allPlans = [];
+  if (state.ppSelectedProcess) {
+    const proc = processes.find(p => p.name === state.ppSelectedProcess);
+    if (!proc) { el.innerHTML = ''; return; }
+    allPlans = proc.plans;
+  } else {
+    processes.forEach(p => allPlans.push(...p.plans));
+  }
+
+  // Group plans by procedure
+  const procedureMap = new Map();
+  allPlans.forEach(m => {
+    if (!procedureMap.has(m.procedure)) procedureMap.set(m.procedure, { plans: [], processName: null });
+    procedureMap.get(m.procedure).plans.push(m);
+  });
+  // Attach process color info
+  allPlans.forEach(m => {
+    const entry = procedureMap.get(m.procedure);
+    if (!entry.processName) {
+      // Find which process this plan belongs to
+      for (const proc of processes) {
+        if (proc.plans.includes(m)) { entry.processName = proc.name; break; }
+      }
+    }
+  });
+  const procedures = [...procedureMap.entries()];
+
+  // Always 3 months from selected quarter
+  const qStart = (state.quarter - 1) * 3 + 1;
+  const months = [qStart, qStart + 1, qStart + 2];
+
+  // Filter by status
+  const statusFilter = (plan) => {
+    if (state.ppFilter === 'all') return true;
+    if (state.ppFilter === 'active') return plan.status === 'active';
+    if (state.ppFilter === 'preparing') return ['draft','returned','submitted','approved'].includes(plan.status);
+    return ['completed','failed'].includes(plan.status);
+  };
+
+  const monthShort = ['','Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Гру'];
+
+  const colCount = months.length + 1; // procedure col + month cols
+  let html = `<div style="padding:0;">`;
+
+  // Grid with background lines
+  html += `<div style="display:grid;grid-template-columns:minmax(200px,1.2fr) repeat(${months.length}, minmax(110px,1fr));gap:0;">`;
+
+  // Header row
+  html += `<div class="pp-grid-hdr" style="text-align:left;padding-left:16px;border-right:1px solid rgba(203,213,225,0.35);">Процедура</div>`;
+  months.forEach(m => {
+    html += `<div class="pp-grid-hdr">${monthShort[m]}</div>`;
+  });
+
+  // Rows: procedures
+  procedures.forEach(([procName, data]) => {
+    const plans = data.plans;
+    const filteredPlans = plans.filter(statusFilter);
+    if (state.ppFilter !== 'all' && filteredPlans.length === 0) return;
+
+    // Get color from process
+    const procIdx = processes.findIndex(p => p.name === data.processName);
+    const c = PP_COLORS[Math.max(0, procIdx) % PP_COLORS.length];
+
+    const totalProcH = plans.reduce((s, p) => s + p.hours, 0);
+    const totalProcP = plans.reduce((s, p) => s + p.planned, 0);
+    const procPct = pct(totalProcH, totalProcP);
+    const isRowSelected = state.ppSelectedCell?.procedureId === procName;
+    // Procedure name cell — with bottom border line + 
+    html += `<div class="pp-grid-proc ${isRowSelected ? 'row-selected' : ''}" style="border-bottom:1px solid rgba(203,213,225,0.4)">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div style="width:4px;height:16px;border-radius:2px;background:${c.fill};flex-shrink:0;"></div>
+        <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;" title="${procName}">${procName}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="pp-grid-proc-bar">
+          <div class="pp-grid-proc-bar-fill" style="width:${Math.min(procPct,100)}%;background:${c.fill};"></div>
+        </div>
+        <span style="font-size:10px;font-weight:700;color:${progressColor(procPct)};">${procPct}%</span>
+        <span style="font-size:9px;color:#94a3b8;">${totalProcH}/${totalProcP}г</span>
+      </div>
+    </div>`;
+
+    // Month cells — use CSS .st-{status} classes (same as cal-block)
+
+    months.forEach(mo => {
+      const plan = plans.find(p => p.month === mo);
+      const cellBorder = `border-bottom:1px solid rgba(203,213,225,0.4);border-left:1px solid rgba(226,232,240,0.3)`;
+      if (!plan) {
+        html += `<div style="${cellBorder}display:flex;align-items:center;justify-content:center;min-height:60px;padding:4px;">
+          <span style="font-size:14px;color:#e2e8f0;">—</span>
+        </div>`;
+        return;
+      }
+
+      const p = pct(plan.hours, plan.planned);
+      const sc = STATUS_CONFIG[plan.status] || STATUS_CONFIG.draft;
+      const stClass = 'st-' + (plan.status || 'draft');
+      const isSelected = state.ppSelectedCell?.procedureId === procName && state.ppSelectedCell?.month === mo;
+      const passesFilter = statusFilter(plan);
+      const taskCount = (plan.employees || []).reduce((s, e) => s + e.tasks.length, 0);
+      const empCount = (plan.employees || []).length;
+
+      html += `<div style="${cellBorder}padding:4px;${!passesFilter ? 'opacity:0.25;pointer-events:none;' : ''}">
+        <div class="data-cell pp-matrix-cell ${stClass} ${isSelected ? 'selected' : ''}"
+          onclick="state.ppSelectedCell={procedureId:'${procName.replace(/'/g,"\\'")}',month:${mo},processName:'${(data.processName||'').replace(/'/g,"\\'")}'};renderProcessGrid();renderProcessDetail()">
+          <div style="display:flex;align-items:center;gap:5px;">
+            <span style="font-size:8px;">●</span>
+            <span class="cell-pct">${p}%</span>
+          </div>
+          <div class="cell-hours">${plan.hours}/${plan.planned} год</div>
+          <div class="cell-meta">
+            ${taskCount > 0 ? `<span>${taskCount} зад.</span>` : ''}
+            ${empCount > 0 ? `<span>${empCount} вик.</span>` : ''}
+          </div>
+          <div class="cell-bar">
+            <div class="cell-bar-fill" style="width:${Math.min(p,100)}%;background:${sc.dot};"></div>
+          </div>
+        </div>
+      </div>`;
+    });
+  });
+
+  html += `</div></div>`;
+  el.innerHTML = html;
+
+  // Summary row — rendered into separate non-scrollable container
+  const sumEl = document.getElementById('pp-grid-summary');
+  const sumByMonth = {};
+  months.forEach(mo => { sumByMonth[mo] = { hours: 0, planned: 0, count: 0 }; });
+  procedures.forEach(([, data]) => {
+    const plans = data.plans.filter(statusFilter);
+    plans.forEach(p => {
+      if (sumByMonth[p.month]) {
+        sumByMonth[p.month].hours += p.hours;
+        sumByMonth[p.month].planned += p.planned;
+        sumByMonth[p.month].count++;
+      }
+    });
+  });
+  let sumHtml = `<div style="display:grid;grid-template-columns:minmax(200px,1.2fr) repeat(${months.length}, minmax(110px,1fr));gap:0;border-top:1px solid rgba(203,213,225,0.4);">`;
+  sumHtml += `<div style="border-right:1px solid rgba(203,213,225,0.35);padding:8px 12px;display:flex;align-items:center;background:rgba(241,245,249,0.5);">
+    <span style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Разом</span>
+  </div>`;
+  months.forEach(mo => {
+    const s = sumByMonth[mo];
+    const p = pct(s.hours, s.planned);
+    const col = progressColor(p);
+    sumHtml += `<div style="border-left:1px solid rgba(226,232,240,0.3);padding:6px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:rgba(241,245,249,0.5);">
+      <span style="font-size:12px;font-weight:700;color:${col};">${p}%</span>
+      <span style="font-size:10px;color:#64748b;font-weight:500;">${s.hours}/${s.planned} год · ${s.count} пл.</span>
+    </div>`;
+  });
+  sumHtml += `</div>`;
+  sumEl.innerHTML = sumHtml;
+}
+
+// ─── RIGHT PANEL: DETAIL (tasks for selected cell) ──────────────────────────
+function renderProcessDetail() {
+  const el = document.getElementById('pp-detail');
+  const detailZone = document.getElementById('pp-detail-zone');
+  const processes = getProcesses();
+
+  if (!state.ppSelectedCell) { el.innerHTML = ''; if (detailZone) detailZone.style.display = 'none'; return; }
+  if (detailZone) detailZone.style.display = '';
+
+  const cell = state.ppSelectedCell;
+
+  // Find plan: from selected process or across all
+  let plan = null;
+  let ownerProc = null;
+  if (state.ppSelectedProcess) {
+    ownerProc = processes.find(p => p.name === state.ppSelectedProcess);
+    if (ownerProc) plan = ownerProc.plans.find(m => m.procedure === cell.procedureId && m.month === cell.month);
+  } else {
+    for (const proc of processes) {
+      plan = proc.plans.find(m => m.procedure === cell.procedureId && m.month === cell.month);
+      if (plan) { ownerProc = proc; break; }
+    }
+  }
+  if (!plan) { el.innerHTML = ''; return; }
+
+  const procIdx = processes.findIndex(p => p.name === ownerProc.name);
+  const c = PP_COLORS[Math.max(0, procIdx) % PP_COLORS.length];
+  const p = pct(plan.hours, plan.planned);
+  const sc = STATUS_CONFIG[plan.status] || STATUS_CONFIG.draft;
+  const employees = plan.employees || [];
+  const empCount = employees.length;
+
+  // Seed random for consistent checkboxes
+  let seed = 42;
+  function seededRandom() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+
+  // Resolve company names
+  const planCompanies = (plan.companies || []).map(id => companies.find(x => x.id === id)).filter(Boolean);
+  const distLabel = DIST_TYPES.find(d => d.key === plan.distributionType)?.label || '';
+
+  let html = `<div class="detail-wrap" style="display:flex;flex-direction:column;height:100%;">`;
+
+  // Header: description + meta (fixed, not scrollable)
+  html += `<div class="detail-summary-hdr" style="padding:10px 16px;background:rgba(248,250,252,0.5);flex-shrink:0;">
+    <div class="detail-title-row" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <div class="detail-color-bar" style="width:4px;height:20px;border-radius:2px;background:${c.fill};flex-shrink:0;"></div>
+      <div class="detail-meta-inline" style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;">
+        <span style="font-size:11px;font-weight:600;color:#475569;">${monthFullNames[plan.month]} 2026</span>
+        <span class="detail-status-badge" style="font-size:9px;padding:1px 5px;border-radius:4px;background:${sc.dot}18;color:${sc.dot};font-weight:600;">${sc.label}</span>
+        <span style="font-size:11px;font-weight:600;color:#1e293b;">${plan.hours}/${plan.planned} год</span>
+        <span style="font-size:10px;font-weight:700;color:${progressColor(p)};">${p}%</span>
+        ${empCount > 0 ? `<span style="font-size:10px;color:#94a3b8;">${empCount} вик.</span>` : ''}
+      </div>
+      <button class="pp-hdr-btn" style="background:none;border:none;cursor:pointer;padding:4px;color:#94a3b8;transition:color 0.15s;" onmouseenter="this.style.color='#6366f1'" onmouseleave="this.style.color='#94a3b8'" title="Додати задачу">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <button class="pp-hdr-btn" style="background:none;border:none;cursor:pointer;padding:4px;color:#94a3b8;transition:color 0.15s;" onmouseenter="this.style.color='#ef4444'" onmouseleave="this.style.color='#94a3b8'" onclick="state.ppSelectedCell=null;renderProcessGrid();renderProcessDetail()" title="Закрити">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    ${plan.description ? `<div class="detail-quote" style="font-size:11px;color:#64748b;line-height:1.5;margin-bottom:6px;padding-left:12px;border-left:2px solid ${c.fill}40;">${plan.description}</div>` : ''}
+    ${planCompanies.length > 0 ? `<div class="detail-companies" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+      <span style="font-size:10px;color:#94a3b8;font-weight:500;">Компанії:</span>
+      ${planCompanies.map(co => `<span class="company-chip" style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(99,102,241,0.08);color:#6366f1;font-weight:500;">${co.name}</span>`).join('')}
+      ${distLabel ? `<span style="font-size:9px;color:#94a3b8;margin-left:4px;">(${distLabel})</span>` : ''}
+    </div>` : ''}
+  </div>`;
+
+  // Tasks grouped by employee (scrollable)
+  html += `<div class="tasks-scroll" style="flex:1;overflow-y:auto;" class="custom-scroll">`;
+  if (employees.length > 0) {
+    employees.forEach(emp => {
+      const empPct = emp.plannedHours > 0 ? Math.round(emp.hours / emp.plannedHours * 100) : 0;
+      const bt = BADGE_TONES[emp.color] || { bg: 'rgba(99,102,241,0.12)', border: 'rgba(99,102,241,0.3)', color: '#6366f1' };
+
+      // Employee header
+      html += `<div class="emp-group-hdr" style="display:flex;align-items:center;gap:8px;padding:6px 16px;background:rgba(248,250,252,0.3);border-top:1px solid rgba(226,232,240,0.25);">
+        <div class="emp-avatar" style="width:26px;height:26px;border-radius:7px;background:${bt.bg};border:1px solid ${bt.border};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <span style="font-size:8px;font-weight:700;color:${bt.color};">${emp.initials}</span>
+        </div>
+        <span style="font-size:12px;font-weight:600;color:#334155;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${emp.name}</span>
+        <span style="font-size:10px;font-weight:600;color:${progressColor(empPct)};">${emp.hours}/${emp.plannedHours} год · ${empPct}%</span>
+      </div>`;
+
+      // Employee tasks
+      if (emp.tasks.length > 0) {
+        emp.tasks.forEach(t => {
+          const isDone = seededRandom() > 0.5;
+          html += `<div class="task-row pp-task-row" style="padding-left:50px;">
+            <div class="pp-task-check ${isDone ? 'done' : 'pending'}">
+              ${isDone ? '<svg width="10" height="10" fill="none" stroke="white" stroke-width="3" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>' : ''}
+            </div>
+            <span style="font-size:11px;color:#94a3b8;width:40px;flex-shrink:0;font-family:ui-monospace,monospace;">${t.date}</span>
+            <span style="font-size:12px;color:#334155;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.desc}</span>
+            <span style="font-size:11px;font-weight:600;color:#64748b;flex-shrink:0;">${t.hours} г</span>
+            <div class="row-actions">
+              <button class="action-btn-small act-edit" onclick="event.stopPropagation()" title="Редагувати"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
+              <button class="action-btn-small act-del" onclick="event.stopPropagation()" title="Видалити"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
+            </div>
+          </div>`;
+        });
+      } else {
+        html += `<div style="padding:6px 16px 6px 50px;font-size:11px;color:#cbd5e1;font-style:italic;">Задач ще немає</div>`;
+      }
+    });
+  } else {
+    html += `<div style="padding:16px;text-align:center;color:#94a3b8;font-size:12px;">Немає виконавців</div>`;
+  }
+
+  html += `</div>`; // close scrollable tasks div
+
+  // Summary for tasks (fixed, not scrollable)
+  if (employees.length > 0) {
+    const totalTasks = employees.reduce((s, e) => s + e.tasks.length, 0);
+    const totalTaskH = employees.reduce((s, e) => s + e.tasks.reduce((ss, t) => ss + t.hours, 0), 0);
+    const doneTasks = (() => { let sd = 42; function sr() { sd = (sd * 16807) % 2147483647; return (sd - 1) / 2147483646; } let d = 0; employees.forEach(e => e.tasks.forEach(() => { if (sr() > 0.5) d++; })); return d; })();
+    html += `<div class="summary-row" style="flex-shrink:0;display:flex;align-items:center;gap:8px;padding:8px 16px;border-top:1px solid rgba(203,213,225,0.4);background:rgba(241,245,249,0.5);">
+      <span style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Разом</span>
+      <span style="font-size:11px;font-weight:600;color:#334155;margin-left:auto;">${doneTasks}/${totalTasks} задач · ${totalTaskH} год</span>
+    </div>`;
+  }
+
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+function renderProcessStats() {
+  const el = document.getElementById('pp-stats');
+  const processes = getProcesses();
+
+  // Stats for selected process or ALL
+  let plans;
+  if (state.ppSelectedProcess) {
+    const proc = processes.find(p => p.name === state.ppSelectedProcess);
+    if (!proc) { el.innerHTML = ''; return; }
+    plans = proc.plans;
+  } else {
+    plans = processes.flatMap(p => p.plans);
+  }
+
+  const totalH = plans.reduce((s, m) => s + m.hours, 0);
+  const totalP = plans.reduce((s, m) => s + m.planned, 0);
+  const pc = pct(totalH, totalP);
+
+  const { color: pctColor, txt: pctTxt, bg: pctBg, border: pctBorder } = pctChipStyle(pc);
+
+  el.innerHTML = `
+    ${statChip(plans.length, '', 'планів', 'rgba(99,102,241,0.10)', 'rgba(99,102,241,0.25)', '#4338ca', 'rgba(67,56,202,0.6)')}
+    ${statChip(totalH + ' / ' + totalP, 'г', 'годин', 'rgba(59,130,246,0.10)', 'rgba(59,130,246,0.25)', '#1e3a5f', 'rgba(30,58,95,0.6)')}
+    ${statChip(pc + '', '%', 'прогрес', pctBg, pctBorder, pctTxt, pctTxt + '99')}`;
+}
+
+// ========== ELEMENT LABELS OVERLAY ==========
+let labelsOn = false;
+const taggedNodes = []; // { node, cat }
+
+// Map: CSS selector → [label text, category]
+const ELEMENT_LABELS = [
+  // Glass panels
+  ['.glass-panel', 'L1: zone', 'zone'],
+  ['.glass-detail', 'L1: zone (detail variant)', 'zone'],
+  ['.glass-header', 'glass-header', 'glass'],
+  ['.glass-meta', 'glass-meta', 'glass'],
+  ['.glass-input', 'glass-input', 'glass'],
+  // Nav
+  ['.nav-group', 'filter-scroll / filter-select', 'nav'],
+  ['.nav-btn.active', 'nav-btn.active', 'nav'],
+  ['.nav-btn.ctx', 'nav-btn.ctx (parent context)', 'nav'],
+  ['.status-wrap', 'filter-status', 'nav'],
+  ['.cal-legend-chip', 'filter-chips', 'nav'],
+  // Base → extends
+  ['.pp-matrix-cell:not(.empty)', 'data-cell \u2192 matrix-cell', 'extend'],
+  ['.element-card', 'L2: element-card (base for all elements)', 'base'],
+  ['.cal-table', 'element-card \u2192 cal-table', 'extend'],
+  ['.cal-footer', 'cal-footer (legend inside cal-table)', 'detail'],
+  ['.plan-item', 'element-card \u2192 sidebar-card', 'extend'],
+  ['.proc-item', 'element-card \u2192 proc-item', 'extend'],
+  ['.cal-block', 'L3: data-cell \u2192 cal-block (item)', 'extend'],
+  ['.pp-task-row', 'L3: task-row \u2192 plan-task-row (item)', 'extend'],
+  ['.draft-row', 'L3: task-row \u2192 draft-row (item)', 'extend'],
+  ['.pp-tile', 'element-card \u2192 pp-tile', 'extend'],
+  // Detail
+  ['.detail-hdr', 'detail-header', 'detail'],
+  ['.hdr-sep', 'hdr-sep', 'detail'],
+  ['.info-card', 'info-card', 'detail'],
+  ['.inset-box', 'inset-box', 'detail'],
+  ['.stat-cell', 'stat-cell', 'detail'],
+  ['.hours-grid', 'hours-grid', 'detail'],
+  ['.meta-strip', 'meta-strip', 'detail'],
+  ['.prop-label', 'prop-label', 'detail'],
+  ['.sec-label', 'sec-label', 'detail'],
+  ['.section-badge', 'section-badge', 'detail'],
+  ['.child-card', 'child-card', 'base'],
+  ['.emp-card', 'emp-card', 'base'],
+  // Actions
+  ['.cal-action-btn', 'action-btn', 'action'],
+  ['.action-btn-small', 'action-btn-small (hidden until parent hover)', 'action'],
+  ['.row-actions, .cal-actions', 'action-btn-small container (opacity:0→1 on hover)', 'action'],
+  ['.task-picker', 'L2: element-card → task-picker (popup dropdown)', 'extend'],
+  ['.task-picker-item', 'task-picker-item', 'detail'],
+  ['.proc-item.dragging', 'proc-item drag state', 'extend'],
+  ['.cal-slot-line.drop-target', 'drop-target highlight', 'extend'],
+  ['.cal-resize-handle', 'resize handle (plan blocks, ns-resize)', 'action'],
+  ['.cal-tool-btn', 'cal-tool-btn', 'action'],
+  ['.ai-suggest-btn', 'ai-suggest-btn', 'action'],
+  ['.draft-assign-btn', 'draft-assign-btn', 'action'],
+  ['.quick-add-btn', 'quick-add-btn', 'action'],
+  ['.quick-input-row', 'quick-input-row', 'action'],
+  // Plan2 specific
+  ['.pp-grid-hdr', 'pp-grid-hdr', 'base'],
+  ['.pp-grid-proc', 'pp-grid-proc', 'base'],
+  ['.pp-plan-card', 'pp-plan-card', 'base'],
+  ['.pp-emp-row', 'pp-emp-row', 'base'],
+  ['.pp-task-check', 'pp-task-check', 'base'],
+  ['.pp-tasks-hdr', 'pp-tasks-hdr (collapse toggle)', 'base'],
+  ['.pp-hdr-btn', 'action-btn (in detail-header)', 'action'],
+  // Detail-zone decomposition (Plan2)
+  ['.detail-wrap', 'detail-wrap (flex column container)', 'zone'],
+  ['.detail-summary-hdr', 'detail-summary-hdr (fixed header)', 'detail'],
+  ['.detail-title-row', 'detail-title-row (month+status+hours+btns)', 'detail'],
+  ['.detail-color-bar', 'detail-color-bar (process accent)', 'detail'],
+  ['.detail-meta-inline', 'detail-meta-inline (month, badge, hours, %)', 'detail'],
+  ['.detail-status-badge', 'detail-status-badge (status pill)', 'detail'],
+  ['.detail-quote', 'detail-quote (description, border-left)', 'detail'],
+  ['.detail-companies', 'detail-companies (chip row)', 'detail'],
+  ['.company-chip', 'company-chip (indigo bg 8%)', 'detail'],
+  ['.tasks-scroll', 'tasks-scroll (flex:1, overflow-y)', 'zone'],
+  ['.emp-group-hdr', 'emp-group-hdr (avatar+name+progress)', 'detail'],
+  ['.emp-avatar', 'emp-avatar (26\u00d726, radius:7px, colored)', 'detail'],
+  ['.summary-row', 'summary-row (\u0420\u0410\u0417\u041e\u041c, border-top)', 'base'],
+  // Cabinet specific
+  ['.tasks-panel-hdr', 'tasks-panel-hdr (collapse toggle)', 'base'],
+  ['.draft-date', 'draft-date', 'detail'],
+  ['.draft-desc', 'draft-desc', 'detail'],
+  ['.draft-hours', 'draft-hours', 'detail'],
+  ['.draft-select', 'draft-select', 'detail'],
+  // Role badge
+  ['.role-badge', 'role-badge', 'base'],
+  // Section tabs
+  ['.sec-tab', 'sec-tab (section navigation)', 'nav'],
+  // Zones
+  ['#pp-filters', 'filter-zone (plan2 nav)', 'zone'],
+  ['#pp-stats', 'stats-zone', 'zone'],
+  ['#cal-stats', 'stats-zone', 'zone'],
+  ['#my-tasks-panel', 'tasks-zone', 'zone'],
+  ['#pp-content-zone', 'content-zone (matrix)', 'zone'],
+  ['#pp-detail-zone', 'detail-zone', 'zone'],
+  ['#pp-grid', 'content-zone (matrix)', 'zone'],
+  ['#pp-right-nav', 'detail-hdr (filters+actions inside cal-table)', 'detail'],
+  ['#pp-sidebar', 'list-zone (plans)', 'zone'],
+  ['#cal-filters', 'filter-zone (year/month + weeks)', 'zone'],
+  ['#cal-sidebar', 'list-zone (procedures)', 'zone'],
+  ['#cal-grid-panel', 'calendar-zone', 'zone'],
+];
+
+// Create tooltip element
+const elTooltip = document.createElement('div');
+elTooltip.id = 'el-tooltip';
+document.body.appendChild(elTooltip);
+
+function toggleLabels() {
+  labelsOn = !labelsOn;
+  const btn = document.getElementById('label-toggle-btn');
+  if (labelsOn) {
+    btn.style.background = 'rgba(255,255,255,0.5)';
+    btn.style.color = '#312e81';
+    applyOutlines();
+  } else {
+    btn.style.background = 'rgba(255,255,255,0.18)';
+    btn.style.color = 'white';
+    removeOutlines();
+    elTooltip.className = '';
+  }
+}
+
+function applyOutlines() {
+  removeOutlines();
+  for (const [sel, text, cat] of ELEMENT_LABELS) {
+    document.querySelectorAll(sel).forEach(node => {
+      node.classList.add('el-out-' + cat);
+      node.dataset.elName = text;
+      node.dataset.elCat = cat;
+      taggedNodes.push({ node, cat });
+    });
+  }
+}
+
+function removeOutlines() {
+  for (const { node, cat } of taggedNodes) {
+    node.classList.remove('el-out-' + cat, 'el-hover');
+    delete node.dataset.elName;
+    delete node.dataset.elCat;
+  }
+  taggedNodes.length = 0;
+}
+
+// Mousemove: find deepest tagged element under cursor, show tooltip
+let lastHovered = null;
+document.addEventListener('mousemove', (e) => {
+  if (!labelsOn) return;
+  // Walk from target up to find tagged element
+  let el = e.target;
+  let found = null;
+  while (el && el !== document.body) {
+    if (el.dataset && el.dataset.elName) { found = el; break; }
+    el = el.parentElement;
+  }
+  if (found !== lastHovered) {
+    if (lastHovered) lastHovered.classList.remove('el-hover');
+    lastHovered = found;
+    if (found) found.classList.add('el-hover');
+  }
+  if (found) {
+    const cat = found.dataset.elCat;
+    elTooltip.className = 'visible cat-' + cat;
+    elTooltip.textContent = found.dataset.elName;
+    // Position: above cursor, shifted right
+    let x = e.clientX + 14;
+    let y = e.clientY - 30;
+    // Keep on screen
+    const tw = elTooltip.offsetWidth || 120;
+    if (x + tw > window.innerWidth - 8) x = e.clientX - tw - 8;
+    if (y < 4) y = e.clientY + 18;
+    elTooltip.style.left = x + 'px';
+    elTooltip.style.top = y + 'px';
+  } else {
+    elTooltip.className = '';
+  }
+});
+
+document.addEventListener('mouseleave', () => {
+  elTooltip.className = '';
+  if (lastHovered) { lastHovered.classList.remove('el-hover'); lastHovered = null; }
+});
+
+// Init: render Plan2 view by default (delay for Tailwind CDN)
+setTimeout(() => switchTab('plans-process'), 50);
+</script>
+</body>
+</html>

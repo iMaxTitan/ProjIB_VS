@@ -1,0 +1,597 @@
+{
+  "name": "HotMail2",
+  "nodes": [
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      },
+      "id": "1dbea483-589a-450f-a6fd-e5e2f1e2a3ec",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        288
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "i8we5rZ4gmivre3P",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "38dd6f47-2e63-4e4e-a3f6-02e397c9457c",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "toRecipients": "={{ $fromAI(\"emailAddress\") }}",
+        "subject": "={{ $fromAI(\"subject\") }}",
+        "bodyContent": "={{ $fromAI(\"emailBody\") }}",
+        "additionalFields": {
+          "bodyContentType": "html"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        368
+      ],
+      "id": "83a4816b-d464-4bb3-a0f4-bc4c48acc574",
+      "name": "Send Email",
+      "webhookId": "eefafd07-7fb6-42fc-8c8f-30bfbc126171",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xo0ZpFPD8RCs1VrB",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": "={{ $fromAI(\"limit\",\"how many emails the user wants\") }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        560,
+        464
+      ],
+      "id": "08f15b33-2b2e-4596-b9ed-e1889b777855",
+      "name": "Get Emails",
+      "webhookId": "e7e0cb46-838d-415a-bede-39879d506a56",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xo0ZpFPD8RCs1VrB",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "subject": "={{ $fromAI(\"subject\") }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        400,
+        480
+      ],
+      "id": "e26b57e2-bac3-4eb6-9893-e02b255b3158",
+      "name": "Create Draft",
+      "webhookId": "785aa04c-20a5-4d52-bd8a-627e4ec7935d",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xo0ZpFPD8RCs1VrB",
+          "name": "Microsoft Outlook account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $fromAI(\"ID\",\"the message ID\") }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        80,
+        432
+      ],
+      "id": "c4b37140-be20-4ad1-b320-e97c6f4df037",
+      "name": "Email Reply",
+      "webhookId": "420a17d0-f7e3-450a-adf5-012e38fba46b",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xo0ZpFPD8RCs1VrB",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        688,
+        400
+      ],
+      "id": "00006df2-3457-4247-aafe-5c6f1f30bb93",
+      "name": "Get Folders",
+      "webhookId": "8c216303-94e5-4f37-9c5f-da87017855a0",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xo0ZpFPD8RCs1VrB",
+          "name": "Microsoft Outlook account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "markAsUnread"
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        832,
+        352
+      ],
+      "id": "f7a0d1ec-a441-4950-82e0-ad0b98d40bd4",
+      "name": "Mark Unread",
+      "webhookId": "424d66ac-6a7d-47ec-a521-42916ec5472b",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "39c2f302-03be-4464-a17a-d7cc481d6d44",
+              "name": "=response",
+              "value": "={{$json.output}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b0c414d3-f627-4eae-9fbd-f0eb79e61cf8",
+      "name": "Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7ab380a2-a8d3-421c-ab4e-748ea8fb7904",
+              "name": "response",
+              "value": "Unable to perform task. Please try again.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d67e2d1e-4ef4-45ea-96e1-47680018ddb3",
+      "name": "Try Again",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        720,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "contact",
+        "returnAll": true,
+        "filters": {
+          "custom": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Filter_Query', ``, 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        240,
+        464
+      ],
+      "id": "99a5ee29-4be1-4d76-af36-617ad643fdf1",
+      "name": "Get Contacts",
+      "webhookId": "8f9897cf-6e41-406c-bd12-bb66ba96bac5",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xo0ZpFPD8RCs1VrB",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "fromAllCalendars": false,
+        "calendarId": {
+          "__rl": true,
+          "value": "AQMkADAwATExADBhNy00YzNjLTIxNzAtMDACLTAwCgBGAAADx5KhhTgTtkq2Me32-FjO3QcA0H1J2gklVEip4aAUn9zXTQAAAgEGAAAA0H1J2gklVEip4aAUn9zXTQAAAjB8AAAA",
+          "mode": "list",
+          "cachedResultName": "Calendar"
+        },
+        "limit": 20,
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        752
+      ],
+      "id": "9a963ad4-d072-4faf-afe0-04c7ddcabd97",
+      "name": "Get Events",
+      "webhookId": "70302f59-fb24-426f-accf-6d1abbfbd893",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xo0ZpFPD8RCs1VrB",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendarId": {
+          "__rl": true,
+          "value": "AQMkADAwATExADBhNy00YzNjLTIxNzAtMDACLTAwCgBGAAADx5KhhTgTtkq2Me32-FjO3QcA0H1J2gklVEip4aAUn9zXTQAAAgEGAAAA0H1J2gklVEip4aAUn9zXTQAAAjB8AAAA",
+          "mode": "list",
+          "cachedResultName": "Calendar"
+        },
+        "subject": "={{ $fromAI(\"eventTitle\") }}",
+        "startDateTime": "={{ $fromAI(\"eventStart\") }}",
+        "endDateTime": "={{ $fromAI(\"eventEnd\") }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        752
+      ],
+      "id": "b980ea6c-2a5a-4157-9398-3ddefcb606fc",
+      "name": "Create Event",
+      "webhookId": "e4a7c2f0-d5b7-412e-a512-4c8257073b0b",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xo0ZpFPD8RCs1VrB",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendarId": {
+          "__rl": true,
+          "value": "AQMkADAwATExADBhNy00YzNjLTIxNzAtMDACLTAwCgBGAAADx5KhhTgTtkq2Me32-FjO3QcA0H1J2gklVEip4aAUn9zXTQAAAgEGAAAA0H1J2gklVEip4aAUn9zXTQAAAjB8AAAA",
+          "mode": "list",
+          "cachedResultName": "Calendar"
+        },
+        "subject": "={{ $fromAI(\"eventTitle\") }}",
+        "startDateTime": "={{ $fromAI(\"eventStart\") }}",
+        "endDateTime": "={{ $fromAI(\"eventEnd\") }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        112,
+        752
+      ],
+      "id": "2b6ba5cc-51ab-4fa6-8d8a-57f91060aac3",
+      "name": "Create Event with Attendees",
+      "webhookId": "ecafde62-fda5-4dfb-9708-9823748cafa6",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xo0ZpFPD8RCs1VrB",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "update",
+        "calendarId": {
+          "__rl": true,
+          "value": "AQMkADAwATExADBhNy00YzNjLTIxNzAtMDACLTAwCgBGAAADx5KhhTgTtkq2Me32-FjO3QcA0H1J2gklVEip4aAUn9zXTQAAAgEGAAAA0H1J2gklVEip4aAUn9zXTQAAAjB8AAAA",
+          "mode": "list",
+          "cachedResultName": "Calendar"
+        },
+        "eventId": {
+          "__rl": true,
+          "value": "={{ $fromAI(\"eventID\") }}",
+          "mode": "id"
+        },
+        "additionalFields": {
+          "end": "={{ $fromAI(\"endTime\") }}"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        240,
+        752
+      ],
+      "id": "7c7f176d-00e2-4a02-838d-55f64957e3e1",
+      "name": "Update Event",
+      "webhookId": "6f879eda-853d-4b32-9384-353ba240b9eb",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xo0ZpFPD8RCs1VrB",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "delete",
+        "calendarId": {
+          "__rl": true,
+          "value": "AQMkADAwATExADBhNy00YzNjLTIxNzAtMDACLTAwCgBGAAADx5KhhTgTtkq2Me32-FjO3QcA0H1J2gklVEip4aAUn9zXTQAAAgEGAAAA0H1J2gklVEip4aAUn9zXTQAAAjB8AAAA",
+          "mode": "list",
+          "cachedResultName": "Calendar"
+        },
+        "eventId": {
+          "__rl": true,
+          "value": "={{ $fromAI(\"eventID\") }}",
+          "mode": "id"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        368,
+        752
+      ],
+      "id": "5136c691-a7af-4c2b-aa4e-82223b137fd8",
+      "name": "Delete Event",
+      "webhookId": "87d9110d-70d8-4a28-bcb0-0275fdbc2a37",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xo0ZpFPD8RCs1VrB",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.query }}",
+        "options": {
+          "systemMessage": "=# Overview\nВы – виртуальный помощник для личного Hotmail , который помогает управлять электронной почтой, контактами и календарем. Ваша задача – выполнять запросы пользователя, используя доступные инструменты, и предоставлять четкие и точные ответы.\n\n## Инструменты управления почтой:\n- **Send Email**: Отправка электронных писем.\n- **Create Draft**: Создание черновиков писем.\n- **Get Emails**: Получение списка писем (с возможностью фильтрации по папке, дате, отправителю и т.д.).\n- **Get Folders**: Получение списка папок в почтовом ящике.\n- **Mark Unread**: Пометка письма как непрочитанного.\n- **Label Email**: Добавление меток к письму.\n- **Email Reply**: Ответ на письмо.\n- **Move Email**: Перемещение письма в другую папку.\n\n## Инструменты управления контактами:\n- **Get Contacts**: Поиск контактов.\n- **Create Contact**: Создание нового контакта.\n- **Update Contact**: Обновление информации о контакте.\n- **Delete Contact**: Удаление контакта.\n\n## Инструменты управления календарем:\n- **Create Event**: Создание событий в календаре.\n- **Create Event with Attendees**: Создание событий с участниками.\n- **Get Events**: Получение списка событий (с возможностью фильтрации по дате, участникам и т.д.).\n- **Update Event**: Изменение деталей события.\n- **Delete Event**: Удаление события.\n- **Accept/Decline Meeting**: Принятие или отклонение приглашения на встречу.\n\n## Инструкции для работы с контактами:\n1. для поиска контакта сформируй фильтр для Microsoft Graph API\n\n## Общие инструкции:\n- Если запрос пользователя не может быть выполнен (например, письмо или событие не найдено), верните ошибку с пояснением.\n- Всегда уточняйте у пользователя недостающие детали, если они необходимы для выполнения задачи (например, тема письма, дата события, участники и т.д.)."
+        }
+      },
+      "id": "b4ba4f3a-159f-4a25-85b8-f38c5df48f1d",
+      "name": "HotMail Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [
+        240,
+        0
+      ],
+      "onError": "continueErrorOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "ai_tool": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Reply": {
+      "ai_tool": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Draft": {
+      "ai_tool": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Emails": {
+      "ai_tool": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Folders": {
+      "ai_tool": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Unread": {
+      "ai_tool": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Contacts": {
+      "ai_tool": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Events": {
+      "ai_tool": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Event": {
+      "ai_tool": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Event with Attendees": {
+      "ai_tool": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Event": {
+      "ai_tool": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Event": {
+      "ai_tool": [
+        [
+          {
+            "node": "HotMail Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HotMail Agent": {
+      "main": [
+        [
+          {
+            "node": "Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Try Again",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "945bc55d-c39d-4271-96a9-d998cfe6c3cf",
+  "meta": {
+    "instanceId": "1b7c25b262c0803b8bd2e97ba9e4425035f87e239473aca977c4899ed07f8360"
+  },
+  "id": "2z5Zbc8D3bdu5gJv",
+  "tags": []
+}

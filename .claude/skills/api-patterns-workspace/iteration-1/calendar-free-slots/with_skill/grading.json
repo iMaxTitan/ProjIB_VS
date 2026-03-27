@@ -1,0 +1,16 @@
+{
+  "eval_id": 2,
+  "eval_name": "calendar-free-slots",
+  "configuration": "with_skill",
+  "expectations": [
+    { "text": "uses-isRequestAuthorized", "passed": true, "evidence": "Line 62: isRequestAuthorized(req) in guardAuth" },
+    { "text": "uses-checkRateLimit", "passed": true, "evidence": "Line 64: checkRateLimit() in guardAuth" },
+    { "text": "uses-getDbUserId", "passed": true, "evidence": "Line 67: getDbUserId(req) in guardAuth" },
+    { "text": "uses-logger", "passed": true, "evidence": "Lines 219, 269: logger.error with module prefix" },
+    { "text": "no-console-log", "passed": true, "evidence": "No console.log found" },
+    { "text": "graph-api-call", "passed": true, "evidence": "Line 31: GRAPH_BASE = 'https://graph.microsoft.com/v1.0'" },
+    { "text": "returns-401", "passed": true, "evidence": "Line 68: status: 401 via guardAuth" },
+    { "text": "returns-429", "passed": true, "evidence": "Line 65: status: 429 via guardAuth" }
+  ],
+  "pass_rate": 1.0
+}

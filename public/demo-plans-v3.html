@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CS Platform — Плани (v3 · 4 panels)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      color: #1a1d23;
+      background: #f4f5f7;
+      overflow: hidden;
+    }
+
+    /* ═══════════════════════════
+       DESIGN TOKENS (fresh)
+       ═══════════════════════════ */
+    :root {
+      --bg-page: #f4f5f7;
+      --bg-panel: #ffffff;
+      --bg-hover: #f8f9fb;
+      --bg-active: #eef0ff;
+      --bg-muted: #f1f3f5;
+      --border: #e5e7eb;
+      --border-light: #f0f1f3;
+      --text-primary: #1a1d23;
+      --text-secondary: #6b7280;
+      --text-muted: #9ca3af;
+      --accent: #5b5fc7;
+      --accent-light: #eef0ff;
+      --accent-text: #4338ca;
+      --green: #16a34a;
+      --green-bg: #ecfdf5;
+      --amber: #d97706;
+      --amber-bg: #fffbeb;
+      --blue: #2563eb;
+      --blue-bg: #eff6ff;
+      --red: #dc2626;
+      --purple: #7c3aed;
+      --purple-bg: #f5f3ff;
+      --cyan: #0891b2;
+      --cyan-bg: #ecfeff;
+      --radius: 8px;
+      --radius-lg: 12px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+    /* ═══════════════════════════
+       NAV SIDEBAR (hidden, replaced by top nav)
+       ═══════════════════════════ */
+    .nav-sidebar { display: none; }
+    .nav-logo-icon {
+      width: 28px; height: 28px; border-radius: 6px;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 10px; font-weight: 800;
+    }
+    .nav-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; color: white; font-size: 9px; font-weight: 700; flex-shrink: 0; }
+
+    /* ═══ TOP HORIZONTAL NAV ═══ */
+    .top-nav { display: flex; align-items: center; gap: 2px; }
+    .top-nav-link {
+      padding: 5px 10px; border-radius: 6px; border: none; background: none;
+      font-size: 12px; font-weight: 500; color: var(--text-secondary);
+      cursor: pointer; transition: all 0.12s; white-space: nowrap;
+    }
+    .top-nav-link:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .top-nav-link.active { background: var(--accent-light); color: var(--accent-text); font-weight: 600; }
+
+    /* ═══════════════════════════
+       MAIN AREA (3 zones)
+       ═══════════════════════════ */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .main-header {
+      display: flex; align-items: center;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-panel);
+      gap: 12px; flex-shrink: 0;
+    }
+    .main-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+
+    .main-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      gap: 0;
+      background: var(--border);
+    }
+
+    /* Each zone */
+    .zone {
+      background: var(--bg-panel);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ═══ RESIZE HANDLES ═══ */
+    .resize-handle {
+      width: 5px; flex-shrink: 0; cursor: col-resize;
+      background: var(--border); position: relative;
+      transition: background 0.15s;
+    }
+    .resize-handle:hover, .resize-handle.active { background: var(--accent); }
+    .resize-handle::after {
+      content: ''; position: absolute;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 3px; height: 24px; border-radius: 2px;
+      background: rgba(0,0,0,0.1);
+    }
+    .resize-handle:hover::after, .resize-handle.active::after { background: rgba(255,255,255,0.6); }
+
+    /* ═══ NAV GROUP (same as working planner) ═══ */
+    .ng {
+      display: inline-flex; align-items: center; padding: 2px;
+      background: var(--bg-muted); border: 1px solid var(--border-light);
+      border-radius: 8px;
+    }
+    .ng-btn {
+      padding: 4px 12px; text-align: center;
+      font-size: 11px; font-weight: 500; border-radius: 6px;
+      border: none; background: transparent; color: var(--text-muted);
+      cursor: pointer; transition: all 0.12s; white-space: nowrap;
+    }
+    .ng-btn:hover { background: rgba(255,255,255,0.8); color: var(--text-secondary); }
+    .ng-btn.active {
+      background: var(--accent-light); color: var(--accent-text);
+      border: 1px solid rgba(99,102,241,0.2);
+      box-shadow: 0 1px 4px rgba(99,102,241,0.08);
+    }
+    .ng-btn[disabled] { opacity: 0.3; pointer-events: none; }
+    .zone-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-light);
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0;
+    }
+    .zone-title { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
+    .zone-body { flex: 1; overflow-y: auto; }
+
+    .zone-tree { width: 25%; flex-shrink: 0; }
+    .zone-detail { width: 40%; flex-shrink: 0; }
+    .zone-worklog { width: 35%; flex-shrink: 0; }
+
+    /* ═══════════════════════════
+       PANEL 2: TREE
+       ═══════════════════════════ */
+    .year-nav span { font-size: 16px; font-weight: 800; color: var(--text-primary); }
+    /* old nav styles removed — using tab-btn now */
+
+    .tree-item {
+      padding: 8px 12px; margin: 2px 8px;
+      border-radius: var(--radius); cursor: pointer;
+      transition: all 0.12s; border: 1px solid transparent;
+    }
+    .tree-item:hover { background: var(--bg-hover); }
+    .tree-item.active { background: var(--accent-light); border-color: rgba(99,102,241,0.15); }
+    .tree-item .ti-title { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+    .tree-item.active .ti-title { color: var(--accent-text); }
+    .tree-item .ti-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+    .tree-indent { margin-left: 16px; }
+    .tree-indent-2 { margin-left: 32px; }
+
+    /* Status pills */
+    .pill { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+    .pill-green { background: var(--green-bg); color: var(--green); }
+    .pill-blue { background: var(--blue-bg); color: var(--blue); }
+    .pill-amber { background: var(--amber-bg); color: var(--amber); }
+    .pill-purple { background: var(--purple-bg); color: var(--purple); }
+    .pill-cyan { background: var(--cyan-bg); color: var(--cyan); }
+    .pill-muted { background: var(--bg-muted); color: var(--text-muted); }
+
+    .progress { height: 3px; border-radius: 2px; background: var(--border-light); overflow: hidden; margin-top: 4px; }
+    .progress > div { height: 100%; border-radius: 2px; }
+
+    /* ═══════════════════════════
+       PANEL 3: DETAIL
+       ═══════════════════════════ */
+    .detail-head {
+      padding: 16px 20px;
+      background: linear-gradient(135deg, rgba(91,95,199,0.04), rgba(124,58,237,0.02));
+      border-bottom: 1px solid var(--border-light);
+      flex-shrink: 0;
+    }
+    .detail-crumb { font-size: 10px; color: var(--text-muted); margin-bottom: 4px; }
+    .detail-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+    .detail-actions { display: flex; gap: 4px; }
+    .detail-actions button {
+      width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--bg-panel); cursor: pointer; font-size: 13px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted); transition: all 0.12s;
+    }
+    .detail-actions button:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    .status-bar {
+      display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+    }
+    .status-opt {
+      padding: 5px 14px; font-size: 11px; font-weight: 600;
+      border: none; background: none; color: var(--text-muted);
+      cursor: pointer; transition: all 0.12s; border-right: 1px solid var(--border);
+    }
+    .status-opt:last-child { border-right: none; }
+    .status-opt.active { background: var(--accent-light); color: var(--accent-text); }
+    .status-opt:hover { background: var(--bg-hover); }
+
+    .field-group {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .field-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+
+    .company-row {
+      display: flex; align-items: center; gap: 8px; padding: 5px 0;
+    }
+    .company-row input[type="checkbox"] { accent-color: var(--accent); }
+    .company-name { font-size: 12px; flex: 1; }
+    .company-pct { font-size: 11px; font-weight: 700; color: var(--accent-text); min-width: 32px; text-align: right; }
+    .company-hrs { font-size: 11px; color: var(--text-muted); min-width: 40px; text-align: right; }
+    .mini-bar { width: 60px; height: 3px; border-radius: 2px; background: var(--border-light); overflow: hidden; }
+    .mini-bar > div { height: 100%; border-radius: 2px; background: var(--accent); }
+
+    .dist-row { display: flex; gap: 16px; margin-top: 8px; }
+    .dist-row label { font-size: 11px; display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text-secondary); }
+    .dist-row input { accent-color: var(--accent); }
+
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 14px 20px; }
+    .stat-box {
+      padding: 10px 12px; border-radius: var(--radius);
+      background: var(--bg-muted); border: 1px solid var(--border-light);
+    }
+    .stat-label { font-size: 10px; color: var(--text-muted); font-weight: 500; }
+    .stat-value { font-size: 20px; font-weight: 800; margin-top: 2px; }
+    .stat-unit { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+
+    /* Chip tags */
+    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+
+    /* Avatar */
+    .av { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: white; flex-shrink: 0; }
+    .av-sm { width: 22px; height: 22px; font-size: 8px; }
+
+    /* ═══════════════════════════
+       PANEL 4: WORKLOG
+       ═══════════════════════════ */
+    .wl-group {
+      border-bottom: 1px solid var(--border-light);
+    }
+    .wl-group:last-child { border-bottom: none; }
+    .wl-group-hdr {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px;
+      background: var(--bg-muted);
+      cursor: pointer;
+    }
+    .wl-group-hdr:hover { background: #eceef0; }
+    .wl-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .wl-role { font-size: 10px; color: var(--text-muted); }
+    .wl-hrs { font-size: 12px; font-weight: 700; color: var(--text-primary); margin-left: auto; }
+    .wl-add {
+      width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--border);
+      background: none; font-size: 14px; color: var(--text-muted); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; margin-left: 6px;
+      transition: all 0.12s;
+    }
+    .wl-add:hover { background: var(--green-bg); color: var(--green); border-color: rgba(22,163,74,0.3); }
+
+    .wl-task {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 16px 8px 26px;
+      border-top: 1px solid var(--border-light);
+      transition: background 0.1s;
+    }
+    .wl-task:hover { background: var(--bg-hover); }
+    .wl-icon { font-size: 13px; flex-shrink: 0; width: 18px; text-align: center; }
+    .wl-task-title { font-size: 12px; font-weight: 500; color: var(--text-primary); }
+    .wl-task-sub { font-size: 10px; color: var(--text-muted); }
+    .wl-task-hrs { font-size: 11px; font-weight: 700; color: var(--text-primary); min-width: 36px; text-align: right; }
+    .wl-task-date { font-size: 10px; color: var(--text-muted); min-width: 36px; text-align: right; }
+
+    .wl-accept { display: flex; gap: 2px; margin-left: 4px; }
+    .wl-accept button {
+      width: 22px; height: 22px; border-radius: 5px; border: 1px solid var(--border);
+      background: none; cursor: pointer; font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.12s;
+    }
+    .wl-accept .yes:hover { background: var(--green-bg); color: var(--green); border-color: rgba(22,163,74,0.3); }
+    .wl-accept .no:hover { background: #fef2f2; color: var(--red); border-color: rgba(220,38,38,0.3); }
+
+    .wl-pending { background: rgba(255,251,235,0.5); }
+
+    .wl-summary {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+      padding: 12px 16px; background: var(--bg-muted);
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══ MAIN ═══ -->
+<div class="main">
+  <!-- Top bar with horizontal nav -->
+  <div class="main-header" style="gap:0;">
+    <div class="nav-logo-icon" style="margin-right:10px;flex-shrink:0;">CS</div>
+    <div class="top-nav">
+      <button class="top-nav-link">Активність</button>
+      <button class="top-nav-link active">Плани</button>
+      <button class="top-nav-link">Планувальник</button>
+      <button class="top-nav-link">Звіти</button>
+      <button class="top-nav-link">KPI</button>
+      <button class="top-nav-link">Довідники</button>
+      <button class="top-nav-link">БЗ</button>
+      <button class="top-nav-link">Кабінет</button>
+      <button class="top-nav-link">Бот</button>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <button class="top-nav-link" style="font-size:11px;">⚙</button>
+      <button class="top-nav-link" style="font-size:11px;">?</button>
+      <div class="nav-avatar">ІО</div>
+      <span style="font-size:11px;font-weight:600;color:var(--text-primary);">Іванов О.</span>
+    </div>
+  </div>
+
+  <div class="main-body">
+
+    <!-- ═══ PANEL 2: TREE ═══ -->
+    <div class="zone zone-tree" id="zone-tree">
+      <!-- Nav: Year + Quarter row, then Month row, then Status -->
+      <div id="plan-nav" style="padding:8px 8px 6px;display:flex;flex-direction:column;gap:4px;border-bottom:1px solid var(--border-light);">
+        <!-- Row 1: Years + Quarters -->
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="ng" id="year-group">
+            <button class="ng-btn active" data-year="2026">2026</button>
+            <button class="ng-btn" data-year="2025">2025</button>
+          </div>
+          <div class="ng" style="flex:1;" id="quarter-group">
+            <button class="ng-btn active" style="flex:1;" data-q="1">Q1</button>
+            <button class="ng-btn" style="flex:1;" data-q="2">Q2</button>
+            <button class="ng-btn" style="flex:1;" data-q="3" disabled>Q3</button>
+            <button class="ng-btn" style="flex:1;" data-q="4" disabled>Q4</button>
+          </div>
+        </div>
+        <!-- Row 2: Months (shown when quarter selected) -->
+        <div class="ng" id="month-group">
+          <button class="ng-btn" style="flex:1;" data-m="1">Січень</button>
+          <button class="ng-btn" style="flex:1;" data-m="2">Лютий</button>
+          <button class="ng-btn active" style="flex:1;" data-m="3">Березень</button>
+        </div>
+        <!-- Row 3: Status filter -->
+        <div class="ng" id="status-group">
+          <button class="ng-btn" style="flex:1;" data-st="all">Усі</button>
+          <button class="ng-btn" style="flex:1;" data-st="draft">Підготовка</button>
+          <button class="ng-btn active" style="flex:1;" data-st="active">В роботі</button>
+          <button class="ng-btn" style="flex:1;" data-st="completed">Завершено</button>
+        </div>
+      </div>
+
+      <div class="zone-body" style="padding:6px 0;">
+
+        <!-- Dynamic tree: process → procedures, scope by filter -->
+        <div id="tree-content"></div>
+        <div style="display:none;"><!-- old static content, hidden -->
+        <div class="tree-item" style="margin:2px 8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="pill pill-blue" style="font-size:9px;">В роботі</span>
+            <span class="ti-sub">ОКБ</span>
+          </div>
+          <div class="ti-title" style="margin-top:2px;">Моніторинг та реагування на інциденти ІБ</div>
+          <div class="ti-sub" style="margin-top:2px;line-height:1.4;">Забезпечення своєчасного виявлення та реагування на інциденти ІБ</div>
+          <div class="progress" style="margin-top:4px;"><div style="width:70%;background:var(--accent);"></div></div>
+        </div>
+        <div class="tree-indent">
+          <div class="tree-item active" style="padding:5px 10px;">
+            <div style="font-size:11px;font-weight:600;color:var(--accent-text);">Процедура моніторингу подій ІБ</div>
+            <div style="display:flex;justify-content:space-between;margin-top:2px;">
+              <span class="ti-sub">active · 18/24 год</span>
+              <span style="font-size:10px;font-weight:700;color:var(--accent-text);">75%</span>
+            </div>
+          </div>
+          <div class="tree-item" style="padding:5px 10px;">
+            <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Процедура управління інцидентами ІБ</div>
+            <div style="display:flex;justify-content:space-between;margin-top:2px;">
+              <span class="ti-sub">active · 10/20 год</span>
+              <span style="font-size:10px;font-weight:700;color:var(--accent-text);">50%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Процес: Управління безпекою ІС -->
+        <div class="tree-item" style="margin:8px 8px 2px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="pill pill-blue" style="font-size:9px;">В роботі</span>
+            <span class="ti-sub">ОКБ</span>
+          </div>
+          <div class="ti-title" style="margin-top:2px;">Управління безпекою інформаційних систем</div>
+          <div class="ti-sub" style="margin-top:2px;line-height:1.4;">Виявлення та усунення вразливостей у ІТ-інфраструктурі</div>
+          <div class="progress" style="margin-top:4px;"><div style="width:55%;background:var(--accent);"></div></div>
+        </div>
+        <div class="tree-indent">
+          <div class="tree-item" style="padding:5px 10px;">
+            <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Процедура управління вразливостями ІС</div>
+            <div style="display:flex;justify-content:space-between;margin-top:2px;">
+              <span class="ti-sub">active · 12/20 год</span>
+              <span style="font-size:10px;font-weight:700;color:var(--accent-text);">60%</span>
+            </div>
+          </div>
+          <div class="tree-item" style="padding:5px 10px;">
+            <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Процедура формування вимог до налаштувань безпеки ІС</div>
+            <div style="display:flex;justify-content:space-between;margin-top:2px;">
+              <span class="ti-sub">active · 8/16 год</span>
+              <span style="font-size:10px;font-weight:700;color:var(--accent-text);">50%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Процес: Управління правами доступу -->
+        <div class="tree-item" style="margin:8px 8px 2px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="pill pill-blue" style="font-size:9px;">В роботі</span>
+            <span class="ti-sub">ОКБ</span>
+          </div>
+          <div class="ti-title" style="margin-top:2px;">Управління правами доступу</div>
+          <div class="ti-sub" style="margin-top:2px;line-height:1.4;">Контроль за правами доступу та захист від несанкціонованого доступу</div>
+          <div class="progress" style="margin-top:4px;"><div style="width:45%;background:var(--accent);"></div></div>
+        </div>
+        <div class="tree-indent">
+          <div class="tree-item" style="padding:5px 10px;">
+            <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Процедура організації управління правами доступу</div>
+            <div style="display:flex;justify-content:space-between;margin-top:2px;">
+              <span class="ti-sub">active · 6/16 год</span>
+              <span style="font-size:10px;font-weight:700;color:var(--amber);">38%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Процес: Взаємодія з контрагентами -->
+        <div class="tree-item" style="margin:8px 8px 2px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="pill pill-blue" style="font-size:9px;">В роботі</span>
+            <span class="ti-sub">СВК</span>
+          </div>
+          <div class="ti-title" style="margin-top:2px;">Взаємодія з контрагентами</div>
+          <div class="ti-sub" style="margin-top:2px;line-height:1.4;">Забезпечення дотримання вимог ІБ на усіх етапах життєвого циклу ІС</div>
+          <div class="progress" style="margin-top:4px;"><div style="width:40%;background:var(--accent);"></div></div>
+        </div>
+        <div class="tree-indent">
+          <div class="tree-item" style="padding:5px 10px;">
+            <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Процедура методичного супровіду взаємодії з бізнес-підрозділами</div>
+            <div style="display:flex;justify-content:space-between;margin-top:2px;">
+              <span class="ti-sub">active · 4/12 год</span>
+              <span style="font-size:10px;font-weight:700;color:var(--amber);">33%</span>
+            </div>
+          </div>
+          <div class="tree-item" style="padding:5px 10px;">
+            <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Процедура взаємодії з бізнес-підрозділами та зовнішніми організаціями</div>
+            <div style="display:flex;justify-content:space-between;margin-top:2px;">
+              <span class="ti-sub">active · 6/12 год</span>
+              <span style="font-size:10px;font-weight:700;color:var(--accent-text);">50%</span>
+            </div>
+          </div>
+          <div class="tree-item" style="padding:5px 10px;">
+            <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Процедура договірного забезпечення взаємовідносин з контрагентами</div>
+            <div style="display:flex;justify-content:space-between;margin-top:2px;">
+              <span class="ti-sub">active · 2/8 год</span>
+              <span style="font-size:10px;font-weight:700;color:var(--amber);">25%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Процес: Навчання та підвищення обізнаності -->
+        <div class="tree-item" style="margin:8px 8px 2px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="pill pill-blue" style="font-size:9px;">В роботі</span>
+            <span class="ti-sub">СМУР</span>
+          </div>
+          <div class="ti-title" style="margin-top:2px;">Навчання та підвищення обізнаності у сфері ІБ</div>
+          <div class="ti-sub" style="margin-top:2px;line-height:1.4;">Організація проведення навчання у сфері ІБ</div>
+          <div class="progress" style="margin-top:4px;"><div style="width:30%;background:var(--amber);"></div></div>
+        </div>
+        <div class="tree-indent">
+          <div class="tree-item" style="padding:5px 10px;">
+            <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Процедура організації підвищення обізнаності у сфері ІБ</div>
+            <div style="display:flex;justify-content:space-between;margin-top:2px;">
+              <span class="ti-sub">active · 4/10 год</span>
+              <span style="font-size:10px;font-weight:700;color:var(--amber);">40%</span>
+            </div>
+          </div>
+          <div class="tree-item" style="padding:5px 10px;">
+            <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Процедура методичного забезпечення навчання</div>
+            <div style="display:flex;justify-content:space-between;margin-top:2px;">
+              <span class="ti-sub">active · 2/10 год</span>
+              <span style="font-size:10px;font-weight:700;color:var(--amber);">20%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Процес: Облік та звітність -->
+        <div class="tree-item" style="margin:8px 8px 2px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="pill pill-blue" style="font-size:9px;">В роботі</span>
+            <span class="ti-sub">СВК</span>
+          </div>
+          <div class="ti-title" style="margin-top:2px;">Облік та звітність</div>
+          <div class="ti-sub" style="margin-top:2px;line-height:1.4;">Підготовка щомісячної звітності по підприємствах</div>
+          <div class="progress" style="margin-top:4px;"><div style="width:60%;background:var(--accent);"></div></div>
+        </div>
+        <div class="tree-indent">
+          <div class="tree-item" style="padding:5px 10px;">
+            <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Процедура періодичної звітності діяльності підрозділу ІБ</div>
+            <div style="display:flex;justify-content:space-between;margin-top:2px;">
+              <span class="ti-sub">active · 8/12 год</span>
+              <span style="font-size:10px;font-weight:700;color:var(--accent-text);">67%</span>
+            </div>
+          </div>
+          <div class="tree-item" style="padding:5px 10px;">
+            <div style="font-size:11px;font-weight:500;color:var(--text-primary);">Процедура звітності щодо надання послуг ІБ</div>
+            <div style="display:flex;justify-content:space-between;margin-top:2px;">
+              <span class="ti-sub">active · 6/10 год</span>
+              <span style="font-size:10px;font-weight:700;color:var(--accent-text);">60%</span>
+            </div>
+          </div>
+        </div>
+        </div><!-- /view-month -->
+      </div>
+      <!-- Summary footer (rendered by JS) -->
+      <div class="wl-summary" id="tree-footer"></div>
+    </div>
+
+    <!-- ═══ PANEL 3: DETAIL ═══ -->
+    <div class="resize-handle" data-left="zone-tree" data-right="zone-detail"></div>
+    <div class="zone zone-detail" id="zone-detail">
+      <div id="detail-body" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div style="padding:40px 20px;text-align:center;color:var(--text-muted);font-size:12px;">Оберіть процес або процедуру зліва</div>
+      </div>
+    </div>
+
+    <!-- ═══ PANEL 4: WORKLOG ═══ -->
+    <div class="resize-handle" data-left="zone-detail" data-right="zone-worklog"></div>
+    <div class="zone zone-worklog" id="zone-worklog">
+      <div id="wl-body" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div style="padding:40px 20px;text-align:center;color:var(--text-muted);font-size:12px;">Оберіть процес або процедуру зліва</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ═══ DATA (mock from real DB) ═══
+const PROCESSES = [
+  { id:'p1', name:'Моніторинг та реагування на інциденти ІБ', dept:'ОКБ', goal:'Забезпечення своєчасного виявлення та реагування на інциденти ІБ', status:'active', quarters:[1],
+    procedures:[
+      { name:'Процедура моніторингу подій ІБ', months:[1,2,3], hours:{year:[72,50], q1:[72,50], 1:[24,24], 2:[24,18], 3:[24,8]},
+        ref:{ desc:'Моніторинг подій ІБ + SIEM', service:'Моніторинг подій ІБ', category:'process', target:320, period:'month',
+          templates:['Аналіз SIEM-алертів','Налаштування правил кореляції','Щоденний звіт з моніторингу','Ескалація критичних подій'],
+          companies:['АТБ Маркет','Корпорація АТБ','КФ Квітень','Логістік Юніон','МФ Фаворит','Рітейл Девелопмент','ЧП Транс Логістик'],
+          projects:['Впровадження SIEM v2'], kbDocs:['Вимоги ІБ до ІС на всіх етапах їх ЖЦ v.1.0.0','Вимоги ІБ щодо безпечного налаштування АРМ v.1.0.0'] }},
+      { name:'Процедура управління інцидентами ІБ', months:[1,2,3], hours:{year:[60,35], q1:[60,35], 1:[20,20], 2:[20,15], 3:[20,0]},
+        ref:{ desc:'Реагування на інциденти ІБ, класифікація та розслідування', service:'Управління інцидентами ІБ', category:'process', target:160, period:'month',
+          templates:['Реєстрація інциденту','Класифікація інциденту','Розслідування інциденту','Звіт за результатами розслідування'],
+          companies:['АТБ Маркет','Корпорація АТБ'], projects:[], kbDocs:['Вимоги ІБ до ІС на всіх етапах їх ЖЦ v.1.0.0'] }},
+    ]},
+  { id:'p2', name:'Управління безпекою інформаційних систем', dept:'ОКБ', goal:'Виявлення та усунення вразливостей у ІТ-інфраструктурі', status:'active', quarters:[1],
+    procedures:[
+      { name:'Процедура управління вразливостями ІС', months:[1,2,3], hours:{year:[60,36], q1:[60,36], 1:[20,20], 2:[20,16], 3:[20,0]},
+        ref:{ desc:'Виявлення, оцінка та усунення вразливостей в ІС', service:'Управління вразливостями', category:'process', target:160, period:'month',
+          templates:['Сканування вразливостей','Верифікація патчів','Звіт з вразливостей'],
+          companies:['АТБ Маркет','Корпорація АТБ','Логістік Юніон'], projects:[], kbDocs:[] }},
+      { name:'Процедура формування вимог до налаштувань безпеки', months:[1,2,3], hours:{year:[48,24], q1:[48,24], 1:[16,16], 2:[16,8], 3:[16,0]},
+        ref:{ desc:'Розробка та актуалізація вимог до безпечних налаштувань ІС', service:'Управління конфігураціями', category:'operational', target:80, period:'quarter',
+          templates:['Перевірка baseline-конфігурацій','Оновлення вимог безпеки'],
+          companies:['АТБ Маркет'], projects:[], kbDocs:['Вимоги ІБ щодо безпечного налаштування АРМ v.1.0.0'] }},
+    ]},
+  { id:'p3', name:'Управління правами доступу', dept:'ОКБ', goal:'Контроль за правами доступу та захист від несанкціонованого доступу', status:'active', quarters:[1],
+    procedures:[
+      { name:'Процедура організації управління правами доступу', months:[1,2,3], hours:{year:[48,18], q1:[48,18], 1:[16,16], 2:[16,2], 3:[16,0]},
+        ref:{ desc:'Контроль та аудит прав доступу до ІС', service:'Управління правами доступу', category:'process', target:168, period:'month',
+          templates:['Аудит прав доступу','Перевірка привілеїв адміністраторів','Звіт з аудиту доступу'],
+          companies:['АТБ Маркет','Корпорація АТБ','КФ Квітень','МФ Фаворит'], projects:[], kbDocs:[] }},
+    ]},
+  { id:'p4', name:'Взаємодія з контрагентами', dept:'СВК', goal:'Забезпечення дотримання вимог ІБ на усіх етапах ЖЦ ІС', status:'active', quarters:[1],
+    procedures:[
+      { name:'Процедура методичного супровіду взаємодії', months:[1,2,3], hours:{year:[36,16], q1:[36,16], 1:[12,12], 2:[12,4], 3:[12,0]},
+        ref:{ desc:'Методичний супровід взаємодії з бізнес-підрозділами щодо вимог ІБ', service:'Методичний супровід', category:'operational', target:47, period:'month',
+          templates:['Консультація підрозділу','Перевірка технічного завдання'],
+          companies:['АТБ Маркет','Корпорація АТБ'], projects:[], kbDocs:[] }},
+      { name:'Процедура взаємодії з бізнес-підрозділами', months:[1,2,3], hours:{year:[36,24], q1:[36,24], 1:[12,12], 2:[12,6], 3:[12,6]},
+        ref:{ desc:'Узгодження вимог ІБ з бізнес-підрозділами', service:'Взаємодія з підрозділами', category:'operational', target:93, period:'month',
+          templates:['Розгляд запиту','Узгодження вимог'],
+          companies:['АТБ Маркет','Логістік Юніон','ЧП Транс Логістик'], projects:[], kbDocs:[] }},
+      { name:'Процедура договірного забезпечення', months:[1,2,3], hours:{year:[24,10], q1:[24,10], 1:[8,8], 2:[8,2], 3:[8,0]},
+        ref:{ desc:'Перевірка договорів з контрагентами на відповідність вимогам ІБ', service:'Договірне забезпечення', category:'operational', target:27, period:'month',
+          templates:['Перевірка договору','Формування зауважень'],
+          companies:['АТБ Маркет'], projects:[], kbDocs:[] }},
+    ]},
+  { id:'p5', name:'Навчання та підвищення обізнаності у сфері ІБ', dept:'СМУР', goal:'Організація проведення навчання у сфері ІБ', status:'active', quarters:[1,2],
+    procedures:[
+      { name:'Процедура організації підвищення обізнаності', months:[1,2], hours:{year:[30,14], q1:[20,14], 1:[10,10], 2:[10,4]},
+        ref:{ desc:'Організація та проведення заходів з підвищення обізнаності', service:'Навчання персоналу', category:'strategic', target:10, period:'quarter',
+          templates:['Підготовка навчальних матеріалів','Проведення тренінгу','Тестування знань'],
+          companies:['АТБ Маркет','Корпорація АТБ'], projects:[], kbDocs:[] }},
+      { name:'Процедура методичного забезпечення навчання', months:[1,2], hours:{year:[30,12], q1:[20,12], 1:[10,10], 2:[10,2]},
+        ref:{ desc:'Розробка та оновлення навчальних програм з ІБ', service:'Методичне забезпечення', category:'strategic', target:10, period:'quarter',
+          templates:['Оновлення курсу','Рецензування матеріалів'],
+          companies:[], projects:[], kbDocs:[] }},
+    ]},
+  { id:'p6', name:'Облік та звітність', dept:'СВК', goal:'Підготовка щомісячної звітності по підприємствах', status:'active', quarters:[1],
+    procedures:[
+      { name:'Процедура періодичної звітності підрозділу ІБ', months:[1,2,3], hours:{year:[36,24], q1:[36,24], 1:[12,12], 2:[12,8], 3:[12,4]},
+        ref:{ desc:'Підготовка та подання періодичної звітності підрозділу ІБ', service:'Звітність підрозділу', category:'operational', target:170, period:'month',
+          templates:['Збір даних для звіту','Формування звіту','Подання звіту'],
+          companies:['АТБ Маркет','Корпорація АТБ','КФ Квітень','Логістік Юніон','МФ Фаворит','Рітейл Девелопмент','ЧП Транс Логістик'], projects:[], kbDocs:[] }},
+      { name:'Процедура звітності щодо надання послуг ІБ', months:[1,2,3], hours:{year:[30,18], q1:[30,18], 1:[10,10], 2:[10,6], 3:[10,2]},
+        ref:{ desc:'Звітність за наданими послугами ІБ підприємствам Групи', service:'Звітність послуг', category:'operational', target:100, period:'month',
+          templates:['Збір даних по послугах','Формування звіту'],
+          companies:['АТБ Маркет','Корпорація АТБ'], projects:[], kbDocs:[] }},
+    ]},
+  { id:'p7', name:'Управління документацією СУІБ', dept:'СМУР', goal:'Плановий перегляд нормативної документації в сфері ІБ', status:'active', quarters:[1],
+    procedures:[
+      { name:'Процедура перегляду нормативних документів', months:[1,2,3], hours:{year:[36,20], q1:[36,20], 1:[12,12], 2:[12,6], 3:[12,2]},
+        ref:{ desc:'Плановий перегляд та актуалізація нормативної документації СУІБ', service:'Управління документацією', category:'process', target:170, period:'month',
+          templates:['Перегляд документу','Внесення змін','Затвердження документу'],
+          companies:[], projects:[], kbDocs:['Вимоги ІБ до ІС на всіх етапах їх ЖЦ v.1.0.0'] }},
+    ]},
+];
+
+// ═══ STATE ═══
+let selYear = 2026, selQuarter = 1, selMonth = 3, selStatus = 'active';
+let selProcessId = null, selProcIdx = null;
+
+const MONTHS_Q = {1:['Січень','Лютий','Березень'],2:['Квітень','Травень','Червень'],3:['Липень','Серпень','Вересень'],4:['Жовтень','Листопад','Грудень']};
+
+function pctColor(pct) { return pct >= 80 ? 'var(--green)' : pct >= 40 ? 'var(--accent-text)' : 'var(--amber)'; }
+function pillClass(st) { return st === 'completed' ? 'pill-green' : st === 'active' ? 'pill-blue' : 'pill-amber'; }
+function statusText(st) { return st === 'completed' ? 'Завершено' : st === 'active' ? 'В роботі' : 'Підготовка'; }
+
+function getHours(proc, scope) {
+  const key = selMonth ? selMonth : selQuarter ? 'q'+selQuarter : 'year';
+  return proc.hours[key] || [0,0];
+}
+
+function renderTree() {
+  const tc = document.getElementById('tree-content');
+  const filtered = PROCESSES.filter(p => {
+    if (selQuarter && !p.quarters.includes(selQuarter)) return false;
+    if (selMonth) return p.procedures.some(pr => pr.months.includes(selMonth));
+    return true;
+  });
+
+  let html = '';
+  filtered.forEach((proc) => {
+    let totalPlan = 0, totalDone = 0;
+    const visProcs = proc.procedures.filter(pr => !selMonth || pr.months.includes(selMonth));
+    visProcs.forEach(pr => { const [p, d] = getHours(pr); totalPlan += p; totalDone += d; });
+    if (visProcs.length === 0) return;
+    const pct = totalPlan > 0 ? Math.round(totalDone / totalPlan * 100) : 0;
+    const isSelProc = selProcessId === proc.id;
+
+    // wl-group style: process header → procedure rows
+    html += '<div class="wl-group">';
+    // Header = process
+    html += `<div class="wl-group-hdr" style="cursor:pointer;gap:6px;" data-pid="${proc.id}">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;font-weight:600;color:${isSelProc && selProcIdx === null ? 'var(--accent-text)' : 'var(--text-primary)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${proc.name}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:2px;">
+          <span style="font-size:10px;color:var(--text-muted);">${proc.dept}</span>
+          <span style="font-size:10px;color:var(--text-muted);">·</span>
+          <span style="font-size:10px;color:var(--text-muted);">${totalDone}/${totalPlan} год</span>
+        </div>
+      </div>
+      <div class="progress" style="width:50px;margin:0;flex-shrink:0;"><div style="width:${pct}%;background:${pctColor(pct)};"></div></div>
+      <span style="font-size:11px;font-weight:700;color:${pctColor(pct)};min-width:28px;text-align:right;">${pct}%</span>
+    </div>`;
+    // Rows = procedures
+    visProcs.forEach((pr, pri) => {
+      const [plan, done] = getHours(pr);
+      const prPct = plan > 0 ? Math.round(done / plan * 100) : 0;
+      const isSelPr = isSelProc && selProcIdx === pri;
+      html += `<div class="wl-task${isSelPr ? ' wl-pending' : ''}" style="cursor:pointer;${isSelPr ? 'background:var(--accent-light);' : ''}" data-pid="${proc.id}" data-pri="${pri}">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:11px;font-weight:${isSelPr ? 600 : 500};color:${isSelPr ? 'var(--accent-text)' : 'var(--text-primary)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pr.name}</div>
+        </div>
+        <span style="font-size:10px;color:var(--text-muted);flex-shrink:0;">${done}/${plan}</span>
+        <span style="font-size:10px;font-weight:700;color:${pctColor(prPct)};min-width:28px;text-align:right;flex-shrink:0;">${prPct}%</span>
+      </div>`;
+    });
+    html += '</div>';
+  });
+
+  tc.innerHTML = html;
+
+  // Summary footer
+  let grandPlan = 0, grandDone = 0, count = 0;
+  filtered.forEach(proc => {
+    const vp = proc.procedures.filter(pr => !selMonth || pr.months.includes(selMonth));
+    vp.forEach(pr => { const [p,d] = getHours(pr); grandPlan += p; grandDone += d; });
+    if (vp.length) count++;
+  });
+  const grandPct = grandPlan > 0 ? Math.round(grandDone / grandPlan * 100) : 0;
+  const tf = document.getElementById('tree-footer');
+  if (tf) {
+    tf.innerHTML = `
+      <div class="stat-box"><div class="stat-label">Процесів</div><div style="font-size:16px;font-weight:800;color:var(--text-primary);margin-top:2px;">${count}</div></div>
+      <div class="stat-box"><div class="stat-label">Годин</div><div style="font-size:16px;font-weight:800;color:var(--accent-text);margin-top:2px;">${grandDone}/${grandPlan}</div></div>
+      <div class="stat-box"><div class="stat-label">Прогрес</div><div style="font-size:16px;font-weight:800;color:${pctColor(grandPct)};margin-top:2px;">${grandPct}%</div></div>`;
+  }
+
+  // Click: process header or procedure row
+  tc.querySelectorAll('[data-pid]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      selProcessId = el.dataset.pid;
+      selProcIdx = el.dataset.pri !== undefined ? +el.dataset.pri : null;
+      render();
+    });
+  });
+}
+
+function renderDetail() {
+  const dp = document.getElementById('detail-body');
+  if (!dp) return;
+  if (!selProcessId) { dp.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--text-muted);font-size:12px;">Оберіть процес або процедуру</div>'; return; }
+  const proc = PROCESSES.find(p => p.id === selProcessId);
+  if (!proc) return;
+
+  const scopeLabel = selMonth ? MONTHS_Q[selQuarter][selMonth-(selQuarter-1)*3-1]+' 2026' : selQuarter ? 'Q'+selQuarter+' 2026' : '2026';
+  const hdrSep = '<div style="height:3px;background:rgba(220,228,240,0.5);"></div>';
+
+  // Scope months
+  const scopeMonths = selMonth ? [selMonth] : selQuarter ? [(selQuarter-1)*3+1,(selQuarter-1)*3+2,(selQuarter-1)*3+3] : [1,2,3,4,5,6,7,8,9,10,11,12];
+
+  const CATEGORY_LABELS = {process:'Процесний',operational:'Операційний',strategic:'Стратегічний'};
+  const CATEGORY_COLORS = {process:'var(--blue)',operational:'var(--cyan)',strategic:'var(--purple)'};
+  const CATEGORY_BG = {process:'var(--blue-bg)',operational:'var(--cyan-bg)',strategic:'var(--purple-bg)'};
+  const PERIOD_LABELS = {month:'місяць',quarter:'квартал',year:'рік'};
+
+  if (selProcIdx !== null) {
+    // ═══ PROCEDURE VIEW: Довідник + План ═══
+    const pr = proc.procedures[selProcIdx];
+    const ref = pr.ref || {};
+    const [plan, done] = getHours(pr);
+    const pct = plan > 0 ? Math.round(done/plan*100) : 0;
+
+    let html = `<div class="detail-head" style="padding:12px 16px;">
+      <div style="font-size:10px;color:var(--text-muted);">${proc.name} · ${proc.dept} · ${scopeLabel}</div>
+      <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-top:3px;">${pr.name}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <div class="progress" style="flex:1;height:5px;"><div style="width:${pct}%;background:${pctColor(pct)};border-radius:3px;"></div></div>
+        <span style="font-size:11px;font-weight:700;color:${pctColor(pct)};">${done}/${plan} год · ${pct}%</span>
+      </div>
+    </div>${hdrSep}<div style="flex:1;overflow-y:auto;">`;
+
+    // ── СЕКЦІЯ 1: ДОВІДНИК ПРОЦЕДУРИ ──
+    html += '<div style="border-bottom:2px solid var(--border);">';
+    html += '<div style="padding:8px 16px 4px;"><div class="field-label" style="color:var(--accent-text);font-size:11px;">&#128218; Довідник процедури</div></div>';
+
+    // Опис + сервіс + категорія + ціль
+    html += '<div style="padding:6px 16px 10px;display:flex;flex-direction:column;gap:6px;">';
+    if (ref.desc) html += `<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;padding:8px 12px;background:var(--bg-muted);border-radius:var(--radius);border-left:3px solid var(--accent);">${ref.desc}</div>`;
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+    if (ref.service) html += `<span class="chip" style="background:var(--accent-light);color:var(--accent-text);">&#9881; ${ref.service}</span>`;
+    if (ref.category) html += `<span class="chip" style="background:${CATEGORY_BG[ref.category]};color:${CATEGORY_COLORS[ref.category]};">${CATEGORY_LABELS[ref.category]}</span>`;
+    if (ref.target) html += `<span class="chip" style="background:var(--bg-muted);color:var(--text-secondary);">&#127919; ${ref.target} год/${PERIOD_LABELS[ref.period]||ref.period}</span>`;
+    html += '</div>';
+
+    // Шаблони задач
+    if (ref.templates && ref.templates.length > 0) {
+      html += '<div style="margin-top:4px;"><div class="field-label" style="margin-bottom:4px;">Шаблони задач</div><div style="display:flex;flex-wrap:wrap;gap:4px;">';
+      ref.templates.forEach(t => { html += `<span class="chip" style="background:var(--bg-muted);color:var(--text-secondary);font-weight:500;">&#128203; ${t}</span>`; });
+      html += '</div></div>';
+    }
+    html += '</div></div>';
+
+    // ── СЕКЦІЯ 2: ДАНІ ПЛАНУ ──
+    html += '<div>';
+    html += '<div style="padding:8px 16px 4px;"><div class="field-label" style="color:var(--green);font-size:11px;">&#128197; Дані плану · ' + scopeLabel + '</div></div>';
+
+    // Компанії, проєкти, документи БЗ
+    const hasCompanies = ref.companies && ref.companies.length > 0;
+    const hasProjects = ref.projects && ref.projects.length > 0;
+    const hasDocs = ref.kbDocs && ref.kbDocs.length > 0;
+    if (hasCompanies || hasProjects || hasDocs) {
+      html += '<div style="padding:6px 16px;border-bottom:1px solid var(--border-light);display:flex;flex-wrap:wrap;gap:12px;">';
+      if (hasCompanies) {
+        html += `<div style="min-width:140px;"><div class="field-label">&#127970; Компанії (${ref.companies.length})</div><div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;">`;
+        ref.companies.forEach(c => { html += `<span class="chip" style="background:var(--bg-muted);color:var(--text-secondary);font-weight:500;">${c}</span>`; });
+        html += '</div></div>';
+      }
+      if (hasProjects) {
+        html += '<div><div class="field-label">&#128193; Проєкти</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">';
+        ref.projects.forEach(p => { html += `<span class="chip" style="background:var(--accent-light);color:var(--accent-text);">${p}</span>`; });
+        html += '</div></div>';
+      }
+      if (hasDocs) {
+        html += '<div><div class="field-label">&#128214; Документи БЗ</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">';
+        ref.kbDocs.forEach(d => { html += `<span class="chip" style="background:var(--green-bg);color:var(--green);">${d}</span>`; });
+        html += '</div></div>';
+      }
+      html += '</div>';
+    }
+
+    // Місяці → виконавці
+    const visMonths = scopeMonths.filter(m => pr.months.includes(m));
+    visMonths.forEach(m => {
+      const h = pr.hours[m] || [0,0];
+      const mp = h[0]>0 ? Math.round(h[1]/h[0]*100) : 0;
+      html += `<div class="wl-group"><div class="wl-group-hdr">
+        <div style="font-size:13px;color:${mp>=100?'var(--green)':mp>0?'var(--blue)':'var(--text-muted)'};">${mp>=100?'✓':mp>0?'○':'·'}</div>
+        <div><div class="wl-name">${MONTH_NAMES_FULL[m]}</div></div>
+        <div class="wl-hrs">${h[1]}/${h[0]}</div>
+        <div class="progress" style="width:50px;margin:0;"><div style="width:${mp}%;background:${pctColor(mp)};"></div></div>
+        <span style="font-size:10px;font-weight:700;color:${pctColor(mp)};">${mp}%</span></div>`;
+      EMPLOYEES.forEach(emp => {
+        const empHrs = Math.round(h[1] / EMPLOYEES.length);
+        const empPlan = Math.round(h[0] / EMPLOYEES.length);
+        if (empPlan === 0) return;
+        html += `<div class="wl-task">
+          <div class="av" style="background:${emp.color};width:22px;height:22px;font-size:8px;">${emp.initials}</div>
+          <div style="flex:1;"><div class="wl-task-title">${emp.name}</div><div class="wl-task-sub">${emp.role}</div></div>
+          <div class="wl-task-hrs">${empHrs}/${empPlan}</div></div>`;
+      });
+      html += '</div>';
+    });
+    html += '</div>';
+
+    html += '</div>';
+    html += `<div class="wl-summary">
+      <div class="stat-box"><div class="stat-label">Заплановано</div><div style="font-size:16px;font-weight:800;margin-top:2px;">${plan} год</div></div>
+      <div class="stat-box"><div class="stat-label">Виконано</div><div style="font-size:16px;font-weight:800;color:var(--green);margin-top:2px;">${done} год</div></div>
+      <div class="stat-box"><div class="stat-label">Прогрес</div><div style="font-size:16px;font-weight:800;color:${pctColor(pct)};margin-top:2px;">${pct}%</div></div>
+    </div>`;
+    dp.innerHTML = html;
+
+  } else {
+    // ═══ PROCESS VIEW: header + процедури → місяці ═══
+    let totalPlan = 0, totalDone = 0;
+    const visProcs = proc.procedures.filter(pr => scopeMonths.some(m => pr.months.includes(m)));
+    visProcs.forEach(pr => { const [p,d] = getHours(pr); totalPlan += p; totalDone += d; });
+    const pct = totalPlan > 0 ? Math.round(totalDone/totalPlan*100) : 0;
+
+    // Collect unique companies, projects, kbDocs across all procedures
+    const allCompanies = [...new Set(visProcs.flatMap(pr => pr.ref?.companies || []))];
+    const allProjects = [...new Set(visProcs.flatMap(pr => pr.ref?.projects || []))];
+    const allDocs = [...new Set(visProcs.flatMap(pr => pr.ref?.kbDocs || []))];
+
+    let html = `<div class="detail-head" style="padding:12px 16px;">
+      <div style="font-size:10px;color:var(--text-muted);">${proc.dept} · ${scopeLabel}</div>
+      <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-top:3px;">${proc.name}</div>
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">${proc.goal}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+        <div class="progress" style="flex:1;height:5px;"><div style="width:${pct}%;background:${pctColor(pct)};border-radius:3px;"></div></div>
+        <span style="font-size:11px;font-weight:700;color:${pctColor(pct)};">${totalDone}/${totalPlan} год · ${pct}%</span>
+      </div>
+    </div>${hdrSep}<div style="flex:1;overflow-y:auto;">`;
+
+    // Агреговані мета-дані процесу
+    if (allCompanies.length || allProjects.length || allDocs.length) {
+      html += '<div style="padding:10px 16px;border-bottom:1px solid var(--border-light);display:flex;flex-wrap:wrap;gap:12px;">';
+      if (allCompanies.length) {
+        html += `<div style="min-width:140px;"><div class="field-label">&#127970; Компанії (${allCompanies.length})</div><div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;">`;
+        allCompanies.forEach(c => { html += `<span class="chip" style="background:var(--bg-muted);color:var(--text-secondary);font-weight:500;">${c}</span>`; });
+        html += '</div></div>';
+      }
+      if (allProjects.length) {
+        html += '<div><div class="field-label">&#128193; Проєкти</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">';
+        allProjects.forEach(p => { html += `<span class="chip" style="background:var(--accent-light);color:var(--accent-text);">${p}</span>`; });
+        html += '</div></div>';
+      }
+      if (allDocs.length) {
+        html += '<div><div class="field-label">&#128214; Документи БЗ</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">';
+        allDocs.forEach(d => { html += `<span class="chip" style="background:var(--green-bg);color:var(--green);">${d}</span>`; });
+        html += '</div></div>';
+      }
+      html += '</div>';
+    }
+
+    // Процедури → місяці
+    visProcs.forEach(pr => {
+      const [prPlan, prDone] = getHours(pr);
+      const prPct = prPlan>0 ? Math.round(prDone/prPlan*100) : 0;
+      html += `<div class="wl-group"><div class="wl-group-hdr">
+        <div style="font-size:13px;color:${prPct>=100?'var(--green)':prPct>0?'var(--blue)':'var(--text-muted)'};">${prPct>=100?'✓':prPct>0?'○':'·'}</div>
+        <div style="flex:1;min-width:0;"><div class="wl-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pr.name}</div></div>
+        <div class="wl-hrs">${prDone}/${prPlan}</div>
+        <span style="font-size:10px;font-weight:700;color:${pctColor(prPct)};">${prPct}%</span></div>`;
+
+      const prMonths = scopeMonths.filter(m => pr.months.includes(m));
+      prMonths.forEach(m => {
+        const h = pr.hours[m] || [0,0];
+        const mp = h[0]>0 ? Math.round(h[1]/h[0]*100) : 0;
+        html += `<div class="wl-task">
+          <div class="wl-icon" style="color:${mp>=100?'var(--green)':mp>0?'var(--blue)':'var(--text-muted)'};">${mp>=100?'✓':'○'}</div>
+          <div style="flex:1;"><div class="wl-task-title">${MONTH_NAMES_FULL[m]}</div></div>
+          <div class="wl-task-hrs">${h[1]}/${h[0]}</div>
+          <div class="wl-task-date" style="color:${pctColor(mp)};">${mp}%</div></div>`;
+      });
+      html += '</div>';
+    });
+
+    html += '</div>';
+    html += `<div class="wl-summary">
+      <div class="stat-box"><div class="stat-label">Заплановано</div><div style="font-size:16px;font-weight:800;margin-top:2px;">${totalPlan} год</div></div>
+      <div class="stat-box"><div class="stat-label">Виконано</div><div style="font-size:16px;font-weight:800;color:var(--green);margin-top:2px;">${totalDone} год</div></div>
+      <div class="stat-box"><div class="stat-label">Прогрес</div><div style="font-size:16px;font-weight:800;color:${pctColor(pct)};margin-top:2px;">${pct}%</div></div>
+    </div>`;
+    dp.innerHTML = html;
+  }
+}
+
+// ═══ MOCK: employees & tasks for worklog ═══
+const EMPLOYEES = [
+  { name:'Іванов Олександр', initials:'ІО', role:'analyst', color:'var(--accent)',
+    tasks:[
+      { title:'Налаштування SIEM алертів', desc:'Конфігурація правил кореляції', hrs:8, date:'03.03', done:true, source:'chief' },
+      { title:'Аналіз логів за тиждень', hrs:6, date:'07.03', done:true },
+      { title:'Звіт по інцидентах', hrs:4, date:'14.03', done:false },
+      { title:'Перевірка правил кореляції', hrs:0, date:'', done:false, pending:true, source:'head' },
+    ]},
+  { name:'Петренко Сергій', initials:'ПС', role:'employee', color:'var(--purple)',
+    tasks:[
+      { title:'Патчинг серверів БД', hrs:12, date:'10.03', done:true },
+      { title:'Оновлення FW правил', hrs:8, date:'12.03', done:true },
+      { title:'Інвентаризація ПЗ', hrs:0, date:'', done:false, pending:true, source:'chief' },
+    ]},
+  { name:'Коваль Наталія', initials:'КН', role:'analyst', color:'var(--cyan)',
+    tasks:[
+      { title:'Аналіз вразливостей Q1', hrs:10, date:'08.03', done:true },
+      { title:'Тестування бекапів', hrs:5, date:'20.03', done:false },
+    ]},
+];
+
+const MONTH_NAMES_FULL = ['','Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
+
+function renderWorklog() {
+  const wb = document.getElementById('wl-body');
+  if (!selProcessId) { wb.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--text-muted);font-size:12px;">Оберіть процес або процедуру</div>'; return; }
+  const proc = PROCESSES.find(p => p.id === selProcessId);
+  if (!proc) return;
+
+  // ═══ ЗАВЖДИ: Виконавці в поточному scope ═══
+  const scopeLabel = selMonth ? MONTH_NAMES_FULL[selMonth] : selQuarter ? 'Q'+selQuarter : '2026';
+  const scopeMonths = selMonth ? [selMonth] : selQuarter ? [(selQuarter-1)*3+1,(selQuarter-1)*3+2,(selQuarter-1)*3+3] : [1,2,3,4,5,6,7,8,9,10,11,12];
+
+  // Calc total hours for scope
+  const items = selProcIdx !== null ? [proc.procedures[selProcIdx]] : proc.procedures.filter(pr => scopeMonths.some(m => pr.months.includes(m)));
+  let scopePlan = 0, scopeDone = 0;
+  items.forEach(pr => { const [p,d] = getHours(pr); scopePlan += p; scopeDone += d; });
+
+  let html = `<div class="zone-header"><div class="zone-title">Виконавці</div><div style="flex:1"></div><span style="font-size:10px;color:var(--text-muted);">${scopeLabel}</span></div>`;
+  html += '<div style="flex:1;overflow-y:auto;">';
+
+  let totalAllPlan = 0, totalAllDone = 0;
+  EMPLOYEES.forEach(emp => {
+    // Distribute hours proportionally among employees
+    const empShare = scopePlan > 0 ? 1 / EMPLOYEES.length : 0;
+    const empPlan = Math.round(scopePlan * empShare);
+    const empDone = Math.round(scopeDone * empShare);
+    totalAllPlan += empPlan; totalAllDone += empDone;
+    const pct = empPlan > 0 ? Math.round(empDone / empPlan * 100) : 0;
+
+    html += `<div class="wl-group"><div class="wl-group-hdr">
+      <div class="av" style="background:${emp.color};">${emp.initials}</div>
+      <div><div class="wl-name">${emp.name}</div><div class="wl-role">${emp.role}</div></div>
+      <div class="wl-hrs">${empDone}/${empPlan}</div>
+      <div class="progress" style="width:50px;margin:0;"><div style="width:${pct}%;background:${emp.color};"></div></div>
+      <button class="wl-add">+</button></div>`;
+
+    if (selMonth) {
+      // На рівні місяця — задачі
+      emp.tasks.forEach(t => {
+        const icon = t.done ? '✓' : t.pending ? '⏳' : '○';
+        const iconColor = t.done ? 'var(--green)' : t.pending ? 'var(--amber)' : 'var(--blue)';
+        const badge = t.source === 'chief' ? '<span class="pill pill-purple" style="font-size:9px;">CHIEF</span>' : t.source === 'head' ? '<span class="pill pill-cyan" style="font-size:9px;">HEAD</span>' : '';
+        const accept = t.pending ? '<div class="wl-accept"><button class="yes">✓</button><button class="no">✗</button></div>' : '';
+        html += `<div class="wl-task${t.pending ? ' wl-pending' : ''}">
+          <div class="wl-icon" style="color:${iconColor};">${icon}</div>
+          <div style="flex:1;"><div class="wl-task-title">${t.title}</div>${t.desc ? '<div class="wl-task-sub">'+t.desc+'</div>':''}</div>
+          ${badge}<div class="wl-task-hrs"${t.pending?' style="color:var(--text-muted);"':''}>${t.hrs} год</div><div class="wl-task-date">${t.date}</div>${accept}</div>`;
+      });
+    } else {
+      // На рівні кварталу/року — помісячна розбивка виконавця
+      scopeMonths.forEach(m => {
+        let mP = 0, mD = 0;
+        items.forEach(pr => { if (pr.months.includes(m)) { const h = pr.hours[m]; if(h) { mP += h[0]; mD += h[1]; } } });
+        const empMP = Math.round(mP * empShare);
+        const empMD = Math.round(mD * empShare);
+        if (empMP === 0) return;
+        const mp = empMP > 0 ? Math.round(empMD/empMP*100) : 0;
+        html += `<div class="wl-task">
+          <div class="wl-icon" style="color:${mp>=100?'var(--green)':mp>0?'var(--blue)':'var(--text-muted)'};">${mp>=100?'✓':'○'}</div>
+          <div style="flex:1;"><div class="wl-task-title">${MONTH_NAMES_FULL[m]}</div></div>
+          <div class="wl-task-hrs">${empMD}/${empMP}</div>
+          <div class="wl-task-date" style="color:${pctColor(mp)};">${mp}%</div></div>`;
+      });
+    }
+    html += '</div>';
+  });
+
+  html += '</div>';
+  const cp = totalAllPlan > 0 ? Math.round(totalAllDone/totalAllPlan*100) : 0;
+  html += `<div class="wl-summary">
+    <div class="stat-box"><div class="stat-label">Виконавців</div><div style="font-size:16px;font-weight:800;margin-top:2px;">${EMPLOYEES.length}</div></div>
+    <div class="stat-box"><div class="stat-label">Виконано</div><div style="font-size:16px;font-weight:800;color:var(--green);margin-top:2px;">${totalAllDone} год</div></div>
+    <div class="stat-box"><div class="stat-label">Покриття</div><div style="font-size:16px;font-weight:800;color:${pctColor(cp)};margin-top:2px;">${cp}%</div></div>
+  </div>`;
+  wb.innerHTML = html;
+}
+
+function renderNav() {
+  document.querySelectorAll('#year-group .ng-btn').forEach(b => b.classList.toggle('active', +b.dataset.year === selYear));
+  document.querySelectorAll('#quarter-group .ng-btn').forEach(b => b.classList.toggle('active', +b.dataset.q === selQuarter));
+  const mg = document.getElementById('month-group');
+  if (selQuarter) {
+    mg.style.display = '';
+    const names = MONTHS_Q[selQuarter];
+    mg.innerHTML = names.map((n, i) => {
+      const m = (selQuarter - 1) * 3 + i + 1;
+      return `<button class="ng-btn${m === selMonth ? ' active' : ''}" style="flex:1;" data-m="${m}">${n}</button>`;
+    }).join('');
+    mg.querySelectorAll('.ng-btn').forEach(b => b.addEventListener('click', () => {
+      const m = +b.dataset.m;
+      selMonth = selMonth === m ? null : m;
+      selProcessId = null; selProcIdx = null;
+      render();
+    }));
+  } else { mg.style.display = 'none'; }
+  document.querySelectorAll('#status-group .ng-btn').forEach(b => b.classList.toggle('active', b.dataset.st === selStatus));
+}
+
+function render() { renderNav(); renderTree(); renderDetail(); renderWorklog(); }
+
+// ═══ YEAR CLICK ═══
+document.querySelectorAll('#year-group .ng-btn').forEach(b => b.addEventListener('click', () => {
+  const y = +b.dataset.year;
+  if (y === selYear) { selQuarter = null; selMonth = null; }
+  else { selYear = y; selQuarter = null; selMonth = null; }
+  selProcessId = null; selProcIdx = null;
+  render();
+}));
+
+// ═══ QUARTER CLICK ═══
+document.querySelectorAll('#quarter-group .ng-btn').forEach(b => {
+  if (b.disabled) return;
+  b.addEventListener('click', () => {
+    const q = +b.dataset.q;
+    if (q === selQuarter) { selMonth = null; } else { selQuarter = q; selMonth = null; }
+    selProcessId = null; selProcIdx = null;
+    render();
+  });
+});
+
+// ═══ STATUS CLICK ═══
+document.querySelectorAll('#status-group .ng-btn').forEach(b => b.addEventListener('click', () => { selStatus = b.dataset.st; render(); }));
+
+// ═══ TOP NAV ═══
+document.querySelectorAll('.top-nav-link').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('.top-nav-link').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}));
+
+// ═══ RESIZE ═══
+document.querySelectorAll('.resize-handle').forEach(handle => {
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const leftEl = document.getElementById(handle.dataset.left);
+    const rightEl = document.getElementById(handle.dataset.right);
+    const leftW = leftEl.getBoundingClientRect().width;
+    const rightW = rightEl.getBoundingClientRect().width;
+    handle.classList.add('active');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    const onMove = e => { const dx = e.clientX - startX; leftEl.style.width = Math.max(150, leftW + dx) + 'px'; rightEl.style.width = Math.max(150, rightW - dx) + 'px'; };
+    const onUp = () => { handle.classList.remove('active'); document.body.style.cursor = ''; document.body.style.userSelect = ''; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+  });
+});
+
+render();
+</script>
+</body>
+</html>

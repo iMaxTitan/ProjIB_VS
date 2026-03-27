@@ -1,0 +1,13 @@
+{
+  "name": "law-fetcher",
+  "version": "1.0.0",
+  "description": "Microservice for fetching Ukrainian laws from zakon.rada.gov.ua",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "playwright": "^1.58.0"
+  }
+}

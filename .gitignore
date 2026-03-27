@@ -1,0 +1,70 @@
+# Временные файлы для анализа
+tmp/
+
+# Project Memory (RAG skill data)
+.project-memory/
+
+# Зависимости
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+.next/
+out/
+
+# MCP серверы (содержит секреты)
+.mcp.json
+
+# Окружение
+.env
+.env.local
+.env.local.bak*
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Логи
+logs
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+
+# Claude Code (локальные настройки)
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
+.claude/hookify.*.local.md
+certificates
+supabase/.temp/
+nul
+
+# Playwright
+tests/.auth/
+playwright-report/
+test-results/
+blob-report/
+.env.test
+.playwright-mcp/
+
+# Временные/отладочные файлы
+tsc_out.txt
+bot_t.json
+*.tsv
+tsconfig.tsbuildinfo
+
+# Большие бинарные документы (загружаются в KB отдельно)
+*.docx
+*.doc
+
+# Temp файлы
+temp_openapi.json

@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Планы — Редизайн</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwindcss.config = {
+      theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; background: linear-gradient(135deg, #f0f2f8 0%, #e8eaf4 50%, #f5f0ff 100%); min-height: 100vh; }
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    /* Glass panels */
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      box-shadow:
+        0 4px 24px rgba(99, 102, 241, 0.06),
+        0 1px 3px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+    .glass-detail {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      box-shadow:
+        0 8px 32px rgba(99, 102, 241, 0.08),
+        0 2px 8px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+    .glass-header {
+      background: rgba(255, 255, 255, 0.5);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+    }
+    .glass-meta {
+      background: rgba(248, 250, 252, 0.5);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.4);
+    }
+    .glass-input {
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(226, 232, 240, 0.6);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    /* Plan items */
+    .plan-item { transition: all 0.15s ease; border-radius: 10px; background: rgba(255,255,255,0.68); border: 1px solid rgba(255,255,255,0.55); box-shadow: 0 2px 8px rgba(99,102,241,0.05), 0 1px 2px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.8); }
+    .plan-item:hover { background: rgba(255,255,255,0.85); box-shadow: 0 4px 14px rgba(99,102,241,0.1), 0 1px 3px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.9); }
+    .plan-item.active { background: rgba(99,102,241,0.08); border-color: rgba(99,102,241,0.25); border-left: 2px solid #6366f1; box-shadow: 0 4px 16px rgba(99,102,241,0.12), 0 1px 3px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.7); }
+    .section-toggle { cursor: pointer; user-select: none; }
+    .section-toggle .chevron { transition: transform 0.2s ease; }
+    .section-toggle.open .chevron { transform: rotate(90deg); }
+    .progress-ring { transform: rotate(-90deg); }
+    .meta-divider { width: 1px; height: 16px; background: rgba(226, 232, 240, 0.6); }
+
+    /* Nav */
+    .nav-btn { padding: 4px 0; width: 44px; text-align: center; font-size: 12px; font-weight: 500; border-radius: 6px; cursor: pointer; border: none; transition: all 0.15s; background: transparent; color: #94a3b8; }
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.8);
+      color: #64748b;
+      box-shadow: 0 2px 6px rgba(99,102,241,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
+    }
+    .nav-btn.active {
+      background: linear-gradient(145deg, #6366f1, #4f46e5);
+      color: white;
+      transform: translateY(-1px);
+      box-shadow:
+        0 6px 16px rgba(99, 102, 241, 0.5),
+        0 2px 4px rgba(79, 70, 229, 0.35),
+        inset 0 1px 0 rgba(255,255,255,0.3);
+    }
+    /* Parent-context: selected but not current level — faded active */
+    .nav-btn.ctx {
+      background: rgba(99, 102, 241, 0.28);
+      color: white;
+      transform: translateY(-1px);
+      box-shadow:
+        0 4px 12px rgba(99, 102, 241, 0.22),
+        0 1px 3px rgba(79, 70, 229, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+    .nav-btn.ctx:hover {
+      background: rgba(99, 102, 241, 0.38);
+      color: white;
+    }
+    .nav-group {
+      display: inline-flex; align-items: center; padding: 2px;
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 8px;
+      box-shadow:
+        0 4px 16px rgba(99, 102, 241, 0.07),
+        0 1px 3px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+    .nav-separator { color: #cbd5e1; margin: 0 2px; }
+
+    /* Employee cards */
+    .emp-card {
+      border: 1px solid rgba(226, 232, 240, 0.6);
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.5);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+      transition: box-shadow 0.15s;
+    }
+    .emp-card:hover { box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08); }
+
+    /* Quarter/month cards in detail */
+    .child-card {
+      border-radius: 10px;
+      background: rgba(255,255,255,0.68);
+      border: 1px solid rgba(255,255,255,0.55);
+      box-shadow: 0 2px 8px rgba(99,102,241,0.05), 0 1px 2px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.8);
+      transition: all 0.15s;
+    }
+    .child-card:hover { background: rgba(255,255,255,0.85); box-shadow: 0 4px 14px rgba(99,102,241,0.1), 0 1px 3px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.9); }
+    .child-card.empty { background: rgba(255,255,255,0.35); border-style: dashed; border-color: rgba(148,163,184,0.35); box-shadow: none; }
+    .child-card.empty:hover { background: rgba(255,255,255,0.55); box-shadow: none; }
+
+    /* ===== REUSABLE STRUCTURE CLASSES ===== */
+    /* Glass content card (detail panel sections) */
+    .info-card  { margin:3px 16px 4px; background:rgba(255,255,255,0.72); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.5); border-radius:12px; box-shadow:0 4px 16px rgba(99,102,241,0.06),0 1px 3px rgba(0,0,0,0.04),inset 0 1px 0 rgba(255,255,255,0.8); overflow:hidden; }
+    /* Uppercase section heading */
+    .sec-label  { font-size:10px; font-weight:600; color:#94a3b8; letter-spacing:0.06em; text-transform:uppercase; margin:0; }
+    /* Property row label */
+    .prop-label { font-size:10px; font-weight:600; color:#94a3b8; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:4px; }
+    /* Hours/stats 3-column grid */
+    .hours-grid { padding:3px 16px 4px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+    /* Individual stat cell */
+    .stat-cell  { background:rgba(241,245,249,0.65); border:1px solid rgba(203,213,225,0.5); border-radius:10px; padding:10px 12px; box-shadow:inset 0 2px 5px rgba(99,102,241,0.06),inset 0 -1px 0 rgba(255,255,255,0.85),0 1px 0 rgba(255,255,255,0.95); }
+    /* Inset content box */
+    .inset-box  { background:rgba(241,245,249,0.65); border:1px solid rgba(203,213,225,0.5); border-radius:10px; padding:11px 14px; box-shadow:inset 0 2px 5px rgba(99,102,241,0.09),inset 0 1px 2px rgba(0,0,0,0.07),inset 0 -1px 0 rgba(255,255,255,0.85),0 1px 0 rgba(255,255,255,0.95); }
+    /* Breadcrumb/meta strip */
+    .meta-strip { display:flex; align-items:center; gap:8px; padding:4px 16px 6px; }
+    /* Status switcher pill */
+    .status-wrap{ display:flex; align-items:center; gap:0; flex-shrink:0; background:rgba(241,245,249,0.8); border:1px solid rgba(203,213,225,0.6); border-radius:8px; padding:2px; box-shadow:inset 0 1px 2px rgba(0,0,0,0.06); }
+    /* Top bar role badge */
+    .role-badge { background:rgba(255,255,255,0.22); border:1px solid rgba(255,255,255,0.35); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+    /* Detail panel header */
+    .detail-hdr { flex-shrink:0; background:linear-gradient(135deg,rgba(99,102,241,0.07) 0%,rgba(168,85,247,0.04) 100%); background-clip:content-box; -webkit-background-clip:content-box; }
+    /* Header separator line */
+    .hdr-sep    { height:4px; background:rgba(220,228,240,0.5); box-shadow:inset 0 2px 3px rgba(99,102,241,0.13),inset 0 1px 1px rgba(0,0,0,0.08),0 1px 0 rgba(255,255,255,0.95); }
+
+    /* Mobile back button */
+    .mobile-back { display: none; }
+
+    /* ===== MOBILE RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .desktop-only { display: none !important; }
+      .mobile-back { display: flex; }
+
+      /* Single column layout */
+      .layout-row { flex-direction: column !important; height: auto !important; }
+      .left-col { width: 100% !important; flex-shrink: 1 !important; }
+      .left-col.mobile-hidden { display: none !important; }
+      .right-col.mobile-hidden { display: none !important; }
+
+      /* Compact nav */
+      .nav-btn { width: 36px; font-size: 11px; padding: 3px 0; }
+      .nav-group { gap: 0; }
+
+      /* Shorter list */
+      #plan-list { max-height: 45vh; }
+
+      /* Detail takes full height */
+      .right-col { border-radius: 12px !important; }
+
+      /* Section tabs scrollable */
+      .sec-tab { padding: 8px 10px; font-size: 12px; }
+
+      /* Top bar compact */
+      .top-bar-inner { padding-left: 12px; padding-right: 12px; }
+    }
+
+    @media (max-width: 480px) {
+      .nav-btn { width: 30px; font-size: 10px; }
+      .sec-tab { padding: 7px 8px; font-size: 11px; gap: 4px; }
+      .plan-item { padding: 8px 10px !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-700">
+
+  <!-- ===== TOP APP BAR ===== -->
+  <div style="background: linear-gradient(135deg, #4f46e5 0%, #6366f1 60%, #818cf8 100%); box-shadow: 0 2px 16px rgba(79,70,229,0.25);">
+    <div class="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="role-badge px-3 py-1 rounded-lg text-xs font-semibold text-white">Руководитель</span>
+        <span class="role-badge px-3 py-1 rounded-lg text-xs font-semibold text-white">УИБК</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.3);border:2px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;">
+          <svg width="16" height="16" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.35);display:flex;align-items:center;justify-content:center;cursor:pointer;">
+          <svg width="14" height="14" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION TABS ===== -->
+  <div style="background: rgba(255,255,255,0.75); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(226,232,240,0.6); box-shadow: 0 1px 8px rgba(99,102,241,0.05);">
+    <div class="max-w-7xl mx-auto px-4">
+      <div class="flex items-center gap-1 overflow-x-auto" style="scrollbar-width:none;">
+        <style>.sec-tab{padding:10px 14px;font-size:13px;font-weight:500;color:#94a3b8;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:6px;transition:all 0.15s;}.sec-tab:hover{color:#64748b;}.sec-tab.active{color:#6366f1;border-bottom-color:#6366f1;font-weight:600;}</style>
+        <div class="sec-tab"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>Активность</div>
+        <div class="sec-tab active"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Планы</div>
+        <div class="sec-tab"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Отчеты</div>
+        <div class="sec-tab"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Сводная</div>
+        <div class="sec-tab"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>KPI</div>
+        <div class="sec-tab"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Справочники</div>
+        <div class="sec-tab"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>База знань</div>
+        <div class="sec-tab"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Бот</div>
+        <div class="sec-tab"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Кабинет</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-7xl mx-auto px-2 pt-2 pb-2">
+    <div class="flex gap-2 layout-row" style="height: calc(100vh - 110px);">
+
+      <!-- ===== LEFT COLUMN: nav + list + stats ===== -->
+      <div class="w-[420px] flex-shrink-0 flex flex-col gap-2 left-col" id="left-col">
+        <!-- Nav -->
+        <div class="flex items-center gap-0" id="nav-bar">
+          <!-- JS renders navigation here -->
+        </div>
+        <!-- Filter bar -->
+        <div id="filter-bar"></div>
+        <!-- Plan list -->
+        <div class="flex-1 overflow-y-auto custom-scroll glass-panel rounded-xl p-2" id="plan-list">
+          <!-- JS renders plan list here -->
+        </div>
+        <!-- Stats -->
+        <div class="flex items-center justify-between text-xs px-4 py-2.5 glass-panel rounded-xl" id="nav-stats">
+          <!-- JS renders stats here -->
+        </div>
+      </div>
+
+      <!-- ===== RIGHT PANEL — full height ===== -->
+      <div class="flex-1 min-w-0 glass-detail rounded-2xl flex flex-col overflow-hidden right-col" id="detail-panel">
+        <!-- JS renders detail here -->
+      </div>
+
+    </div>
+  </div>
+
+<script>
+// ========== STATE ==========
+const state = {
+  year: 2026,
+  quarter: null,  // null = annual level
+  month: null,    // null = quarterly level
+  selectedPlan: null,
+  filter: 'active',
+  mobileView: 'list', // 'list' | 'detail'
+  editMode: false,     // true = right panel shows edit form
+  confirmMode: null,   // null | 'delete' | 'copy'
+};
+function resetPanelMode() { state.editMode = false; state.confirmMode = null; }
+
+function isMobile() { return window.innerWidth <= 768; }
+
+function updateMobileView() {
+  const left = document.getElementById('left-col');
+  const right = document.getElementById('detail-panel');
+  if (!left || !right) return;
+  if (!isMobile()) {
+    left.classList.remove('mobile-hidden');
+    right.classList.remove('mobile-hidden');
+    return;
+  }
+  if (state.mobileView === 'detail' && state.selectedPlan) {
+    left.classList.add('mobile-hidden');
+    right.classList.remove('mobile-hidden');
+    right.style.height = 'calc(100vh - 110px)';
+  } else {
+    state.mobileView = 'list';
+    left.classList.remove('mobile-hidden');
+    right.classList.add('mobile-hidden');
+    left.style.height = 'auto';
+  }
+}
+
+function mobileBack() {
+  state.mobileView = 'list';
+  updateMobileView();
+}
+
+window.addEventListener('resize', updateMobileView);
+
+// ========== TYPE DEFINITIONS ==========
+/**
+ * @typedef {'draft'|'returned'|'submitted'|'approved'|'active'|'completed'|'failed'} PlanStatus
+ * @typedef {'by_servers'|'by_workstations'|'even'} DistributionType
+ * @typedef {1|2|3|4} Quarter
+ *
+ * @typedef {{ id:string, hours:number, planned:number, status:PlanStatus }} PlanBase
+ *
+ * @typedef {PlanBase & { dept:string, goal:string, result:string, author:string, budget:number }} AnnualPlan
+ * @typedef {PlanBase & { annualId:string, quarter:Quarter, process:string, goal:string, result:string }} QuarterlyPlan
+ * @typedef {PlanBase & { quarterlyId:string, month:number, companies:string[],
+ *   distributionType:DistributionType, procedure:string, description:string,
+ *   employees:Employee[] }} MonthlyPlan
+ *
+ * @typedef {{ id:string, name:string, servers:number, workstations:number }} Company
+ * @typedef {{ date:string, desc:string, hours:number }} Task
+ * @typedef {{ name:string, initials:string, color:string,
+ *   hours:number, plannedHours:number, tasks:Task[] }} Employee
+ */
+
+// ========== DATA ==========
+const annualPlans = [
+  { id: 'a1', dept: 'ОКБ', goal: 'Контроль за правами доступу користувачів і захист від несанкціонованого доступу', result: 'Зменшення впливу інцидентів ІБ на бізнес-процеси і можливі втрати', author: 'Іванов Максим Володимирович', budget: 2500000, hours: 812, planned: 1008, status: 'active' },
+  { id: 'a2', dept: 'СМУР', goal: 'Організація проведення навчання у сфері ІБ співробітниками КСС', result: 'Підвищення рівня обізнаності персоналу', author: 'Іванов Максим Володимирович', budget: 800000, hours: 165, planned: 147, status: 'active' },
+  { id: 'a3', dept: 'СМУР', goal: 'Обробка ризиків ІБ', result: 'Зниження загального рівня ризиків ІБ', author: 'Іванов Максим Володимирович', budget: 1200000, hours: 321, planned: 534, status: 'submitted' },
+  { id: 'a4', dept: 'ОКБ', goal: 'Захист IT інфраструктури компаній та інформаційних систем на всіх етапах життєвого циклу', result: 'Забезпечення безперервного захисту інфраструктури', author: 'Іванов Максим Володимирович', budget: 3000000, hours: 242, planned: 600, status: 'approved' },
+  { id: 'a5', dept: 'СВК', goal: 'Забезпечення конфіденційності інформаційних активів', result: 'Зменшення витоків конфіденційної інформації', author: 'Казаков Володимир Сергійович', budget: 900000, hours: 190, planned: 180, status: 'completed' },
+  { id: 'a6', dept: 'ОКБ', goal: 'Виявлення та усунення вразливостей у IT-інфраструктурі компаній', result: 'Зменшення кількості критичних вразливостей', author: 'Іванов Максим Володимирович', budget: 500000, hours: 51, planned: 81, status: 'draft' },
+  { id: 'a7', dept: 'СВК', goal: 'Підготовка щомісячної звітності по підприємствах', result: 'Своєчасне надання звітності', author: 'Казаков Володимир Сергійович', budget: 600000, hours: 39, planned: 114, status: 'returned' },
+];
+
+const quarterlyPlans = [
+  { id: 'q1', annualId: 'a1', quarter: 1, process: 'Управління правами доступу', goal: 'Аудит та організація управління правами доступу', result: 'Проведення повного аудиту прав доступу', hours: 812, planned: 1008, status: 'active' },
+  { id: 'q2', annualId: 'a1', quarter: 2, process: 'Управління правами доступу', goal: 'Ревізія привілейованих облікових записів', result: 'Оптимізація привілейованого доступу', hours: 0, planned: 480, status: 'submitted' },
+  { id: 'q3', annualId: 'a2', quarter: 1, process: 'Навчання ІБ', goal: 'Організація навчання ІБ Q1', result: 'Проведення навчальних сесій', hours: 165, planned: 147, status: 'approved' },
+  { id: 'q4', annualId: 'a3', quarter: 1, process: 'Управління ризиками', goal: 'Оцінка та обробка ризиків ІБ Q1', result: 'Актуалізація реєстру ризиків', hours: 321, planned: 534, status: 'draft' },
+  { id: 'q5', annualId: 'a4', quarter: 1, process: 'Захист інфраструктури', goal: 'Захист IT інфраструктури Q1', result: 'Безперервний захист', hours: 242, planned: 600, status: 'completed' },
+  { id: 'q6', annualId: 'a5', quarter: 1, process: 'Конфіденційність', goal: 'Забезпечення конфіденційності Q1', result: 'Контроль конфіденційності', hours: 190, planned: 180, status: 'active' },
+];
+
+const companies = [
+  { id: 'c1', name: 'АТБ Маркет',  servers: 45, workstations: 280 },
+  { id: 'c2', name: 'КСС',         servers: 32, workstations: 185 },
+  { id: 'c3', name: 'УМВС',        servers: 18, workstations: 120 },
+  { id: 'c4', name: 'Фурлендер',   servers:  8, workstations:  45 },
+];
+
+const DIST_TYPES = [
+  { key: 'by_servers',      label: 'По серверам' },
+  { key: 'by_workstations', label: 'По станциям' },
+  { key: 'even',            label: 'Поровну'     },
+];
+
+function calcShares(companyIds, distType) {
+  const shares = new Map();
+  if (!companyIds || companyIds.length === 0) return shares;
+  if (distType === 'even') {
+    const p = Math.round(100 / companyIds.length);
+    companyIds.forEach(id => shares.set(id, p));
+    return shares;
+  }
+  const field = distType === 'by_servers' ? 'servers' : 'workstations';
+  const vals = companyIds.map(id => { const c = companies.find(x => x.id === id); return { id, val: c ? c[field] : 0 }; });
+  const total = vals.reduce((s, v) => s + v.val, 0);
+  if (total === 0) return shares;
+  vals.forEach(v => shares.set(v.id, Math.round(v.val / total * 100)));
+  return shares;
+}
+
+const monthlyPlans = [
+  { id: 'm1', quarterlyId: 'q1', month: 1, companies: ['c1','c2'], distributionType: 'by_servers', procedure: 'Процедура аудиту управління правами доступу', description: 'Перевірка та аналіз прав доступу користувачів до інформаційних систем, серверів та мережевого обладнання. Виявлення надлишкових і невідповідних прав, формування звіту з рекомендаціями.', hours: 120, planned: 105, status: 'completed',
+    employees: [
+      { name: 'Василиненко В.М.', initials: 'ВВ', color: 'indigo', hours: 65, plannedHours: 60, tasks: [
+        { date: '15.01', desc: 'Аудит прав доступу серверів АТБ Маркет', hours: 8 },
+        { date: '16.01', desc: 'Перевірка облікових записів AD', hours: 6 },
+        { date: '20.01', desc: 'Формування звіту аудиту', hours: 4 },
+      ]},
+      { name: 'Шленськовий О.А.', initials: 'ШО', color: 'emerald', hours: 55, plannedHours: 45, tasks: [
+        { date: '15.01', desc: 'Аудит прав доступу мережевого обладнання', hours: 8 },
+        { date: '17.01', desc: 'Перевірка прав VPN-доступу', hours: 6 },
+      ]},
+    ]},
+  { id: 'm2', quarterlyId: 'q1', month: 1, companies: ['c2'], distributionType: 'even', procedure: 'Процедура організації управління правами доступу', description: 'Розробка та впровадження політик управління доступом, налаштування рольової моделі, регламентація процесів надання та відкликання прав.', hours: 130, planned: 111, status: 'active',
+    employees: [
+      { name: 'Василиненко В.М.', initials: 'ВВ', color: 'indigo', hours: 70, plannedHours: 111, tasks: [
+        { date: '22.01', desc: 'Розробка політики управління доступом', hours: 8 },
+      ]},
+    ]},
+  { id: 'm3', quarterlyId: 'q1', month: 2, companies: ['c1','c3'], distributionType: 'by_servers', procedure: 'Процедура аудиту управління правами доступу', description: 'Перевірка та аналіз прав доступу користувачів до інформаційних систем, серверів та мережевого обладнання. Виявлення надлишкових і невідповідних прав, формування звіту з рекомендаціями.', hours: 115, planned: 101, status: 'active',
+    employees: [
+      { name: 'Казаков В.С.', initials: 'КВ', color: 'amber', hours: 60, plannedHours: 101, tasks: [
+        { date: '05.02', desc: 'Перевірка прав доступу до БД', hours: 8 },
+      ]},
+    ]},
+  { id: 'm4', quarterlyId: 'q1', month: 2, companies: ['c2','c3'], distributionType: 'by_workstations', procedure: 'Процедура організації управління правами доступу', description: 'Розробка та впровадження політик управління доступом, налаштування рольової моделі, регламентація процесів надання та відкликання прав.', hours: 118, planned: 103, status: 'draft',
+    employees: []},
+  { id: 'm5', quarterlyId: 'q1', month: 3, companies: ['c1','c2','c3'], distributionType: 'by_servers', procedure: 'Процедура організації управління правами доступу', description: 'Розробка та впровадження політик управління доступом, налаштування рольової моделі, регламентація процесів надання та відкликання прав.', hours: 5, planned: 56, status: 'active',
+    employees: [
+      { name: 'Василиненко В.М.', initials: 'ВВ', color: 'indigo', hours: 5, plannedHours: 24, tasks: [
+        { date: '03.03', desc: 'Сканування серверної інфраструктури АТБ (Nessus)', hours: 2.5 },
+        { date: '04.03', desc: 'Аналіз результатів та формування звіту', hours: 2.5 },
+      ]},
+      { name: 'Шленськовий О.А.', initials: 'ШО', color: 'emerald', hours: 0, plannedHours: 16, tasks: [] },
+      { name: 'Казаков В.С.', initials: 'КВ', color: 'amber', hours: 0, plannedHours: 16, tasks: [] },
+    ]},
+  { id: 'm6', quarterlyId: 'q1', month: 3, companies: ['c3'], distributionType: 'even', procedure: 'Процедура аудиту управління правами доступу', description: 'Перевірка та аналіз прав доступу користувачів до інформаційних систем, серверів та мережевого обладнання. Виявлення надлишкових і невідповідних прав, формування звіту з рекомендаціями.', hours: 8, planned: 52, status: 'active',
+    employees: [
+      { name: 'Шаферистов П.В.', initials: 'ШП', color: 'purple', hours: 8, plannedHours: 52, tasks: [
+        { date: '03.03', desc: 'Ревізія привілейованих облікових записів', hours: 4 },
+        { date: '05.03', desc: 'Оновлення бази вразливостей та патчів', hours: 4 },
+      ]},
+    ]},
+];
+
+const monthNames = { 1: 'Янв', 2: 'Фев', 3: 'Мар', 4: 'Апр', 5: 'Май', 6: 'Июн', 7: 'Июл', 8: 'Авг', 9: 'Сен', 10: 'Окт', 11: 'Ноя', 12: 'Дек' };
+const monthFullNames = { 1: 'Январь', 2: 'Февраль', 3: 'Март', 4: 'Апрель', 5: 'Май', 6: 'Июнь', 7: 'Июль', 8: 'Август', 9: 'Сентябрь', 10: 'Октябрь', 11: 'Ноябрь', 12: 'Декабрь' };
+const quarterMonths = { 1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12] };
+
+// ========== HELPERS ==========
+function pct(h, p) { return p > 0 ? Math.round(h / p * 100) : 0; }
+function progressColor(p) { return p >= 100 ? '#34d399' : p >= 60 ? '#f59e0b' : p < 1 ? '#e2e8f0' : '#6366f1'; }
+function ringOffset(p) { return Math.max(0, 88 - (88 * Math.min(p, 120) / 120)); }
+
+function ring(percent, size = 40) {
+  const c = '#34d399';
+  const glow = 'rgba(52,211,153,0.3)';
+  const SEGS = 6;
+  const filled = percent === 0 ? 0 : Math.max(1, Math.min(Math.round(percent / 100 * SEGS), SEGS));
+  const segH = 5, segW = 10, gap = 2;
+  let segs = '';
+  // Render top→bottom in DOM, fill bottom→top: segment i=0 is bottom, i=SEGS-1 is top
+  for (let i = SEGS - 1; i >= 0; i--) {
+    const on = i < filled; // fill from bottom (low i) upward
+    const bg = on ? c : 'rgba(226,232,240,0.55)';
+    segs += `<div style="width:${segW}px;height:${segH}px;border-radius:3px;background:${bg};"></div>`;
+  }
+  return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;width:${size}px;">
+    <div style="display:flex;flex-direction:column;gap:${gap}px;padding:3px;border-radius:6px;
+      background:rgba(255,255,255,0.6);backdrop-filter:blur(8px);
+      border:1px solid rgba(255,255,255,0.5);
+      box-shadow:0 4px 12px ${glow},0 1px 4px rgba(0,0,0,0.06),inset 0 1px 0 rgba(255,255,255,0.9);">
+      ${segs}
+    </div>
+    <span style="font-size:10px;font-weight:700;color:${percent > 0 ? c : '#94a3b8'};line-height:1;">${percent}%</span>
+  </div>`;
+}
+
+function hbar(percent) {
+  const c = '#34d399';
+  const cLight = '#6ee7b7';
+  const glow = 'rgba(52,211,153,0.35)';
+  const SEGS = 6;
+  const filled = percent === 0 ? 0 : Math.max(1, Math.min(Math.round(percent / 100 * SEGS), SEGS));
+  let segs = '';
+  for (let i = 0; i < SEGS; i++) {
+    const on = i < filled;
+    const bg = on
+      ? `linear-gradient(180deg, ${cLight} 0%, ${c} 100%)`
+      : 'linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(226,232,240,0.5) 100%)';
+    const shadow = on ? `box-shadow:0 1px 3px ${glow},inset 0 1px 0 rgba(255,255,255,0.45);` : 'box-shadow:inset 0 1px 2px rgba(0,0,0,0.06);';
+    segs += `<div style="flex:1;height:6px;border-radius:2px;background:${bg};${shadow}"></div>`;
+  }
+  return `<div style="flex:1;display:flex;gap:2px;padding:3px 4px;border-radius:5px;
+    background:rgba(241,245,249,0.7);
+    border:1px solid rgba(226,232,240,0.5);
+    box-shadow:inset 0 2px 4px rgba(0,0,0,0.07),inset 0 1px 2px rgba(0,0,0,0.04),0 1px 0 rgba(255,255,255,0.9);">${segs}</div>
+  <span style="font-size:10px;font-weight:700;color:${percent > 0 ? c : '#94a3b8'};min-width:28px;text-align:right;">${percent}%</span>`;
+}
+
+function initials(name) { return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(); }
+
+// ========== STATUS SYSTEM — единый источник истины ==========
+// Все статусы, цвета, воркфлоу, группы фильтров — в одном месте.
+const STATUS_CONFIG = {
+  draft:     { label: 'Чернетка',      dot: '#94a3b8', grad: 'linear-gradient(145deg,#94a3b8,#64748b)', glow: 'rgba(100,116,139,0.4)', group: 'preparing', workflow: true,  workflowOrder: 0 },
+  returned:  { label: 'Повернуто',     dot: '#f59e0b', grad: 'linear-gradient(145deg,#94a3b8,#64748b)', glow: 'rgba(100,116,139,0.4)', group: 'preparing', workflow: false, mapTo: 'draft'      },
+  submitted: { label: 'На узгодженні', dot: '#3b82f6', grad: 'linear-gradient(145deg,#60a5fa,#3b82f6)', glow: 'rgba(59,130,246,0.4)',  group: 'approving', workflow: true,  workflowOrder: 1 },
+  approved:  { label: 'Погоджено',     dot: '#0891b2', grad: 'linear-gradient(145deg,#22d3ee,#0891b2)', glow: 'rgba(8,145,178,0.4)',   group: 'approving', workflow: true,  workflowOrder: 2 },
+  active:    { label: 'В роботі',      dot: '#6366f1', grad: 'linear-gradient(145deg,#6366f1,#4f46e5)', glow: 'rgba(99,102,241,0.4)',  group: 'active',    workflow: true,  workflowOrder: 3 },
+  completed: { label: 'Завершено',     dot: '#34d399', grad: 'linear-gradient(145deg,#34d399,#059669)', glow: 'rgba(16,185,129,0.4)',  group: 'done',      workflow: true,  workflowOrder: 4 },
+  failed:    { label: 'Провалено',     dot: '#ef4444', grad: 'linear-gradient(145deg,#f87171,#ef4444)', glow: 'rgba(239,68,68,0.4)',   group: 'done',      workflow: false, mapTo: 'completed'  },
+};
+// Кнопки фильтров (группы статусов)
+const FILTER_GROUPS = [
+  { key: 'preparing', label: 'Подготовка',   grad: 'linear-gradient(145deg,#64748b,#475569)', glow: 'rgba(100,116,139,0.4)' },
+  { key: 'approving', label: 'Согласование', grad: 'linear-gradient(145deg,#3b82f6,#2563eb)', glow: 'rgba(59,130,246,0.4)'  },
+  { key: 'active',    label: 'В работе',     grad: 'linear-gradient(145deg,#6366f1,#4f46e5)', glow: 'rgba(99,102,241,0.4)'  },
+  { key: 'done',      label: 'Завершён',     grad: 'linear-gradient(145deg,#34d399,#059669)', glow: 'rgba(16,185,129,0.4)'  },
+];
+// Производные: статус → группа фильтра
+const statusGroups = {};
+const monthlyStatusGroups = {};
+Object.entries(STATUS_CONFIG).forEach(([k, v]) => {
+  if (!statusGroups[v.group]) statusGroups[v.group] = [];
+  statusGroups[v.group].push(k);
+});
+Object.entries(statusGroups).forEach(([k, v]) => { if (k !== 'approving') monthlyStatusGroups[k] = v; });
+
+// ── Тоны для бейджей и иконок ─────────────────────────────────────────────
+const BADGE_TONES = {
+  blue:   { color: '#2563eb', bg: 'rgba(147,197,253,0.15)', bgAct: 'rgba(147,197,253,0.24)', border: 'rgba(147,197,253,0.4)',  borderAct: 'rgba(147,197,253,0.55)' },
+  purple: { color: '#7c3aed', bg: 'rgba(167,139,250,0.12)', bgAct: 'rgba(167,139,250,0.22)', border: 'rgba(167,139,250,0.35)', borderAct: 'rgba(167,139,250,0.5)'  },
+};
+// Inline-бейдж (отдел, квартал, месяц)
+function planBadge(text, tone, active = false) {
+  const t = BADGE_TONES[tone] || BADGE_TONES.blue;
+  return `<span style="font-size:10px;font-weight:700;color:${t.color};padding:2px 7px;border-radius:5px;flex-shrink:0;background:${active ? t.bgAct : t.bg};border:1px solid ${active ? t.borderAct : t.border};backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 2px 8px rgba(0,0,0,0.07),inset 0 1px 0 rgba(255,255,255,0.7);">${text}</span>`;
+}
+// Единый 32×32 элемент для всех collapsibleGroup (планы, сотрудники)
+function groupIcon(text, tone, active = false) {
+  const t = BADGE_TONES[tone] || BADGE_TONES.blue;
+  return `<div style="width:32px;height:32px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:${active ? t.bgAct : t.bg};border:1px solid ${active ? t.borderAct : t.border};backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);"><span style="font-size:11px;font-weight:700;color:${t.color};">${text}</span></div>`;
+}
+function statusDot(s) {
+  const c = (STATUS_CONFIG[s] || STATUS_CONFIG.draft).dot;
+  return `<div style="width:7px;height:7px;border-radius:50%;background:${c};flex-shrink:0;box-shadow:0 0 4px ${c}88;"></div>`;
+}
+
+// ── Reusable collapsible group (emp-card pattern) ──────────────────────────
+// icon   — HTML for the 32×32 left slot (avatar or badge)
+// title  — primary text
+// meta   — secondary text below title (optional)
+// hours  — top-right value (e.g. "65 ч." or "812/1008 ч.")
+// count  — bottom-right number
+// label  — bottom-right label (e.g. "задач", "мес.", "план")
+// pct    — progress bar fill 0-100
+// open   — expanded by default
+// rows   — array of row HTML strings (from groupRow())
+// footer — optional HTML appended inside tl after rows
+function collapsibleGroup({ icon, title, meta, hours, count, label, open = false, rows = [], footer = '' }) {
+  const chevronSvg = `<svg class="ch w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>`;
+  return `<div class="emp-card">
+    <button class="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left" onclick="this.parentElement.querySelector('.tl').classList.toggle('hidden'); this.querySelector('.ch').classList.toggle('rotate-90')">
+      ${icon}
+      <div class="flex-1 min-w-0">
+        <span style="font-size:13px;font-weight:500;color:#334155;">${title}</span>
+        ${meta ? `<div class="text-[10px] text-slate-400 mt-0.5">${meta}</div>` : ''}
+      </div>
+      <div class="flex items-center gap-3 flex-shrink-0">
+        <div class="text-right">
+          <div class="text-xs font-semibold text-slate-700">${hours}</div>
+          <div class="text-[10px] text-slate-400">${count} ${label}</div>
+        </div>
+        ${chevronSvg}
+      </div>
+    </button>
+    <div class="tl border-t border-slate-100 bg-slate-50/40 ${open ? '' : 'hidden'}">
+      <div class="divide-y divide-slate-100">${rows.join('')}</div>
+      ${footer ? `<div class="border-t border-slate-100">${footer}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── Reusable row inside collapsibleGroup (task-row pattern) ────────────────
+// col1    — narrow left column text (date, month abbr) — omit to hide column
+// text    — main flexible text
+// right   — right-side value (hours, %)
+// actions — hover action buttons HTML (optional)
+// onclick — click handler string (optional)
+function groupRow({ col1 = null, text, right = '', actions = '', onclick = '' }) {
+  return `<div class="flex items-center gap-3 px-4 py-2.5 hover:bg-white/60 group ${onclick ? 'cursor-pointer' : ''}" ${onclick ? `onclick="${onclick}"` : ''}>
+    ${col1 !== null ? `<span class="text-xs text-slate-400 w-12 flex-shrink-0 tabular-nums">${col1}</span>` : ''}
+    <p style="font-size:13px;color:#334155;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0;">${text}</p>
+    ${right ? `<span class="text-xs font-medium text-slate-500 flex-shrink-0 tabular-nums">${right}</span>` : ''}
+    ${actions ? `<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">${actions}</div>` : ''}
+  </div>`;
+}
+
+// ── Обёртки → groupIcon ────────────────────────────────────────────────────
+function avatarIcon(initials, color) { return groupIcon(initials, color); }
+function planIcon(text, tone, active = false) { return groupIcon(text, tone, active); }
+function qIcon(qi)               { return groupIcon('Q' + qi, 'purple'); }
+function mIcon(monthNum, active) { return groupIcon(monthNames[monthNum], 'blue', active); }
+
+// Navigate to monthly plan from annual level
+function navToMonthly(qi, month, planId) {
+  state.quarter = qi; state.month = month; state.filter = 'active'; resetPanelMode(); selectPlan(planId);
+}
+// Navigate to quarterly plan from annual level
+function navToQuarterly(qi, planId) {
+  state.quarter = qi; state.month = null; state.filter = 'active'; resetPanelMode(); selectPlan(planId);
+}
+
+// ========== RENDER NAVIGATION ==========
+function renderNav() {
+  const nav = document.getElementById('nav-bar');
+  const stats = document.getElementById('nav-stats');
+  let html = '';
+
+  // Current view level: annual if no quarter, quarterly if quarter but no month, monthly if month
+  const viewLevel = state.month ? 'monthly' : state.quarter ? 'quarterly' : 'annual';
+
+  // Year group — fixed
+  html += '<div class="nav-group" style="flex-shrink:0;">';
+  [2025, 2026].forEach(y => {
+    const isSelected = state.year === y;
+    const cls = isSelected ? (viewLevel === 'annual' ? 'active' : 'ctx') : '';
+    html += `<button class="nav-btn ${cls}" onclick="setYear(${y})">${y}</button>`;
+  });
+  html += `<button class="nav-btn" style="width:28px;font-size:15px;color:#94a3b8;border:1.5px dashed rgba(148,163,184,0.45);border-radius:5px;" onclick="alert('Создать годовой план')" title="Добавить год">+</button>`;
+  html += '</div>';
+
+  // Quarter group — only quarters with plans are enabled
+  const quartersWithPlans = new Set(quarterlyPlans.map(q => q.quarter));
+  html += '<div style="width:6px;flex-shrink:0;"></div>';
+  html += '<div class="nav-group" style="flex-shrink:0;">';
+  [1,2,3,4].forEach(q => {
+    const hasPlans = quartersWithPlans.has(q);
+    const dis = !hasPlans ? 'opacity:0.3;cursor:default;pointer-events:none;' : '';
+    const isSelected = state.quarter === q;
+    const cls = isSelected ? (viewLevel === 'quarterly' ? 'active' : 'ctx') : '';
+    html += `<button class="nav-btn ${cls}" style="width:36px;${dis}" onclick="setQuarter(${q})">Q${q}</button>`;
+  });
+  html += '</div>';
+
+  // Month group — only months with plans for selected quarter are enabled
+  const months = state.quarter ? quarterMonths[state.quarter] : [1,2,3];
+  const monthsWithPlans = state.quarter
+    ? new Set(monthlyPlans.filter(m => quarterlyPlans.find(q => q.id === m.quarterlyId)?.quarter === state.quarter).map(m => m.month))
+    : new Set();
+  html += '<div style="width:6px;flex-shrink:0;"></div>';
+  html += '<div class="nav-group" style="flex:1;min-width:0;">';
+  months.forEach(m => {
+    const hasPlans = state.quarter ? monthsWithPlans.has(m) : false;
+    const dis = !hasPlans ? 'opacity:0.3;cursor:default;pointer-events:none;' : '';
+    const cls = state.month === m ? 'active' : '';
+    html += `<button class="nav-btn ${cls}" style="flex:1;width:auto;${dis}" onclick="setMonth(${m})">${monthNames[m]}</button>`;
+  });
+  html += '</div>';
+
+  nav.innerHTML = html;
+
+  // Stats
+  let level, count, h, p;
+  if (state.month) {
+    const plans = monthlyPlans.filter(m => m.month === state.month && quarterlyPlans.find(q => q.id === m.quarterlyId)?.quarter === state.quarter);
+    count = plans.length; h = plans.reduce((s,m) => s + m.hours, 0); p = plans.reduce((s,m) => s + m.planned, 0);
+    level = 'месячный';
+  } else if (state.quarter) {
+    const plans = quarterlyPlans.filter(q => q.quarter === state.quarter);
+    count = plans.length; h = plans.reduce((s,q) => s + q.hours, 0); p = plans.reduce((s,q) => s + q.planned, 0);
+    level = 'квартальный';
+  } else {
+    count = annualPlans.length; h = annualPlans.reduce((s,a) => s + a.hours, 0); p = annualPlans.reduce((s,a) => s + a.planned, 0);
+    level = 'годовой';
+  }
+  const pc = pct(h, p);
+  stats.innerHTML = `
+    <div class="flex flex-col items-center gap-0.5">
+      <span class="font-semibold text-slate-700" style="font-size:13px;">${count}</span>
+      <span class="text-[10px] text-slate-400 uppercase tracking-wide">планов</span>
+    </div>
+    <div class="meta-divider" style="height:28px;"></div>
+    <div class="flex flex-col items-center gap-0.5">
+      <span class="font-semibold text-slate-700" style="font-size:13px;">${h} / ${p}</span>
+      <span class="text-[10px] text-slate-400 uppercase tracking-wide">часов</span>
+    </div>
+    <div class="meta-divider" style="height:28px;"></div>
+    <div class="flex flex-col items-center gap-0.5">
+      <span class="font-semibold" style="font-size:13px;color:${progressColor(pc)}">${pc}%</span>
+      <span class="text-[10px] text-slate-400 uppercase tracking-wide">прогресс</span>
+    </div>`;
+}
+
+// ========== NAVIGATION HANDLERS ==========
+function setYear(y) {
+  state.year = y; state.quarter = null; state.month = null; state.selectedPlan = null; state.filter = 'active'; resetPanelMode();
+  render();
+}
+function setQuarter(q) {
+  if (state.quarter === q && !state.month) { state.quarter = null; state.selectedPlan = null; state.filter = 'active'; resetPanelMode(); render(); return; }
+  state.quarter = q; state.month = null; state.selectedPlan = null; state.filter = 'active'; resetPanelMode();
+  render();
+}
+function setMonth(m) {
+  if (state.month === m) { state.month = null; state.selectedPlan = null; state.filter = 'active'; resetPanelMode(); render(); return; }
+  state.month = m; state.selectedPlan = null; state.filter = 'active'; resetPanelMode();
+  render();
+}
+function selectPlan(id) {
+  if (state.selectedPlan !== id) resetPanelMode();
+  state.selectedPlan = id;
+  if (isMobile()) state.mobileView = 'detail';
+  render();
+}
+function setFilter(f) {
+  state.filter = f;
+  state.selectedPlan = null;
+  renderFilterBar();
+  renderList();
+  renderDetail();
+}
+function renderFilterBar() {
+  const fb = document.getElementById('filter-bar');
+  let filters, groups, plans;
+  if (state.month) {
+    // Monthly: 3 buttons, no approving
+    filters = FILTER_GROUPS.filter(f => f.key !== 'approving');
+    groups = monthlyStatusGroups;
+    const qPlansIds = quarterlyPlans.filter(q => q.quarter === state.quarter).map(q => q.id);
+    plans = monthlyPlans.filter(m => qPlansIds.includes(m.quarterlyId) && m.month === state.month);
+  } else if (state.quarter) {
+    // Quarterly: 4 buttons
+    filters = FILTER_GROUPS;
+    groups = statusGroups;
+    plans = quarterlyPlans.filter(q => q.quarter === state.quarter);
+  } else {
+    // Annual: 4 buttons
+    filters = FILTER_GROUPS;
+    groups = statusGroups;
+    plans = annualPlans;
+  }
+  // Ensure current filter key exists at this level
+  if (!groups[state.filter]) state.filter = 'active';
+  fb.innerHTML = '<div class="nav-group" style="display:flex;width:100%;">' +
+    filters.map(f => {
+      const isActive = state.filter === f.key;
+      const btnStyle = isActive
+        ? `background:${f.grad};color:white;box-shadow:0 4px 12px ${f.glow},0 1px 3px rgba(0,0,0,0.2),inset 0 1px 0 rgba(255,255,255,0.25);`
+        : '';
+      return `<button class="nav-btn" style="flex:1;text-align:center;${btnStyle}" onclick="setFilter('${f.key}')">${f.label}</button>`;
+    }).join('') + '</div>';
+}
+
+// ========== RENDER PLAN LIST ==========
+function renderList() {
+  const el = document.getElementById('plan-list');
+
+  if (state.month) {
+    // Monthly level — filtered by status
+    const allMonthPlans = monthlyPlans.filter(m => m.month === state.month && quarterlyPlans.find(q => q.id === m.quarterlyId)?.quarter === state.quarter);
+    const plans = allMonthPlans.filter(m => monthlyStatusGroups[state.filter]?.includes(m.status));
+    if (!state.selectedPlan && plans.length) state.selectedPlan = plans[0].id;
+    el.innerHTML = plans.length ? '<div class="space-y-1.5">' + plans.map(m => {
+      const p = pct(m.hours, m.planned);
+      const active = state.selectedPlan === m.id;
+      const qp = quarterlyPlans.find(q => q.id === m.quarterlyId);
+      const annual = annualPlans.find(a => a.id === qp?.annualId);
+      return `<div class="plan-item ${active ? 'active' : ''} flex items-center gap-3 px-3 py-3 rounded-lg border-l-2 ${active ? '' : 'border-transparent'} cursor-pointer" onclick="selectPlan('${m.id}')">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            ${planBadge(annual?.dept || '', 'blue')}
+            ${hbar(p)}
+          </div>
+          <p style="font-size:13px;font-weight:500;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:${active ? '#6366f1' : '#475569'};">${m.procedure}</p>
+        </div>
+      </div>`;
+    }).join('') + '</div>' : '<div class="flex items-center justify-center py-10 text-sm text-slate-400">Планов нет</div>';
+
+  } else if (state.quarter) {
+    // Quarterly level — filtered by status
+    const allQPlans = quarterlyPlans.filter(q => q.quarter === state.quarter);
+    const plans = allQPlans.filter(q => statusGroups[state.filter]?.includes(q.status));
+    if (!state.selectedPlan && plans.length) state.selectedPlan = plans[0].id;
+    el.innerHTML = plans.length ? '<div class="space-y-1.5">' + plans.map(q => {
+      const p = pct(q.hours, q.planned);
+      const active = state.selectedPlan === q.id;
+      const annual = annualPlans.find(a => a.id === q.annualId);
+      return `<div class="plan-item ${active ? 'active' : ''} flex items-center gap-3 px-3 py-3 rounded-lg border-l-2 ${active ? '' : 'border-transparent'} cursor-pointer" onclick="selectPlan('${q.id}')">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            ${planBadge(annual?.dept || '', 'blue')}
+            ${hbar(p)}
+          </div>
+          <p style="font-size:13px;font-weight:500;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:${active ? '#6366f1' : '#475569'};">${q.goal}</p>
+        </div>
+      </div>`;
+    }).join('') + '</div>' : '<div class="flex items-center justify-center py-10 text-sm text-slate-400">Планов нет</div>';
+
+  } else {
+    // Annual level — filtered by status
+    const plans = annualPlans.filter(a => statusGroups[state.filter]?.includes(a.status));
+    if (!state.selectedPlan && plans.length) state.selectedPlan = plans[0].id;
+    el.innerHTML = plans.length
+      ? '<div class="space-y-1.5">' + plans.map(a => {
+          const p = pct(a.hours, a.planned);
+          const active = state.selectedPlan === a.id;
+          return `<div class="plan-item ${active ? 'active' : ''} flex items-center gap-3 px-3 py-3 rounded-lg border-l-2 ${active ? '' : 'border-transparent'} cursor-pointer" onclick="selectPlan('${a.id}')">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                ${planBadge(a.dept, 'blue')}
+                ${hbar(p)}
+              </div>
+              <p style="font-size:13px;font-weight:500;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:${active ? '#6366f1' : '#475569'};">${a.goal}</p>
+            </div>
+          </div>`;
+        }).join('') + '</div>'
+      : '<div class="flex items-center justify-center py-10 text-sm text-slate-400">Планов нет</div>';
+  }
+}
+
+// ========== RENDER DETAIL PANEL ==========
+function renderDetail() {
+  const el = document.getElementById('detail-panel');
+  if (!state.selectedPlan) { el.innerHTML = '<div class="flex-1 flex items-center justify-center text-sm text-slate-400">Выберите план</div>'; return; }
+
+  if (state.month) {
+    renderMonthlyDetail(el);
+  } else if (state.quarter) {
+    renderQuarterlyDetail(el);
+  } else {
+    renderAnnualDetail(el);
+  }
+}
+
+function renderAnnualDetail(el) {
+  const a = annualPlans.find(x => x.id === state.selectedPlan);
+  if (!a) return;
+  const quarters = quarterlyPlans.filter(q => q.annualId === a.id);
+
+  el.innerHTML = `
+    ${detailHeader({ status: a.status, level: 'annual', showAdd: 'quarter' })}
+    ${state.editMode ? editFormAnnual(a) : `
+    <div class="flex-1 overflow-y-auto custom-scroll" style="padding-top:5px;">
+      <div class="info-card">
+        ${propRow('Цель', a.goal, true)}
+        ${propRow('Ожидаемый результат', a.result)}
+      </div>
+      <div class="px-4 py-3">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="sec-label">Квартальные планы</h3>
+          <span class="text-xs text-slate-400">${quarters.length} из 4</span>
+        </div>
+        <div class="space-y-1.5">
+          ${[1,2,3,4].map((qi, idx) => {
+            const q = quarters.find(x => x.quarter === qi);
+            if (!q) return `<div class="child-card empty"><div class="px-4 py-2.5 flex items-center gap-2">${qIcon(qi)}<span class="text-xs text-slate-400 italic flex-1">Не создан</span></div></div>`;
+            const mPlans = monthlyPlans.filter(m => m.quarterlyId === q.id);
+            return collapsibleGroup({
+              icon:   qIcon(qi),
+              title:  q.goal,
+              meta:   q.process,
+              hours:  `${q.hours}/${q.planned} ч.`,
+              count:  mPlans.length,
+              label:  'мес.',
+              open:   false,
+              rows:   mPlans.length
+                ? mPlans.map(m => groupRow({
+                    col1:    monthNames[m.month],
+                    text:    m.procedure,
+                    right:   `${pct(m.hours, m.planned)}%`,
+                    actions: _actEdit + _actDel,
+                    onclick: `navToMonthly(${qi}, ${m.month}, '${m.id}')`,
+                  }))
+                : [groupRow({ text: '<i class="text-slate-400">Месячных планов нет</i>', right: '' })],
+              footer: '',
+            });
+          }).join('')}
+        </div>
+      </div>
+    </div>`}
+  `;
+}
+
+function renderQuarterlyDetail(el) {
+  const q = quarterlyPlans.find(x => x.id === state.selectedPlan);
+  if (!q) return;
+  const months = monthlyPlans.filter(m => m.quarterlyId === q.id);
+  const uniqueMonths = [...new Set(months.map(m => m.month))].sort((a,b) => a-b);
+
+  el.innerHTML = `
+    ${detailHeader({ status: q.status, level: 'quarterly', showAdd: 'month' })}
+    ${state.editMode ? editFormQuarterly(q) : `
+    <div class="flex-1 overflow-y-auto custom-scroll" style="padding-top:5px;">
+      <div class="info-card">
+        ${propRow('Цель квартала', q.goal, true)}
+        ${propRow('Процесс', q.process)}
+        ${propRow('Ожидаемый результат', q.result)}
+      </div>
+      <div class="px-4 py-3">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="sec-label">Месячные планы</h3>
+          <span class="text-xs text-slate-400">${months.length} планов</span>
+        </div>
+        <div class="space-y-1.5">
+          ${uniqueMonths.map((monthNum, idx) => {
+            const mPlans = months.filter(m => m.month === monthNum);
+            const totalH = mPlans.reduce((s, m) => s + m.hours, 0);
+            const totalP = mPlans.reduce((s, m) => s + m.planned, 0);
+            return collapsibleGroup({
+              icon:   mIcon(monthNum, monthNum === 3),
+              title:  monthFullNames[monthNum],
+              hours:  `${totalH}/${totalP} ч.`,
+              count:  mPlans.length,
+              label:  mPlans.length === 1 ? 'план' : 'плана',
+              open:   false,
+              rows:   mPlans.map(m => groupRow({
+                col1:    null,
+                text:    m.procedure,
+                right:   `${pct(m.hours, m.planned)}%`,
+                actions: _actEdit + _actDel,
+                onclick: `navToMonthly(${q.quarter}, ${m.month}, '${m.id}')`,
+              })),
+            });
+          }).join('')}
+        </div>
+      </div>
+    </div>`}
+  `;
+}
+
+// Shared action buttons for task rows
+const _actEdit = `<button class="p-1 rounded hover:bg-slate-200 text-slate-400" onclick="event.stopPropagation()"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>`;
+const _actDel  = `<button class="p-1 rounded hover:bg-red-100 text-slate-400 hover:text-red-500" onclick="event.stopPropagation()"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>`;
+// "Open plan" footer row reused in group footers
+function openPlanFooter(onclick) {
+  return `<button class="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-white/60 transition-colors text-xs font-medium text-indigo-500 text-left" style="background:none;border:none;cursor:pointer;" onclick="${onclick}">
+    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+    Открыть план
+  </button>`;
+}
+
+function hoursWidget(m) {
+  const p = pct(m.hours, m.planned);
+  const c = progressColor(p);
+  const cell = (label, val, unit, color) => `
+    <div class="stat-cell">
+      <div style="font-size:10px;font-weight:700;color:#4f46e5;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">${label}</div>
+      <div style="font-size:19px;font-weight:700;color:${color};line-height:1;">${val}</div>
+      <div style="font-size:10px;color:#94a3b8;margin-top:2px;">${unit}</div>
+    </div>`;
+  return `<div class="hours-grid">
+    ${cell('Плановые', m.planned, 'часов', '#1e293b')}
+    ${cell('Факт', m.hours, 'часов', c)}
+    ${cell('Прогресс', p + '%', m.hours + ' / ' + m.planned + ' ч.', c)}
+  </div>`;
+}
+
+function renderMonthlyDetail(el) {
+  const m = monthlyPlans.find(x => x.id === state.selectedPlan);
+  if (!m) return;
+  const parentQ   = quarterlyPlans.find(q => q.id === m.quarterlyId);
+  const parentA   = annualPlans.find(a => a.id === parentQ?.annualId);
+  const withTasks = (m.employees || []).filter(e => e.tasks.length > 0);
+  const noTasks   = (m.employees || []).filter(e => e.tasks.length === 0);
+  const period    = `${monthFullNames[m.month]} 2026`;
+
+  el.innerHTML = `
+    ${detailHeader({ status: m.status, level: 'monthly', showAdd: 'task' })}
+    ${state.editMode ? editFormMonthly(m) : `
+    <div class="flex-1 overflow-y-auto custom-scroll" style="padding-top:5px;">
+
+      <div class="info-card">
+        ${propRow('Процедура', m.procedure, true)}
+        ${m.description ? `<div style="border-top:1px solid rgba(226,232,240,0.55);padding:10px 14px;background:rgba(251,191,36,0.07);display:flex;gap:10px;align-items:flex-start;">
+          <div style="flex-shrink:0;width:20px;height:20px;border-radius:6px;background:rgba(251,191,36,0.18);border:1px solid rgba(251,191,36,0.38);display:flex;align-items:center;justify-content:center;margin-top:1px;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="0.5" fill="#b45309"/></svg>
+          </div>
+          <p style="font-size:13px;font-weight:400;color:#78350f;line-height:1.6;margin:0;">${m.description}</p>
+        </div>` : ''}
+        ${parentQ ? propRow('Процесс', parentQ.process) : ''}
+        ${companiesViewRow(m)}
+      </div>
+      ${hoursWidget(m)}
+      <div class="px-4 py-3">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="sec-label">Исполнители</h3>
+          <span class="text-xs text-slate-400">${(m.employees||[]).length} человек</span>
+        </div>
+        <div class="space-y-1.5">
+          ${withTasks.map((emp, i) => collapsibleGroup({
+            icon:  avatarIcon(emp.initials, emp.color),
+            title: emp.name,
+            hours: emp.plannedHours ? `${emp.hours} / ${emp.plannedHours} ч.` : `${emp.hours} ч.`,
+            count: emp.tasks.length,
+            label: emp.tasks.length === 1 ? 'задача' : 'задач',
+            open:  false,
+            rows:  emp.tasks.map(t => groupRow({
+              col1:    t.date,
+              text:    t.desc,
+              right:   `${t.hours} ч`,
+              actions: _actEdit + _actDel,
+            })),
+          })).join('')}
+          ${noTasks.length > 0 ? `
+            <div class="child-card border-dashed overflow-hidden">
+              <button class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors text-left" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                <div class="flex items-center gap-2 flex-1 min-w-0">
+                  <div class="flex -space-x-2">
+                    ${noTasks.map(e => `<div class="w-6 h-6 rounded-full bg-gradient-to-br from-${e.color}-400 to-${e.color}-600 flex items-center justify-center text-white text-[9px] font-semibold border-2 border-white">${e.initials}</div>`).join('')}
+                  </div>
+                  <span class="text-xs text-slate-400">+${noTasks.length} без задач</span>
+                </div>
+                <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+              </button>
+              <div class="hidden border-t border-dashed border-slate-200 divide-y divide-dashed divide-slate-200">
+                ${noTasks.map(e => groupRow({ text: e.name, right: '0 задач' })).join('')}
+              </div>
+            </div>` : ''}
+        </div>
+      </div>
+    </div>`}
+  `;
+}
+
+function actionButtons(showAdd) {
+  const btn = `width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;border-radius:8px;cursor:pointer;background:none;`;
+  const mkCheck = (c) => `<svg width="15" height="15" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`;
+  const mkX     = (c) => `<svg width="15" height="15" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
+  const pair = (ok, cancel) => `<div style="display:flex;align-items:center;gap:4px;">
+    <button onclick="${ok}"     style="${btn}">${mkCheck(ok.includes('delete') ? '#ef4444' : '#22c55e')}</button>
+    <button onclick="${cancel}" style="${btn}">${mkX(    ok.includes('delete') ? '#22c55e' : '#ef4444')}</button>
+  </div>`;
+
+  // Edit mode — body shows form, header shows ✓/✗
+  if (state.editMode)
+    return pair("state.editMode=false;render()", "state.editMode=false;render()");
+
+  // Delete confirm
+  if (state.confirmMode === 'delete')
+    return pair("state.confirmMode=null;render();/*delete*/", "state.confirmMode=null;render()");
+
+  // Copy confirm
+  if (state.confirmMode === 'copy')
+    return pair("state.confirmMode=null;render();/*copy*/", "state.confirmMode=null;render()");
+
+  // ── Normal mode ─────────────────────────────────────────────────
+  const uid = 'dd_' + Math.random().toString(36).slice(2,7);
+  const ddItem = (label, ico, color, hover, action) =>
+    `<button onclick="${action}" style="display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;font-size:12px;font-weight:500;color:${color};background:none;border:none;border-radius:7px;cursor:pointer;text-align:left;" onmouseenter="this.style.background='${hover}'" onmouseleave="this.style.background='none'">${ico}${label}</button>`;
+  const icoEdit = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>`;
+  const icoCopy = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`;
+  const icoDel  = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>`;
+  const sep     = `<div style="height:1px;background:rgba(203,213,225,0.5);margin:3px 6px;"></div>`;
+  const addSvg  = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>`;
+  const addLabel = showAdd==='quarter'?'Добавить квартал':showAdd==='month'?'Добавить месяц':'Добавить задачу';
+  const addBtn  = showAdd ? `<button class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600" title="${addLabel}" onclick="alert('${addLabel}')">${addSvg}</button>` : '';
+  return `<div style="display:flex;align-items:center;gap:1px;">
+    ${addBtn}
+    <div style="position:relative;">
+      <button class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600" title="Ещё" onclick="(function(){var m=document.getElementById('${uid}');m.style.display=m.style.display==='block'?'none':'block';setTimeout(function(){document.addEventListener('click',function h(){m.style.display='none';document.removeEventListener('click',h)},{once:true});},0);event.stopPropagation();})()"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"/></svg></button>
+      <div id="${uid}" style="display:none;position:absolute;right:0;top:calc(100%+4px);min-width:152px;background:rgba(255,255,255,0.97);border:1px solid rgba(203,213,225,0.7);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12),0 2px 6px rgba(0,0,0,0.06);padding:4px;z-index:100;">
+        ${ddItem('Редактировать', icoEdit, '#334155', 'rgba(99,102,241,0.07)', "state.editMode=true;render()")}
+        ${ddItem('Копировать',    icoCopy, '#334155', 'rgba(99,102,241,0.07)', "state.confirmMode='copy';render()")}
+        ${sep}
+        ${ddItem('Удалить',      icoDel,  '#ef4444', 'rgba(239,68,68,0.07)',  "state.confirmMode='delete';render()")}
+      </div>
+    </div>
+    <button class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600" title="Закрыть" onclick="state.selectedPlan=null;resetPanelMode();render()"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+  </div>`;
+}
+
+const HDR_DIV = '<div style="width:1px;height:14px;background:rgba(203,213,225,0.7);flex-shrink:0;"></div>';
+const STATUS_IN_WORK = '<span style="font-size:11px;font-weight:500;color:#059669;padding:3px 9px;border-radius:20px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;"><svg width=\'6\' height=\'6\' viewBox=\'0 0 6 6\' fill=\'#34d399\' style=\'flex-shrink:0;\'><circle cx=\'3\' cy=\'3\' r=\'3\'/></svg>В работе</span>';
+
+function hdrBadge(text, color, bg, border) {
+  return `<span style="font-size:11px;font-weight:700;color:${color};padding:3px 9px;border-radius:6px;background:${bg};border:1px solid ${border};white-space:nowrap;backdrop-filter:blur(8px);">${text}</span>`;
+}
+
+// Производные из STATUS_CONFIG (вычисляются один раз)
+const STATUS_DEFS = Object.entries(STATUS_CONFIG)
+  .filter(([, v]) => v.workflow)
+  .sort(([, a], [, b]) => a.workflowOrder - b.workflowOrder)
+  .map(([k, v]) => ({ key: k, label: v.label, grad: v.grad, glow: v.glow }));
+const STATUS_KEY_MAP = Object.fromEntries(
+  Object.entries(STATUS_CONFIG).map(([k, v]) => [k, v.mapTo || k])
+);
+function statusGroup(planStatus, level) {
+  const defs = level === 'monthly'
+    ? STATUS_DEFS.filter(s => s.key !== 'submitted' && s.key !== 'approved')
+    : STATUS_DEFS;
+  const mappedKey = STATUS_KEY_MAP[planStatus] || 'draft';
+  const currentIdx = defs.findIndex(s => s.key === mappedKey);
+  return `<div class="status-wrap">` +
+    defs.map((s, i) => {
+      const isActive = s.key === mappedKey;
+      const isDisabled = i < currentIdx || i > currentIdx + 1;
+      const dis = isDisabled ? 'opacity:0.28;cursor:not-allowed;pointer-events:none;' : 'cursor:pointer;';
+      if (isActive) {
+        return `<button style="padding:4px 12px;font-size:11px;font-weight:600;border:none;border-radius:6px;background:${s.grad};color:white;box-shadow:0 2px 8px ${s.glow},0 1px 2px rgba(0,0,0,0.12),inset 0 1px 0 rgba(255,255,255,0.2);letter-spacing:0.01em;${dis}" onclick="alert('Смена статуса → ${s.label}')">${s.label}</button>`;
+      }
+      return `<button style="padding:4px 12px;font-size:11px;font-weight:500;border:none;border-radius:6px;background:transparent;color:#64748b;transition:all 0.15s;${dis}" onmouseenter="if(!this.disabled)this.style.background='rgba(255,255,255,0.7)'" onmouseleave="this.style.background='transparent'" onclick="alert('Смена статуса → ${s.label}')">${s.label}</button>`;
+    }).join('') + '</div>';
+}
+
+function detailHeader({ status, level, showAdd }) {
+  const backBtn = `<button onclick="mobileBack()" class="mobile-back items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-colors" style="margin:8px 16px 4px;">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    До списку
+  </button>`;
+  return `
+    <div class="detail-hdr">
+      ${backBtn}
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px 12px;gap:12px;">
+        ${statusGroup(status, level)}
+        ${actionButtons(showAdd)}
+      </div>
+      <div class="hdr-sep"></div>
+    </div>
+  `;
+}
+
+// ========== EDIT FORMS ==========
+const fldLabel = (t) => `<div style="font-size:10px;font-weight:700;color:#4f46e5;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:6px;">${t}</div>`;
+const fldInput = (val, type='text') => `<input type="${type}" value="${val}" style="width:100%;background:rgba(255,255,255,0.75);border:1px solid rgba(203,213,225,0.65);border-radius:10px;padding:9px 13px;font-size:13px;font-weight:500;color:#334155;outline:none;font-family:inherit;box-shadow:inset 0 2px 4px rgba(0,0,0,0.04);" onfocus="this.style.borderColor='rgba(99,102,241,0.5)';this.style.boxShadow='inset 0 2px 4px rgba(0,0,0,0.04),0 0 0 3px rgba(99,102,241,0.1)'" onblur="this.style.borderColor='rgba(203,213,225,0.65)';this.style.boxShadow='inset 0 2px 4px rgba(0,0,0,0.04)'">`;
+const fldTextarea = (val, rows=3) => `<textarea rows="${rows}" style="width:100%;background:rgba(255,255,255,0.75);border:1px solid rgba(203,213,225,0.65);border-radius:10px;padding:9px 13px;font-size:13px;font-weight:500;color:#334155;outline:none;font-family:inherit;resize:vertical;line-height:1.5;box-shadow:inset 0 2px 4px rgba(0,0,0,0.04);" onfocus="this.style.borderColor='rgba(99,102,241,0.5)';this.style.boxShadow='inset 0 2px 4px rgba(0,0,0,0.04),0 0 0 3px rgba(99,102,241,0.1)'" onblur="this.style.borderColor='rgba(203,213,225,0.65)';this.style.boxShadow='inset 0 2px 4px rgba(0,0,0,0.04)'">${val}</textarea>`;
+const editWrap = (content) => `<div class="flex-1 overflow-y-auto custom-scroll" style="padding:16px;display:flex;flex-direction:column;gap:14px;">${content}</div>`;
+const editField = (label, input) => `<div>${fldLabel(label)}${input}</div>`;
+
+function editFormAnnual(a) {
+  return editWrap(
+    editField('Цель', fldTextarea(a.goal, 3)) +
+    editField('Ожидаемый результат', fldTextarea(a.result, 3)) +
+    editField('Бюджет (₴)', fldInput((a.budget/1000000).toFixed(1) + ' млн', 'text'))
+  );
+}
+function editFormQuarterly(q) {
+  return editWrap(
+    editField('Процесс', fldInput(q.process)) +
+    editField('Цель квартала', fldTextarea(q.goal, 3)) +
+    editField('Ожидаемый результат', fldTextarea(q.result, 3))
+  );
+}
+function editFormMonthly(m) {
+  const empChips = (m.employees||[]).map(e =>
+    `<div style="display:flex;align-items:center;gap:5px;padding:3px 10px 3px 4px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:20px;">
+      <div style="width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#818cf8,#6366f1);display:flex;align-items:center;justify-content:center;color:white;font-size:8px;font-weight:700;">${e.initials}</div>
+      <span style="font-size:11px;font-weight:500;color:#4f46e5;">${e.name.split(' ')[0]}</span>
+    </div>`).join('');
+  return editWrap(
+    editField('Процедура', fldTextarea(m.procedure, 2)) +
+    `<div style="padding:0 16px 12px;">${companiesEditSection(m)}</div>` +
+    editField('Плановые часы', fldInput(m.planned, 'number')) +
+    `<div>${fldLabel('Исполнители')}
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${empChips}
+        <button style="padding:3px 12px;background:rgba(241,245,249,0.8);border:1px dashed rgba(203,213,225,0.7);border-radius:20px;font-size:11px;color:#94a3b8;cursor:pointer;">+ Добавить</button>
+      </div>
+    </div>`
+  );
+}
+
+function sectionDesc(title, text) {
+  return `<div style="padding: 3px 16px;">
+    <div style="padding: 8px 14px 10px;">
+      <div style="margin-bottom:6px;"><span style="font-size:10px;font-weight:600;color:#94a3b8;letter-spacing:0.06em;text-transform:uppercase;">${title}</span></div>
+      <p style="font-size:13px;font-weight:400;color:#64748b;line-height:1.65;margin:0;">${text}</p>
+    </div>
+  </div>`;
+}
+
+function toggleDistType(planId, newType) {
+  const p = monthlyPlans.find(x => x.id === planId);
+  if (p) { p.distributionType = newType; render(); }
+}
+function toggleCompany(planId, companyId) {
+  const p = monthlyPlans.find(x => x.id === planId);
+  if (!p) return;
+  if (!p.companies) p.companies = [];
+  const idx = p.companies.indexOf(companyId);
+  if (idx >= 0) p.companies.splice(idx, 1); else p.companies.push(companyId);
+  render();
+}
+
+function companiesViewRow(m) {
+  const ids = m.companies || [];
+  const dt  = m.distributionType || 'even';
+  const dtLabel = (DIST_TYPES.find(x => x.key === dt) || {}).label || dt;
+  const shares  = calcShares(ids, dt);
+  const chips   = ids.map(id => {
+    const c = companies.find(x => x.id === id);
+    if (!c) return '';
+    const share = shares.get(id);
+    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:7px;background:rgba(99,102,241,0.07);border:1px solid rgba(99,102,241,0.18);font-size:12px;font-weight:500;color:#334155;">
+      ${c.name}
+      ${share !== undefined ? `<span style="font-size:11px;font-weight:700;color:#6366f1;">${share}%</span>` : ''}
+    </span>`;
+  }).join('');
+  return `<div style="border-top:1px solid rgba(226,232,240,0.55);padding:10px 14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
+      <div style="font-size:10px;font-weight:600;color:#94a3b8;letter-spacing:0.06em;text-transform:uppercase;">Предприятия</div>
+      <span style="font-size:10px;font-weight:600;color:#6366f1;padding:1px 7px;border-radius:5px;background:rgba(99,102,241,0.09);border:1px solid rgba(99,102,241,0.2);">${dtLabel}</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;">${ids.length ? chips : '<span style="font-size:12px;color:#94a3b8;">Не выбрано</span>'}</div>
+  </div>`;
+}
+
+function companiesEditSection(m) {
+  const ids = m.companies || [];
+  const dt  = m.distributionType || 'even';
+  const shares = calcShares(ids, dt);
+  const dtBtns = DIST_TYPES.map(d => {
+    const on = d.key === dt;
+    return `<button onclick="toggleDistType('${m.id}','${d.key}')" style="padding:4px 10px;font-size:11px;font-weight:${on?'600':'500'};border-radius:6px;border:1px solid ${on?'rgba(99,102,241,0.4)':'rgba(203,213,225,0.6)'};background:${on?'rgba(99,102,241,0.1)':'rgba(255,255,255,0.6)'};color:${on?'#4f46e5':'#64748b'};cursor:pointer;">${d.label}</button>`;
+  }).join('');
+  const compChips = companies.map(c => {
+    const sel = ids.includes(c.id);
+    const share = sel ? shares.get(c.id) : null;
+    const infra = dt === 'by_servers' ? c.servers : dt === 'by_workstations' ? c.workstations : 0;
+    return `<button onclick="toggleCompany('${m.id}','${c.id}')" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;border:1px solid ${sel?'rgba(99,102,241,0.35)':'rgba(203,213,225,0.6)'};background:${sel?'rgba(99,102,241,0.08)':'rgba(255,255,255,0.6)'};color:${sel?'#4f46e5':'#64748b'};cursor:pointer;font-size:12px;font-weight:${sel?'600':'400'};">
+      ${c.name}
+      ${infra > 0 && dt !== 'even' ? `<span style="font-size:10px;color:#94a3b8;">${infra}</span>` : ''}
+      ${sel && share !== undefined ? `<span style="font-size:11px;font-weight:700;color:#4f46e5;">${share}%</span>` : ''}
+    </button>`;
+  }).join('');
+  return `${fldLabel('Предприятия')}
+    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">${dtBtns}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">${compChips}</div>`;
+}
+
+function propRow(label, value, first = false, muted = false) {
+  const border = first ? '' : 'border-top:1px solid rgba(226,232,240,0.55);';
+  const valColor = muted ? '#64748b' : '#334155';
+  const valWeight = muted ? '400' : '500';
+  const lineH = muted ? '1.6' : '1.45';
+  return `<div style="${border}padding:10px 14px;">
+    <div class="prop-label">${label}</div>
+    <div style="font-size:13px;font-weight:${valWeight};color:${valColor};line-height:${lineH};">${value}</div>
+  </div>`;
+}
+
+function section(title, text) {
+  return `<div style="padding:3px 16px;">
+    <div class="inset-box">
+      <div class="mb-2"><span style="font-size:10px;font-weight:700;color:#4f46e5;padding:2px 8px;border-radius:5px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.18);letter-spacing:0.04em;text-transform:uppercase;">${title}</span></div>
+      <p style="font-size:13px;font-weight:500;color:#475569;line-height:1.5;">${text}</p>
+    </div>
+  </div>`;
+}
+
+// ========== DIVIDER ALIGNMENT ==========
+function alignDetailDivider() {
+  const fb = document.getElementById('filter-bar');
+  const pl = document.getElementById('plan-list');
+  const dp = document.getElementById('detail-panel');
+  if (!fb || !pl || !dp) return;
+  const hdr = dp.querySelector('.detail-hdr');
+  if (!hdr) return;
+  hdr.style.paddingBottom = '';
+  const fbR = fb.getBoundingClientRect();
+  const plR = pl.getBoundingClientRect();
+  const dpR = dp.getBoundingClientRect();
+  // Середина между нижним краем filter-bar и верхним краем plan-list
+  const mid = (fbR.bottom + plR.top) / 2;
+  const targetH = mid - dpR.top;
+  const currentH = hdr.getBoundingClientRect().height;
+  if (targetH > currentH) {
+    hdr.style.paddingBottom = (targetH - currentH) + 'px';
+  }
+}
+
+// ========== MAIN RENDER ==========
+function render() {
+  renderNav();
+  renderFilterBar();
+  renderList();
+  renderDetail();
+  updateMobileView();
+  requestAnimationFrame(alignDetailDivider);
+}
+
+render();
+</script>
+</body>
+</html>

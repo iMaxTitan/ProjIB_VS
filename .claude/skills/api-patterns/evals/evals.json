@@ -1,0 +1,58 @@
+{
+  "skill_name": "api-patterns",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "Создай API route GET `/api/cabinet/vacation-balance` который возвращает остаток отпускных дней сотрудника из таблицы `planned_absences`",
+      "expected_output": "API route с полным набором проектных паттернов",
+      "files": [],
+      "assertions": [
+        { "name": "uses-isRequestAuthorized", "type": "contains", "value": "isRequestAuthorized(req)" },
+        { "name": "uses-checkRateLimit", "type": "contains", "value": "checkRateLimit" },
+        { "name": "uses-getDbUserId", "type": "contains", "value": "getDbUserId(req)" },
+        { "name": "uses-getServerDb", "type": "contains", "value": "getServerDb" },
+        { "name": "uses-logger", "type": "contains", "value": "logger.error" },
+        { "name": "no-console-any", "type": "regex_not_match", "value": "console\\.(log|error|warn|info)" },
+        { "name": "no-createClient", "type": "regex_not_match", "value": "createClient" },
+        { "name": "no-raw-header-userId", "type": "regex_not_match", "value": "headers\\.get\\(['\"]x-user-id['\"]\\)" },
+        { "name": "returns-401", "type": "contains", "value": "401" },
+        { "name": "returns-429", "type": "contains", "value": "429" }
+      ]
+    },
+    {
+      "id": 1,
+      "prompt": "Добавь POST endpoint `/api/reports/comment` для сохранения комментария к отчёту. Body: `{ reportId, text }`. Таблица: `report_comments`",
+      "expected_output": "POST route с body validation, rate limit 10/min, userId из cookie в insert",
+      "files": [],
+      "assertions": [
+        { "name": "uses-isRequestAuthorized", "type": "contains", "value": "isRequestAuthorized(req)" },
+        { "name": "uses-checkRateLimit", "type": "contains", "value": "checkRateLimit" },
+        { "name": "uses-getDbUserId", "type": "contains", "value": "getDbUserId(req)" },
+        { "name": "uses-getServerDb", "type": "contains", "value": "getServerDb" },
+        { "name": "validates-body", "type": "regex", "value": "reportId|text" },
+        { "name": "post-rate-limit-10", "type": "regex", "value": "RATE_LIMIT\\s*=\\s*10" },
+        { "name": "uses-logger", "type": "contains", "value": "logger.error" },
+        { "name": "no-console-any", "type": "regex_not_match", "value": "console\\.(log|error|warn|info)" },
+        { "name": "no-createClient", "type": "regex_not_match", "value": "createClient" },
+        { "name": "cookie-userId-in-insert", "type": "regex", "value": "user_id.*userId|userId.*user_id" }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Сделай API route POST `/api/calendar/free-slots` который через Graph API получает свободные слоты календаря пользователя за неделю и возвращает их",
+      "expected_output": "POST route с auth, rate limit, Graph API вызов, обработка ошибок",
+      "files": [],
+      "assertions": [
+        { "name": "uses-isRequestAuthorized", "type": "contains", "value": "isRequestAuthorized(req)" },
+        { "name": "uses-checkRateLimit", "type": "contains", "value": "checkRateLimit" },
+        { "name": "uses-getDbUserId", "type": "contains", "value": "getDbUserId(req)" },
+        { "name": "uses-logger", "type": "contains", "value": "logger.error" },
+        { "name": "no-console-any", "type": "regex_not_match", "value": "console\\.(log|error|warn|info)" },
+        { "name": "no-createClient", "type": "regex_not_match", "value": "createClient" },
+        { "name": "graph-api-call", "type": "regex", "value": "graph\\.microsoft\\.com|getGraphToken|graphPost" },
+        { "name": "returns-401", "type": "contains", "value": "401" },
+        { "name": "returns-429", "type": "contains", "value": "429" }
+      ]
+    }
+  ]
+}

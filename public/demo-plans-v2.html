@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CS Platform — Плани</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --depth-zone-bg: rgba(255,255,255, 0.52);
+      --depth-zone-blur: 16px;
+      --depth-zone-border: rgba(255,255,255, 0.45);
+      --depth-zone-border-top: rgba(255,255,255, 0.7);
+      --depth-zone-border-bottom: rgba(203,213,225, 0.3);
+      --depth-element-bg: rgba(255,255,255, 0.92);
+      --depth-element-border: rgba(255,255,255, 0.75);
+      --depth-element-border-top: rgba(255,255,255, 0.9);
+      --depth-element-border-bottom: rgba(203,213,225, 0.25);
+      --shadow-accent: rgba(99,102,241, 0.06);
+      --shadow-3d-inset-top: rgba(255,255,255, 0.6);
+      --shadow-3d-inset-bottom: rgba(0,0,0, 0.02);
+      --accent-selected-bg: rgba(99,102,241, 0.1);
+      --accent-selected-border: rgba(99,102,241, 0.25);
+      --accent-primary: #6366f1;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: linear-gradient(135deg, #f0f2f8 0%, #e8eaf4 50%, #f5f0ff 100%);
+      height: 100vh;
+      display: flex;
+      color: #1e293b;
+      overflow: hidden;
+    }
+
+    /* Scrollbar */
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    /* Glass */
+    .glass-panel {
+      background: var(--depth-zone-bg);
+      backdrop-filter: blur(var(--depth-zone-blur));
+      -webkit-backdrop-filter: blur(var(--depth-zone-blur));
+      border: 1px solid var(--depth-zone-border);
+      border-top: 1px solid var(--depth-zone-border-top);
+      border-bottom: 1px solid var(--depth-zone-border-bottom);
+      box-shadow: 0 4px 24px var(--shadow-accent), 0 2px 6px rgba(0,0,0,0.06), inset 0 1px 0 var(--shadow-3d-inset-top), inset 0 -1px 0 var(--shadow-3d-inset-bottom);
+    }
+    .element-card {
+      background: var(--depth-element-bg);
+      border-radius: 10px;
+      border: 1px solid var(--depth-element-border);
+      border-top: 1px solid var(--depth-element-border-top);
+      border-bottom: 1px solid var(--depth-element-border-bottom);
+      box-shadow: 0 2px 8px var(--shadow-accent), 0 1px 2px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 var(--shadow-3d-inset-bottom);
+    }
+
+    /* Utilities */
+    .sec-label { font-size: 10px; font-weight: 600; color: #94a3b8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .prop-label { font-size: 10px; font-weight: 600; color: #94a3b8; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 3px; }
+    .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; }
+    .badge-emerald { background: rgba(16,185,129,0.12); color: #059669; }
+    .badge-blue { background: rgba(59,130,246,0.12); color: #2563eb; }
+    .badge-amber { background: rgba(245,158,11,0.12); color: #d97706; }
+    .badge-purple { background: rgba(139,92,246,0.12); color: #7c3aed; }
+    .badge-cyan { background: rgba(6,182,212,0.12); color: #0891b2; }
+    .badge-slate { background: rgba(100,116,139,0.12); color: #475569; }
+    .badge-red { background: rgba(239,68,68,0.12); color: #dc2626; }
+    .badge-indigo { background: rgba(99,102,241,0.12); color: #4f46e5; }
+    .avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: white; flex-shrink: 0; }
+    .act-btn { background: none; border: none; cursor: pointer; color: #cbd5e1; padding: 2px; transition: color 0.15s; display: flex; align-items: center; }
+    .act-btn:hover { color: var(--accent-primary); }
+    .act-btn.del:hover { color: #ef4444; }
+    .act-btn.ok:hover { color: #10b981; }
+
+    .info-card { background: rgba(255,255,255,0.72); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.5); border-radius: 12px; box-shadow: 0 4px 16px rgba(99,102,241,0.06), 0 1px 3px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.8); overflow: hidden; }
+    .stat-cell { background: rgba(241,245,249,0.65); border: 1px solid rgba(203,213,225,0.5); border-radius: 10px; padding: 10px 12px; box-shadow: inset 0 2px 5px rgba(99,102,241,0.06), inset 0 -1px 0 rgba(255,255,255,0.85), 0 1px 0 rgba(255,255,255,0.95); }
+    .detail-hdr { background: var(--accent-selected-bg); }
+    .hdr-sep { height: 3px; background: rgba(220,228,240,0.5); box-shadow: inset 0 2px 3px rgba(99,102,241,0.13), inset 0 1px 1px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,0.95); }
+    .progress-bar { height: 4px; border-radius: 2px; background: rgba(203,213,225,0.3); overflow: hidden; }
+    .progress-bar > div { height: 100%; border-radius: 2px; }
+
+    .plan-item { padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,0.68); border: 1px solid rgba(255,255,255,0.55); box-shadow: 0 2px 8px rgba(99,102,241,0.05), inset 0 1px 0 rgba(255,255,255,0.8); cursor: pointer; transition: all 0.15s; }
+    .plan-item:hover { background: rgba(255,255,255,0.88); box-shadow: 0 4px 14px rgba(99,102,241,0.1); }
+    .plan-item.active { background: var(--accent-selected-bg); border-color: var(--accent-selected-border); border-left: 3px solid var(--accent-primary); }
+
+    .nav-btn { padding: 4px 0; width: 40px; text-align: center; font-size: 11px; font-weight: 500; border-radius: 6px; cursor: pointer; border: none; transition: all 0.15s; background: transparent; color: #94a3b8; }
+    .nav-btn:hover { background: rgba(255,255,255,0.8); color: #64748b; }
+    .nav-btn.active { background: rgba(99,102,241,0.08); color: #4f46e5; border: 1px solid rgba(99,102,241,0.2); }
+    .nav-btn.ctx { background: rgba(99,102,241,0.28); color: white; }
+    .nav-btn[disabled] { opacity: 0.3; pointer-events: none; }
+    .nav-group { display: inline-flex; align-items: center; padding: 2px; background: rgba(255,255,255,0.72); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.5); border-radius: 8px; box-shadow: 0 4px 16px rgba(99,102,241,0.07), inset 0 1px 0 rgba(255,255,255,0.7); }
+
+    .status-wrap { display: flex; align-items: center; gap: 0; background: rgba(241,245,249,0.8); border: 1px solid rgba(203,213,225,0.6); border-radius: 8px; padding: 2px; }
+    .st-btn { padding: 4px 12px; font-size: 11px; font-weight: 600; border: none; border-radius: 6px; background: transparent; color: #94a3b8; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .st-btn.active { background: white; color: #1e293b; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+    .task-row { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid rgba(226,232,240,0.3); transition: background 0.1s; }
+    .task-row:hover { background: rgba(255,255,255,0.6); }
+    .task-row:last-child { border-bottom: none; }
+
+    /* ═══ LEFT NAV ═══ */
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      display: flex; flex-direction: column;
+      padding: 12px 8px; gap: 2px;
+      border-right: 1px solid rgba(226,232,240,0.4);
+    }
+    .sidebar-logo {
+      padding: 8px 12px 20px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .logo-icon {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 13px; font-weight: 800;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; color: #64748b;
+      cursor: pointer; transition: all 0.15s; border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.6); color: #334155; }
+    .nav-item.active { background: var(--accent-selected-bg); color: var(--accent-primary); font-weight: 600; }
+    .nav-icon { width: 18px; height: 18px; opacity: 0.55; flex-shrink: 0; }
+    .nav-item.active .nav-icon { opacity: 1; }
+    .nav-badge { margin-left: auto; font-size: 10px; font-weight: 700; background: rgba(239,68,68,0.1); color: #ef4444; padding: 1px 6px; border-radius: 10px; }
+    .nav-divider { height: 1px; background: rgba(226,232,240,0.4); margin: 8px 12px; }
+
+    .user-card {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 10px;
+      background: rgba(255,255,255,0.4); margin: 4px 0;
+    }
+
+    /* ═══ MAIN LAYOUT ═══ */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Top bar */
+    .top-bar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 20px;
+      background: rgba(255,255,255,0.35);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(226,232,240,0.4);
+      flex-shrink: 0;
+    }
+
+    /* Content = tree + detail */
+    .content { flex: 1; display: flex; overflow: hidden; padding: 12px; gap: 12px; }
+
+    /* Tree panel */
+    .tree-panel {
+      width: 280px; flex-shrink: 0;
+      border-radius: 16px;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .tree-nav { padding: 12px; display: flex; flex-direction: column; gap: 6px; align-items: center; border-bottom: 1px solid rgba(226,232,240,0.3); }
+    .tree-list { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+
+    /* Detail panel */
+    .detail-panel {
+      flex: 1;
+      border-radius: 16px;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .detail-body { flex: 1; overflow-y: auto; }
+
+    /* Emp group */
+    .emp-group { border-radius: 10px; overflow: hidden; border: 1px solid rgba(226,232,240,0.4); background: rgba(255,255,255,0.4); }
+    .emp-group + .emp-group { margin-top: 10px; }
+    .emp-hdr { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: rgba(248,250,252,0.6); border-bottom: 1px solid rgba(226,232,240,0.3); }
+
+    /* Tabs */
+    .detail-tabs { display: flex; gap: 0; border-bottom: 1px solid rgba(226,232,240,0.4); background: rgba(248,250,252,0.3); flex-shrink: 0; }
+    .detail-tab { padding: 10px 20px; font-size: 12px; font-weight: 600; color: #94a3b8; cursor: pointer; border: none; background: none; border-bottom: 2px solid transparent; transition: all 0.15s; }
+    .detail-tab:hover { color: #64748b; }
+    .detail-tab.active { color: var(--accent-primary); border-bottom-color: var(--accent-primary); }
+
+    /* View switching */
+    .view { display: none; }
+    .view.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════
+     LEFT NAV
+     ════════════════════════ -->
+<div class="sidebar glass-panel" style="border-radius:0;">
+  <div class="sidebar-logo">
+    <div class="logo-icon">CS</div>
+    <div>
+      <div style="font-size:15px;font-weight:700;color:#334155;line-height:1.2;">CS Platform</div>
+      <div style="font-size:9px;color:#94a3b8;">Відділ інформаційної безпеки</div>
+    </div>
+  </div>
+
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    Активність
+    <span class="nav-badge">3</span>
+  </button>
+  <button class="nav-item active">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg>
+    Плани
+  </button>
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    Планувальник
+  </button>
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+    Звіти
+  </button>
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+    KPI
+  </button>
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+    Довідники
+  </button>
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    База знань
+  </button>
+
+  <div class="nav-divider"></div>
+
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    Кабінет
+  </button>
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    Бот
+  </button>
+
+  <div style="flex:1;"></div>
+
+  <div class="user-card">
+    <div class="avatar" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);">ІО</div>
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#334155;">Іванов Олександр</div>
+      <div style="font-size:10px;color:#94a3b8;">head · Відділ ІБ</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:2px;">
+    <button class="nav-item" style="padding:7px 12px;font-size:11px;flex:1;">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9"/></svg>
+      Налаштування
+    </button>
+    <button class="nav-item" style="padding:7px 12px;font-size:11px;flex:1;">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+      Допомога
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════════════
+     MAIN
+     ════════════════════════ -->
+<div class="main">
+
+  <!-- Top bar -->
+  <div class="top-bar">
+    <div style="font-size:16px;font-weight:700;color:#1e293b;">Плани</div>
+    <div style="flex:1;"></div>
+    <div class="status-wrap">
+      <button class="st-btn active">Підготовка</button>
+      <button class="st-btn">В роботі</button>
+      <button class="st-btn">Завершено</button>
+    </div>
+  </div>
+
+  <!-- Content: Tree + Detail -->
+  <div class="content">
+
+    <!-- ═══ TREE ═══ -->
+    <div class="tree-panel glass-panel">
+      <!-- Nav selectors -->
+      <div class="tree-nav">
+        <!-- Year -->
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;color:#94a3b8;cursor:pointer;">◂</span>
+          <span style="font-size:15px;font-weight:700;color:#334155;">2026</span>
+          <span style="font-size:11px;color:#94a3b8;cursor:pointer;">▸</span>
+        </div>
+        <!-- Quarters -->
+        <div class="nav-group">
+          <button class="nav-btn ctx" style="width:48px;">Q1</button>
+          <button class="nav-btn" style="width:48px;" disabled>Q2</button>
+          <button class="nav-btn" style="width:48px;" disabled>Q3</button>
+          <button class="nav-btn" style="width:48px;" disabled>Q4</button>
+        </div>
+        <!-- Months -->
+        <div class="nav-group">
+          <button class="nav-btn" style="width:56px;">Січ</button>
+          <button class="nav-btn" style="width:56px;">Лют</button>
+          <button class="nav-btn active" style="width:56px;">Бер</button>
+        </div>
+      </div>
+
+      <!-- Plan tree list -->
+      <div class="tree-list custom-scroll">
+        <!-- Annual -->
+        <div class="plan-item">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:12px;font-weight:600;color:#334155;">📋 Річний план 2026</div>
+            <span class="badge badge-blue" style="font-size:9px;">В роботі</span>
+          </div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:2px;">Забезпечення ІБ підприємства</div>
+        </div>
+
+        <!-- Quarterly -->
+        <div style="margin-left:12px;display:flex;flex-direction:column;gap:5px;margin-top:5px;">
+          <div class="plan-item">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div style="font-size:11px;font-weight:600;color:#334155;">Q1 — Аудит інфраструктури</div>
+            </div>
+            <div class="progress-bar" style="margin-top:5px;"><div style="width:67%;background:var(--accent-primary);"></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:3px;">
+              <span style="font-size:10px;color:#94a3b8;">80 / 120 год</span>
+              <span style="font-size:10px;font-weight:700;color:var(--accent-primary);">67%</span>
+            </div>
+          </div>
+
+          <!-- Monthly plans -->
+          <div style="margin-left:12px;display:flex;flex-direction:column;gap:4px;">
+            <div class="plan-item" style="padding:7px 10px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-size:11px;color:#64748b;">Січень</span>
+                <span class="badge badge-emerald" style="font-size:9px;">Завершено</span>
+              </div>
+              <div style="font-size:9px;color:#94a3b8;margin-top:2px;">2.1 Моніторинг · 40/40 год</div>
+            </div>
+
+            <div class="plan-item" style="padding:7px 10px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-size:11px;color:#64748b;">Лютий</span>
+                <span class="badge badge-blue" style="font-size:9px;">В роботі</span>
+              </div>
+              <div style="font-size:9px;color:#94a3b8;margin-top:2px;">2.1 Моніторинг · 28/40 год</div>
+            </div>
+
+            <div class="plan-item active" style="padding:7px 10px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-size:11px;font-weight:600;color:#4f46e5;">Березень</span>
+                <span class="badge badge-amber" style="font-size:9px;">Підготовка</span>
+              </div>
+              <div style="font-size:9px;color:#94a3b8;margin-top:2px;">2.1 Моніторинг · 0/40 год</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ DETAIL PANEL ═══ -->
+    <div class="detail-panel glass-panel">
+      <!-- Detail Header -->
+      <div class="detail-hdr" style="padding:12px 20px;">
+        <div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">Річний 2026 → Q1 Аудит інфраструктури → Березень</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:17px;font-weight:700;color:#1e293b;">Місячний план — Березень 2026</div>
+          <div style="display:flex;gap:6px;">
+            <button class="act-btn" title="Копіювати" style="font-size:15px;">📋</button>
+            <button class="act-btn" title="Редагувати" style="font-size:15px;">✏️</button>
+            <button class="act-btn del" title="Видалити" style="font-size:15px;">🗑</button>
+          </div>
+        </div>
+      </div>
+      <div class="hdr-sep"></div>
+
+      <!-- Tabs: Деталі | Журнал робіт -->
+      <div class="detail-tabs">
+        <button class="detail-tab active" onclick="switchTab('details')">Деталі плану</button>
+        <button class="detail-tab" onclick="switchTab('worklog')">Журнал робіт</button>
+      </div>
+
+      <!-- ═══ TAB: Деталі плану ═══ -->
+      <div id="tab-details" class="view active">
+        <div class="detail-body custom-scroll" style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
+
+          <!-- Procedure -->
+          <div class="info-card" style="padding:12px 16px;">
+            <div class="prop-label">Процедура</div>
+            <div style="font-size:13px;font-weight:600;color:#334155;">2.1 Моніторинг інцидентів</div>
+            <div style="font-size:11px;color:#64748b;margin-top:3px;">Відстеження, аналіз та реагування на інциденти ІБ. Щоденний огляд логів SIEM, тріаж алертів, координація з адмінами.</div>
+          </div>
+
+          <!-- Assignees -->
+          <div class="info-card" style="padding:12px 16px;">
+            <div class="prop-label">Відповідальні виконавці</div>
+            <div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <div class="avatar" style="background:#6366f1;">ІО</div>
+                <div>
+                  <div style="font-size:12px;font-weight:600;">Іванов Олександр</div>
+                  <div style="font-size:10px;color:#94a3b8;">analyst · 60 год</div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <div class="avatar" style="background:#8b5cf6;">ПС</div>
+                <div>
+                  <div style="font-size:12px;font-weight:600;">Петренко Сергій</div>
+                  <div style="font-size:10px;color:#94a3b8;">employee · 40 год</div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <div class="avatar" style="background:#06b6d4;">КН</div>
+                <div>
+                  <div style="font-size:12px;font-weight:600;">Коваль Наталія</div>
+                  <div style="font-size:10px;color:#94a3b8;">analyst · 20 год</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Companies -->
+          <div class="info-card" style="padding:12px 16px;">
+            <div class="prop-label">Компанії та розподіл годин</div>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" checked style="accent-color:var(--accent-primary);">
+                <span style="font-size:12px;flex:1;">ТОВ «Альфа-Секʼюріті»</span>
+                <div class="progress-bar" style="width:100px;"><div style="width:35%;background:#6366f1;"></div></div>
+                <span class="badge badge-indigo" style="font-size:10px;">35%</span>
+                <span style="font-size:11px;color:#64748b;">42 год</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" checked style="accent-color:var(--accent-primary);">
+                <span style="font-size:12px;flex:1;">ТОВ «Бета-Інфра»</span>
+                <div class="progress-bar" style="width:100px;"><div style="width:40%;background:#8b5cf6;"></div></div>
+                <span class="badge badge-purple" style="font-size:10px;">40%</span>
+                <span style="font-size:11px;color:#64748b;">48 год</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" checked style="accent-color:var(--accent-primary);">
+                <span style="font-size:12px;flex:1;">ПрАТ «Гамма-Телеком»</span>
+                <div class="progress-bar" style="width:100px;"><div style="width:25%;background:#06b6d4;"></div></div>
+                <span class="badge badge-cyan" style="font-size:10px;">25%</span>
+                <span style="font-size:11px;color:#64748b;">30 год</span>
+              </div>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:12px;">
+              <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+                <input type="radio" name="dist" checked style="accent-color:var(--accent-primary);"> Рівномірно
+              </label>
+              <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+                <input type="radio" name="dist" style="accent-color:var(--accent-primary);"> За серверами
+              </label>
+              <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+                <input type="radio" name="dist" style="accent-color:var(--accent-primary);"> За робочими станціями
+              </label>
+            </div>
+          </div>
+
+          <!-- Project + KB doc -->
+          <div style="display:flex;gap:12px;">
+            <div class="info-card" style="padding:12px 16px;flex:1;">
+              <div class="prop-label">Проєкт</div>
+              <label style="font-size:12px;display:flex;align-items:center;gap:5px;margin-top:4px;">
+                <input type="checkbox" checked style="accent-color:var(--accent-primary);">
+                Впровадження SIEM
+              </label>
+            </div>
+            <div class="info-card" style="padding:12px 16px;flex:1;">
+              <div class="prop-label">Документ БЗ</div>
+              <div style="margin-top:4px;">
+                <span class="badge badge-indigo" style="font-size:11px;padding:3px 10px;">📄 Політика моніторингу v2.1</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <div class="stat-cell">
+              <div style="font-size:10px;color:#94a3b8;font-weight:500;">Заплановано</div>
+              <div style="font-size:20px;font-weight:700;color:#334155;margin-top:2px;">120<span style="font-size:11px;font-weight:400;color:#94a3b8;"> год</span></div>
+            </div>
+            <div class="stat-cell">
+              <div style="font-size:10px;color:#94a3b8;font-weight:500;">Виконано</div>
+              <div style="font-size:20px;font-weight:700;color:#059669;margin-top:2px;">45<span style="font-size:11px;font-weight:400;color:#94a3b8;"> год</span></div>
+            </div>
+            <div class="stat-cell">
+              <div style="font-size:10px;color:#94a3b8;font-weight:500;">Залишок</div>
+              <div style="font-size:20px;font-weight:700;color:#d97706;margin-top:2px;">75<span style="font-size:11px;font-weight:400;color:#94a3b8;"> год</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ TAB: Журнал робіт ═══ -->
+      <div id="tab-worklog" class="view">
+        <div class="detail-body custom-scroll" style="padding:16px 20px;display:flex;flex-direction:column;gap:0;">
+
+          <!-- Employee 1 -->
+          <div class="emp-group">
+            <div class="emp-hdr">
+              <div class="avatar" style="background:#6366f1;">ІО</div>
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;color:#334155;">Іванов Олександр</div>
+                <div style="font-size:10px;color:#94a3b8;">analyst</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:12px;font-weight:700;color:#334155;">42 / 60 год</div>
+                <div class="progress-bar" style="width:80px;margin-top:3px;"><div style="width:70%;background:#6366f1;"></div></div>
+              </div>
+              <button class="act-btn ok" style="font-size:18px;margin-left:6px;" title="Додати задачу">＋</button>
+            </div>
+            <div class="task-row">
+              <span style="color:#10b981;font-size:14px;">✓</span>
+              <div style="flex:1;">
+                <div style="font-size:12px;font-weight:500;">Налаштування SIEM алертів</div>
+                <div style="font-size:10px;color:#94a3b8;">Конфігурація правил кореляції для нових джерел логів</div>
+              </div>
+              <span class="badge badge-purple" style="font-size:9px;">CHIEF</span>
+              <span style="font-size:11px;color:#334155;font-weight:600;width:40px;text-align:right;">8 год</span>
+              <span style="font-size:10px;color:#94a3b8;width:40px;text-align:right;">03.02</span>
+            </div>
+            <div class="task-row">
+              <span style="color:#10b981;font-size:14px;">✓</span>
+              <div style="flex:1;">
+                <div style="font-size:12px;font-weight:500;">Аналіз логів за тиждень 1</div>
+              </div>
+              <span style="font-size:11px;color:#334155;font-weight:600;width:40px;text-align:right;">6 год</span>
+              <span style="font-size:10px;color:#94a3b8;width:40px;text-align:right;">07.02</span>
+            </div>
+            <div class="task-row">
+              <span style="color:#3b82f6;font-size:14px;">○</span>
+              <div style="flex:1;">
+                <div style="font-size:12px;font-weight:500;">Звіт по інцидентах</div>
+              </div>
+              <span style="font-size:11px;color:#334155;font-weight:600;width:40px;text-align:right;">4 год</span>
+              <span style="font-size:10px;color:#94a3b8;width:40px;text-align:right;">14.02</span>
+            </div>
+            <div class="task-row" style="background:rgba(245,158,11,0.05);">
+              <span style="color:#f59e0b;font-size:14px;">⏳</span>
+              <div style="flex:1;">
+                <div style="font-size:12px;font-weight:500;">Перевірка правил кореляції</div>
+                <div style="font-size:10px;color:#d97706;">Очікує прийняття виконавцем</div>
+              </div>
+              <span class="badge badge-cyan" style="font-size:9px;">HEAD</span>
+              <span style="font-size:11px;color:#94a3b8;width:40px;text-align:right;">0 год</span>
+              <div style="display:flex;gap:4px;margin-left:4px;">
+                <button class="act-btn ok" style="color:#10b981;font-size:16px;" title="Прийняти">✓</button>
+                <button class="act-btn del" style="color:#ef4444;font-size:16px;" title="Відхилити">✗</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Employee 2 -->
+          <div class="emp-group">
+            <div class="emp-hdr">
+              <div class="avatar" style="background:#8b5cf6;">ПС</div>
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;color:#334155;">Петренко Сергій</div>
+                <div style="font-size:10px;color:#94a3b8;">employee</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:12px;font-weight:700;color:#334155;">28 / 40 год</div>
+                <div class="progress-bar" style="width:80px;margin-top:3px;"><div style="width:70%;background:#8b5cf6;"></div></div>
+              </div>
+              <button class="act-btn ok" style="font-size:18px;margin-left:6px;">＋</button>
+            </div>
+            <div class="task-row">
+              <span style="color:#10b981;font-size:14px;">✓</span>
+              <div style="flex:1;"><div style="font-size:12px;font-weight:500;">Патчинг серверів БД</div></div>
+              <span style="font-size:11px;color:#334155;font-weight:600;width:40px;text-align:right;">12 год</span>
+              <span style="font-size:10px;color:#94a3b8;width:40px;text-align:right;">10.02</span>
+            </div>
+            <div class="task-row">
+              <span style="color:#10b981;font-size:14px;">✓</span>
+              <div style="flex:1;"><div style="font-size:12px;font-weight:500;">Оновлення FW правил</div></div>
+              <span style="font-size:11px;color:#334155;font-weight:600;width:40px;text-align:right;">8 год</span>
+              <span style="font-size:10px;color:#94a3b8;width:40px;text-align:right;">12.02</span>
+            </div>
+            <div class="task-row" style="background:rgba(245,158,11,0.05);">
+              <span style="color:#f59e0b;font-size:14px;">⏳</span>
+              <div style="flex:1;">
+                <div style="font-size:12px;font-weight:500;">Інвентаризація ПЗ</div>
+                <div style="font-size:10px;color:#d97706;">Призначено керівником</div>
+              </div>
+              <span class="badge badge-purple" style="font-size:9px;">CHIEF</span>
+              <span style="font-size:11px;color:#94a3b8;width:40px;text-align:right;">0 год</span>
+              <div style="display:flex;gap:4px;margin-left:4px;">
+                <button class="act-btn ok" style="color:#10b981;font-size:16px;">✓</button>
+                <button class="act-btn del" style="color:#ef4444;font-size:16px;">✗</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Employee 3 -->
+          <div class="emp-group">
+            <div class="emp-hdr">
+              <div class="avatar" style="background:#06b6d4;">КН</div>
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;color:#334155;">Коваль Наталія</div>
+                <div style="font-size:10px;color:#94a3b8;">analyst</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:12px;font-weight:700;color:#334155;">15 / 20 год</div>
+                <div class="progress-bar" style="width:80px;margin-top:3px;"><div style="width:75%;background:#06b6d4;"></div></div>
+              </div>
+              <button class="act-btn ok" style="font-size:18px;margin-left:6px;">＋</button>
+            </div>
+            <div class="task-row">
+              <span style="color:#10b981;font-size:14px;">✓</span>
+              <div style="flex:1;"><div style="font-size:12px;font-weight:500;">Аналіз вразливостей Q1</div></div>
+              <span style="font-size:11px;color:#334155;font-weight:600;width:40px;text-align:right;">10 год</span>
+              <span style="font-size:10px;color:#94a3b8;width:40px;text-align:right;">08.02</span>
+            </div>
+            <div class="task-row">
+              <span style="color:#3b82f6;font-size:14px;">○</span>
+              <div style="flex:1;"><div style="font-size:12px;font-weight:500;">Тестування бекапів</div></div>
+              <span style="font-size:11px;color:#334155;font-weight:600;width:40px;text-align:right;">5 год</span>
+              <span style="font-size:10px;color:#94a3b8;width:40px;text-align:right;">20.02</span>
+            </div>
+          </div>
+
+          <!-- Summary -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid rgba(226,232,240,0.4);">
+            <div class="stat-cell">
+              <div style="font-size:10px;color:#94a3b8;">Всього план</div>
+              <div style="font-size:18px;font-weight:700;color:#334155;">120 год</div>
+            </div>
+            <div class="stat-cell">
+              <div style="font-size:10px;color:#94a3b8;">Виконано</div>
+              <div style="font-size:18px;font-weight:700;color:#059669;">85 год</div>
+            </div>
+            <div class="stat-cell">
+              <div style="font-size:10px;color:#94a3b8;">Покриття</div>
+              <div style="font-size:18px;font-weight:700;color:var(--accent-primary);">71%</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(tab) {
+  document.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+
+</body>
+</html>

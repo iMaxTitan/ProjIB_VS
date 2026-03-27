@@ -1,0 +1,731 @@
+{
+  "name": "Outlook",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "c94e929d-032a-4944-95b6-cde4dce5ccf9",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        -2240,
+        1120
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "i8we5rZ4gmivre3P",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -3168,
+        944
+      ],
+      "id": "eeccc273-c318-4d51-b24b-4a336c4ee75b",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.output }}",
+        "options": {
+          "systemMessage": "==Вы – виртуальный помощник для корпоративного Microsoft Outlook, который выполняет структурированные запросы, используя доступные инструменты. Вы получаете предварительно обработанные запросы в формате JSON от узла \"Code\" и отвечаете за их выполнение с помощью инструментов.\n\nФормат входящих данных:\njsonCopy{\n  \"command\": \"[команда]\",\n  \"displayName\": \"[имя контакта, если применимо]\",\n  \"startDate\": \"[дата начала, если применимо]\",\n  \"endDate\": \"[дата окончания, если применимо]\",\n  \"eventTitle\": \"[название события, если применимо]\",\n  \"eventID\": \"[ID события, если применимо]\",\n  \"emailAddress\": \"[адрес получателя, если применимо]\",\n  \"subject\": \"[тема письма, если применимо]\",\n  \"emailBody\": \"[тело письма, если применимо]\",\n  \"ID\": \"[ID письма, если применимо]\",\n  \"limit\": \"[лимит элементов, по умолчанию 10]\",\n  \"startTime\": \"[время начала, если применимо]\",\n  \"endTime\": \"[время окончания, если применимо]\",\n  \"Filter_Query\": \"[фильтр для событий, если применимо]\"\n}\n\nИнструменты управления почтой:\n- Send Email: Отправка электронных писем.\n- Create Draft: Создание черновиков писем.\n- Get Emails: Получение списка писем (с возможностью фильтрации).\n- Get Folders: Получение списка папок в почтовом ящике.\n- Mark Unread: Пометка письма как непрочитанного.\n- Label Email: Добавление меток к письму.\n- Email Reply: Ответ на письмо.\n- Move Email: Перемещение письма в другую папку.\n\nИнструменты управления контактами:\n- getContact: Поиск контакта и сведений о нем. Передайте в инструмент данные в формате JSON, как получены от \"Code\". Ожидаемый результат от вызова workflow `msGraph` – список пользователей или ошибка.\n- Create Contact: Создание нового контакта.\n- Update Contact: Обновление информации о контакте.\n- Delete Contact: Удаление контакта.\n\nИнструменты управления календарем:\n- Create Event: Создание событий в календаре.\n- Create Event with Attendees: Создание событий с участниками.\n- Get Events: Получение списка событий (с фильтрацией по Filter_Query).\n- Update Event: Изменение деталей события.\n- Delete Event: Удаление события.\n- Accept/Decline Meeting: Принятие или отклонение приглашения.\n\nСоответствие команд инструментам:\n- send → Send Email\n- view → Get Emails\n- reply → Email Reply\n- draft → Create Draft\n- mark_unread → Mark Unread\n- label → Label Email\n- move → Move Email\n- find_contact → getContact\n- create_contact → Create Contact\n- update_contact → Update Contact\n- delete_contact → Delete Contact\n- view_events → Get Events\n- create_event → Create Event\n- create_event_with_attendees → Create Event with Attendees\n- update_event → Update Event\n- delete_event → Delete Event\n- respond_to_meeting → Accept/Decline Meeting\n\nОбщие инструкции:\n- Используйте значения параметров из полученной структуры JSON без изменений.\n- Для команды `find_contact` передайте в инструмент `getContact` полный объект JSON, как получен от \"Code\".\n- Если инструмент возвращает ошибку, верните сообщение с пояснением (например, \"Контакт не найден\" или \"Ошибка запроса\").\n- Отвечайте пользователю кратко и на понятном языке.\n- Текущая дата и время: {{ $now }}\n\n={{ \"DEBUG: \" + JSON.stringify($json) + \"\\\\nResult: \" + $json.output }}"
+        }
+      },
+      "id": "5cb95ef8-9271-44b9-bedb-85290843fce9",
+      "name": "Outlook Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [
+        -1376,
+        688
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "toRecipients": "={{ $fromAI(\"emailAddress\") }}",
+        "subject": "={{ $fromAI(\"subject\") }}",
+        "bodyContent": "={{ $fromAI(\"emailBody\") }}",
+        "additionalFields": {
+          "bodyContentType": "html"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        -1984,
+        1392
+      ],
+      "id": "41dc3bce-6980-4fe1-ae33-ba5ff6922d38",
+      "name": "Send Email",
+      "webhookId": "7666b017-a39f-4c9c-b082-8fa7768de007",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "ePBpNHNYY7hxwoId",
+          "name": "Microsoft Outlook ATB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": "={{ $fromAI(\"limit\",\"how many emails the user wants\") }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        -1776,
+        1392
+      ],
+      "id": "72c8b8a4-a3b3-4bad-bf54-6feb19e54c7e",
+      "name": "Get Emails",
+      "webhookId": "e507f719-bd92-4a25-a88a-b5d1110b1921",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "ePBpNHNYY7hxwoId",
+          "name": "Microsoft Outlook ATB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $fromAI(\"ID\",\"the message ID\") }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        -1888,
+        1392
+      ],
+      "id": "12eeec00-48cb-42e5-b22b-0ca12ba5820b",
+      "name": "Email Reply",
+      "webhookId": "bfccf03b-3bf7-43df-88a2-0376fdbd6c02",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "ePBpNHNYY7hxwoId",
+          "name": "Microsoft Outlook ATB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "39c2f302-03be-4464-a17a-d7cc481d6d44",
+              "name": "=response",
+              "value": "={{$json.output}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "11bb5bea-abcb-4f01-8843-129398d69fd2",
+      "name": "Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        80,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7ab380a2-a8d3-421c-ab4e-748ea8fb7904",
+              "name": "response",
+              "value": "Unable to perform task. Please try again.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "932eb290-37d2-448f-9bd2-39493e4f6caa",
+      "name": "Try Again",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        144,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "fromAllCalendars": false,
+        "calendarId": {
+          "__rl": true,
+          "value": "AAMkADFmODNjYmZmLWQ5NDEtNDFhZS04ODBlLTA0MzM0NTc0OTgzZgBGAAAAAABUCNPL83A4SYm7M74WJXiVBwDfptS2kWAbQagm7L3SFfSbAAAAAAAZAADfptS2kWAbQagm7L3SFfSbAAAAAC71AAA=",
+          "mode": "list",
+          "cachedResultName": "Календарь"
+        },
+        "limit": 50,
+        "filters": {
+          "custom": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Filter_Query', `фильтр должен соответствовать требованием Microsoft Graph к $Filter для собітий календаря\n`, 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        -1680,
+        1392
+      ],
+      "id": "33f54907-c4d0-4a94-a2f9-c75fde0b73c3",
+      "name": "Get Events",
+      "webhookId": "c31d8c09-ca28-4b59-8399-0cbdd67fe45c",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "ePBpNHNYY7hxwoId",
+          "name": "Microsoft Outlook ATB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendarId": {
+          "__rl": true,
+          "value": "AAMkADFmODNjYmZmLWQ5NDEtNDFhZS04ODBlLTA0MzM0NTc0OTgzZgBGAAAAAABUCNPL83A4SYm7M74WJXiVBwDfptS2kWAbQagm7L3SFfSbAAAAAAAZAABD-O74jVN5Q7O0lkrrJ40eAASguQCxAAA=",
+          "mode": "list",
+          "cachedResultName": "Календарь"
+        },
+        "subject": "={{ $fromAI(\"eventTitle\") }}",
+        "startDateTime": "={{ $fromAI(\"eventStart\") }}",
+        "endDateTime": "={{ $fromAI(\"eventEnd\") }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        -1584,
+        1392
+      ],
+      "id": "dbd2def8-38da-489f-a0eb-0269570129ae",
+      "name": "Create Event",
+      "webhookId": "7d22d831-c474-43e6-9e61-53e77453e87d",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "ePBpNHNYY7hxwoId",
+          "name": "Microsoft Outlook ATB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendarId": {
+          "__rl": true,
+          "value": "AQMkADAwATExADBhNy00YzNjLTIxNzAtMDACLTAwCgBGAAADx5KhhTgTtkq2Me32-FjO3QcA0H1J2gklVEip4aAUn9zXTQAAAgEGAAAA0H1J2gklVEip4aAUn9zXTQAAAjB8AAAA",
+          "mode": "list",
+          "cachedResultName": "Calendar"
+        },
+        "subject": "={{ $fromAI(\"eventTitle\") }}",
+        "startDateTime": "={{ $fromAI(\"eventStart\") }}",
+        "endDateTime": "={{ $fromAI(\"eventEnd\") }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        -1456,
+        1392
+      ],
+      "id": "79340de8-c94c-4025-8430-157ce040c9b0",
+      "name": "Create Event with Attendees",
+      "webhookId": "3079486b-b0b2-4109-b330-5f3dd97c261e",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "xo0ZpFPD8RCs1VrB",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "update",
+        "calendarId": {
+          "__rl": true,
+          "value": "AAMkADFmODNjYmZmLWQ5NDEtNDFhZS04ODBlLTA0MzM0NTc0OTgzZgBGAAAAAABUCNPL83A4SYm7M74WJXiVBwDfptS2kWAbQagm7L3SFfSbAAAAAAAZAADfptS2kWAbQagm7L3SFfSbAAAAAC71AAA=",
+          "mode": "list",
+          "cachedResultName": "Календарь"
+        },
+        "eventId": {
+          "__rl": true,
+          "value": "={{ $fromAI(\"eventID\") }}",
+          "mode": "id"
+        },
+        "additionalFields": {
+          "end": "={{ $fromAI(\"endTime\") }}",
+          "start": "={{ $fromAI(\"startTime\") }}"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        -1328,
+        1392
+      ],
+      "id": "e429a1cd-c4f1-4107-a3b9-f0133aa8c36c",
+      "name": "Update Event",
+      "webhookId": "652f5614-5918-4805-b558-09b1c5f8131d",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "ePBpNHNYY7hxwoId",
+          "name": "Microsoft Outlook ATB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "delete",
+        "calendarId": {
+          "__rl": true,
+          "value": "AAMkADFmODNjYmZmLWQ5NDEtNDFhZS04ODBlLTA0MzM0NTc0OTgzZgBGAAAAAABUCNPL83A4SYm7M74WJXiVBwDfptS2kWAbQagm7L3SFfSbAAAAAAAZAADfptS2kWAbQagm7L3SFfSbAAAAAC71AAA=",
+          "mode": "list",
+          "cachedResultName": "Календарь"
+        },
+        "eventId": {
+          "__rl": true,
+          "value": "={{ $fromAI(\"eventID\") }}",
+          "mode": "id"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlookTool",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        1392
+      ],
+      "id": "ae931cf0-8d91-44d2-8d6f-18b7b7d5a68e",
+      "name": "Delete Event",
+      "webhookId": "cdfb611b-931f-4ecc-a9da-4f8e6a655177",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "ePBpNHNYY7hxwoId",
+          "name": "Microsoft Outlook ATB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "filterCalendar",
+        "jsCode": "let startDate = $fromAI(\"startDate\", query, \"string\");\nlet endDate = $fromAI(\"endDate\", \"\", \"string\");\n\nconsole.log(\"startDate initial:\", startDate);\nconsole.log(\"endDate initial:\", endDate);\n\nfunction toISO8601(dateStr) {\n  if (!dateStr) return null;\n  const date = new Date(dateStr);\n  if (isNaN(date.getTime())) {\n    throw new Error(`Invalid date format: ${dateStr}`);\n  }\n  return date.toISOString();\n}\n\nif (!startDate) {\n  startDate = new Date().toISOString().split('T')[0] + 'T00:00:00Z';\n  console.log(\"startDate set to current date:\", startDate);\n} else {\n  try {\n    startDate = toISO8601(startDate);\n    console.log(\"startDate converted:\", startDate);\n  } catch (e) {\n    return `Error: Invalid startDate format - ${startDate}. Please use ISO 8601 (e.g., '2025-03-07T00:00:00Z').`;\n  }\n}\n\nif (!endDate && startDate) {\n  try {\n    const start = new Date(startDate);\n    console.log(\"start.getUTCDate():\", start.getUTCDate());\n    if (start.getUTCDate() === 1) {\n      const lastDay = new Date(start);\n      lastDay.setUTCMonth(lastDay.getUTCMonth() + 1);\n      lastDay.setUTCDate(0);\n      lastDay.setUTCHours(23, 59, 59, 999);\n      endDate = lastDay.toISOString();\n      console.log(\"endDate set to end of month:\", endDate);\n    } else {\n      start.setUTCHours(23, 59, 59, 999);\n      endDate = start.toISOString();\n      console.log(\"endDate set to end of day:\", endDate);\n    }\n  } catch (e) {\n    return `Error: Failed to set endDate from startDate - ${startDate}.`;\n  }\n} else if (endDate) {\n  try {\n    endDate = toISO8601(endDate);\n    console.log(\"endDate converted:\", endDate);\n  } catch (e) {\n    return `Error: Invalid endDate format - ${endDate}. Please use ISO 8601 (e.g., '2025-03-07T23:59:59Z').`;\n  }\n}\n\nlet filter = `start/dateTime ge '${startDate}'`;\nif (endDate) {\n  filter += ` and end/dateTime le '${endDate}'`;\n}\n\nconsole.log(\"Final filter:\", filter);\nreturn filter;"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        -960,
+        1392
+      ],
+      "id": "e347610e-ea78-4c78-af41-a0acb639fdeb",
+      "name": "FilterCalendar",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e8efcbd1-82af-4396-b143-966fe57e9d5c",
+              "name": "query",
+              "value": "={{ $json.chatInput }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2896,
+        688
+      ],
+      "id": "04d449df-6f27-4793-b0f0-ac396d36edae",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -2864,
+        1168
+      ],
+      "id": "33ce0875-67ee-4b51-a452-54c90e8d4e4a",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "i8we5rZ4gmivre3P",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.query }}",
+        "options": {
+          "systemMessage": "=# Агент структурирования запросов Outlook\n\nВы – агент предварительной обработки запросов для Microsoft Outlook. Ваша задача – анализировать запросы пользователя и преобразовывать их в структурированный формат для последующей обработки. Вы НЕ выполняете запросы напрямую, а только подготавливаете структурированные данные.\n\n## Типы запросов для определения:\n\n1. **Почта**:\n   - Отправка письма (send)\n   - Просмотр писем (view)\n   - Ответ на письмо (reply)\n   - Создание черновика (draft)\n   - Пометка непрочитанным (mark_unread)\n   - Добавление метки (label)\n   - Перемещение письма (move)\n\n2. **Контакты**:\n   - Поиск контакта (find_contact)\n   - Создание контакта (create_contact)\n   - Обновление контакта (update_contact)\n   - Удаление контакта (delete_contact)\n\n3. **Календарь**:\n   - Просмотр событий (view_events)\n   - Создание события (create_event)\n   - Создание события с участниками (create_event_with_attendees)\n   - Обновление события (update_event)\n   - Удаление события (delete_event)\n   - Принятие/отклонение встречи (respond_to_meeting)\n\n## Правила структурирования:\n\n### Для всех запросов:\n- Определите команду `command` (основную операцию) из списка выше.\n- Извлеките ключевые параметры в зависимости от команды.\n\n### Для контактов:\n- Извлекайте `displayName` - точное имя контакта из запроса.\n- НЕ добавляйте слова \"контакт\", \"найди\", \"пользователь\" в displayName.\n- Используйте написание имени точно как в запросе (с сохранением регистра).\n\n### Для календаря:\n- Извлекайте `startDate` в формате ISO 8601 (например, \"2023-10-25T00:00:00Z\").\n- Извлекайте `endDate` если указан.\n- Преобразуйте относительные даты (завтра, послезавтра, через неделю) в абсолютные.\n- Преобразуйте словесное время (утро, день, вечер) в конкретные часы.\n\n### Формат возврата:\nВАЖНО: Верните только чистый JSON, без блоков кода, без обрамления тройными бэктиками и без дополнительных комментариев:\n\n{\n  \"command\": \"[команда из списка]\",\n  \"parameters\": {\n    \"displayName\": \"[имя контакта, если применимо]\",\n    \"startDate\": \"[дата начала в ISO формате, если применимо]\",\n    \"endDate\": \"[дата окончания в ISO формате, если применимо]\",\n    \"[другие_параметры]\": \"[значения]\"\n  }\n}\nПримеры:\n\nЗапрос: \"Создай встречу 2023-05-26 в 15:00 с Марковым\"\nОтвет:\njsonCopy{\n  \"command\": \"create_event_with_attendees\",\n  \"parameters\": {\n    \"displayName\": \"Марков\",\n    \"startDate\": \"2023-05-26T15:00:00Z\",\n    \"endDate\": \"2023-05-26T16:00:00Z\",\n    \"eventTitle\": \"Встреча с Марковым\"\n  }\n}\n\nЗапрос: \"Найди контакт Иванов\"\nОтвет:\njsonCopy{\n  \"command\": \"find_contact\",\n  \"parameters\": {\n    \"displayName\": \"Иванов\"\n  }\n}\n\nЗапрос: \"Покажи письма за вчерашний день\"\nОтвет:\njsonCopy{\n  \"command\": \"view\",\n  \"parameters\": {\n    \"startDate\": \"2023-05-24T00:00:00Z\",\n    \"endDate\": \"2023-05-24T23:59:59Z\"\n  }\n}\n\n\nВажные замечания:\n\nТекущая дата и время: {{ $now }}\nНе предполагайте параметры, если они явно не указаны в запросе пользователя.\nПри неоднозначности запроса вернуть несколько возможных вариантов интерпретации.\nНе обрабатывайте запрос, а только структурируйте данные для дальнейшей обработки."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -2496,
+        688
+      ],
+      "id": "7b113e9b-1bfc-4f80-a594-3be2eb17932e",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -3296,
+        688
+      ],
+      "id": "8b5eb77a-cf54-4db7-970f-32ab3b777978",
+      "name": "When chat message received",
+      "webhookId": "192c54db-5659-408c-b5c6-55a24c09a44c"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Предположим, что AI Agent возвращает строку JSON или уже объект\nlet outputObj;\n\ntry {\n  // Если output - это строка JSON, преобразуем ее в объект\n  if (typeof $json.output === 'string') {\n    outputObj = JSON.parse($json.output);\n  } else {\n    // Если output уже является объектом\n    outputObj = $json.output;\n  }\n  \n  // Создаем объект результата со всеми извлеченными параметрами\n  const result = {\n    // Основная команда\n    command: outputObj.command || \"\",\n    \n    // Параметры для контактов\n    displayName: (outputObj.parameters?.displayName || \"\").trim().replace(/[^\\w\\sа-яА-Я]/g, ''),\n    \n    // Параметры для календаря\n    startDate: outputObj.parameters?.startDate || \"\",\n    endDate: outputObj.parameters?.endDate || \"\",\n    eventTitle: outputObj.parameters?.eventTitle || \"\",\n    eventID: outputObj.parameters?.eventID || \"\",\n    \n    // Параметры для почты\n    emailAddress: outputObj.parameters?.emailAddress || \"\",\n    subject: outputObj.parameters?.subject || \"\",\n    emailBody: outputObj.parameters?.emailBody || \"\",\n    ID: outputObj.parameters?.ID || \"\", // ID письма\n    limit: outputObj.parameters?.limit || 10, // количество писем для получения\n    \n    // Параметры для обновления событий\n    startTime: outputObj.parameters?.startTime || outputObj.parameters?.startDate || \"\",\n    endTime: outputObj.parameters?.endTime || outputObj.parameters?.endDate || \"\",\n    \n    // Параметр для фильтрации событий календаря\n    Filter_Query: outputObj.parameters?.Filter_Query || \"\"\n  };\n  \n  return result;\n} catch (error) {\n  // В случае ошибок при парсинге, возвращаем объект с ошибкой\n  return {\n    error: true,\n    message: `Ошибка обработки ответа AI Agent: ${error.message}`,\n    originalOutput: $json.output\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2064,
+        480
+      ],
+      "id": "aac74673-d277-4ade-adbc-236d9962ea0d",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "name": "getContact",
+        "workflowId": {
+          "__rl": true,
+          "value": "JCH3w8QXtm0wOABa",
+          "mode": "list",
+          "cachedResultName": "msGraph"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "displayName": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('displayName', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "displayName"
+          ],
+          "schema": [
+            {
+              "id": "displayName",
+              "displayName": "displayName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.1,
+      "position": [
+        -1104,
+        1392
+      ],
+      "id": "963a9aa0-44ac-446a-8707-d98b58566162",
+      "name": "getContact"
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendarId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "01f09872-5fff-4eca-8df7-80db63b60e7d",
+      "name": "Microsoft Outlook",
+      "webhookId": "16d07a3b-d79f-474a-b619-e06136ea15ee",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "ePBpNHNYY7hxwoId",
+          "name": "Microsoft Outlook ATB"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Outlook Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "ai_tool": [
+        [
+          {
+            "node": "Outlook Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Reply": {
+      "ai_tool": [
+        [
+          {
+            "node": "Outlook Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Emails": {
+      "ai_tool": [
+        [
+          {
+            "node": "Outlook Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outlook Agent": {
+      "main": [
+        [
+          {
+            "node": "Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Try Again",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Events": {
+      "ai_tool": [
+        [
+          {
+            "node": "Outlook Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Event": {
+      "ai_tool": [
+        [
+          {
+            "node": "Outlook Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Event with Attendees": {
+      "ai_tool": [
+        [
+          {
+            "node": "Outlook Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Event": {
+      "ai_tool": [
+        [
+          {
+            "node": "Outlook Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Event": {
+      "ai_tool": [
+        [
+          {
+            "node": "Outlook Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FilterCalendar": {
+      "ai_tool": [
+        [
+          {
+            "node": "Outlook Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Outlook Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Outlook Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getContact": {
+      "ai_tool": [
+        [
+          {
+            "node": "Outlook Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a8e26291-f41b-463c-8095-723ea65d2c1e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1b7c25b262c0803b8bd2e97ba9e4425035f87e239473aca977c4899ed07f8360"
+  },
+  "id": "aAIXW4r6WEfoVFiB",
+  "tags": []
+}

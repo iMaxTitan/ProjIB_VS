@@ -1,0 +1,312 @@
+# AI Assistant Rules - ReportIB Project
+
+## 🎨 UI Design System - ОБЯЗАТЕЛЬНО К ИСПОЛЬЗОВАНИЮ
+
+При создании или изменении любых UI компонентов ВСЕГДА следуйте этим правилам:
+
+### 1. Design Tokens (src/styles/design-tokens.ts)
+
+#### Цвета
+```tsx
+// ✅ ПРАВИЛЬНО - используй токены
+import { colors } from '@/styles/design-tokens';
+className="bg-indigo-600 text-white"
+
+// ❌ НЕПРАВИЛЬНО - не используй произвольные цвета
+className="bg-[#4f46e5] text-white"
+```
+
+#### Отступы (Spacing)
+```tsx
+// ✅ ПРАВИЛЬНО - используй унифицированные отступы
+className="px-md py-sm gap-lg"
+className="p-4 gap-3"  // также ок, если это стандартные Tailwind значения
+
+// ❌ НЕПРАВИЛЬНО - не используй произвольные значения
+className="px-[13px] py-[7px] gap-[19px]"
+```
+
+### 2. Responsive Design - ОБЯЗАТЕЛЬНО
+
+ВСЕГДА добавляй responsive классы для мобильных устройств:
+
+```tsx
+// ✅ ПРАВИЛЬНО - адаптивные размеры
+<button className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm">
+
+// ✅ ПРАВИЛЬНО - скрытие/показ контента
+<span className="hidden xs:inline">Полный текст</span>
+<span className="xs:hidden">Короткий</span>
+
+// ❌ НЕПРАВИЛЬНО - фиксированные размеры без адаптации
+<button className="px-4 py-2 text-sm">
+```
+
+**Breakpoints:**
+- `xs:` - 480px (маленькие телефоны)
+- `sm:` - 640px (телефоны)
+- `md:` - 768px (планшеты)
+- `lg:` - 1024px (ноутбуки)
+- `xl:` - 1280px (десктопы)
+- `2xl:` - 1536px (большие экраны)
+
+### 3. Accessibility - КРИТИЧЕСКИ ВАЖНО
+
+ВСЕГДА добавляй accessibility атрибуты:
+
+#### Кнопки
+```tsx
+// ✅ ПРАВИЛЬНО
+<button
+  onClick={handleClick}
+  aria-label="Создать новый план"
+  className="focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+>
+  <Plus aria-hidden="true" />
+</button>
+
+// ❌ НЕПРАВИЛЬНО
+<button onClick={handleClick}>
+  <Plus />
+</button>
+```
+
+#### Интерактивные элементы не-кнопки
+```tsx
+// ✅ ПРАВИЛЬНО
+<div
+  role="button"
+  tabIndex={0}
+  onClick={handleClick}
+  onKeyDown={(e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  }}
+  aria-label="Описание действия"
+  className="focus:outline-none focus:ring-2 focus:ring-indigo-500"
+>
+```
+
+#### Навигация
+```tsx
+// ✅ ПРАВИЛЬНО
+<nav role="navigation" aria-label="Основная навигация">
+  <button
+    aria-label="Перейти к разделу: Планы"
+    aria-current={isActive ? 'page' : undefined}
+  >
+```
+
+#### Иконки
+```tsx
+// ✅ ПРАВИЛЬНО - скрываем декоративные иконки от screen readers
+<Icon aria-hidden="true" />
+```
+
+### 4. Градиенты
+
+```tsx
+// ✅ ПРАВИЛЬНО - используй готовые классы
+className="gradient-primary"
+className="gradient-glass"
+
+// ✅ ПРАВИЛЬНО - или через design tokens
+import { getGradient } from '@/styles/design-tokens';
+style={{ background: getGradient('primary') }}
+
+// ❌ НЕПРАВИЛЬНО - не пиши inline градиенты напрямую
+style={{ background: 'linear-gradient(90deg, #667eea, #764ba2)' }}
+```
+
+**Доступные градиенты:**
+- `gradient-primary` - основной фиолетово-синий
+- `gradient-primary-subtle` - мягкий градиент
+- `gradient-indigo`, `gradient-blue`
+- `gradient-success`, `gradient-warning`, `gradient-error`
+- `gradient-glass` - стеклянный эффект
+- `gradient-card` - тонкий для карточек
+
+### 5. Анимации
+
+```tsx
+// ✅ ПРАВИЛЬНО - анимируй только нужные свойства
+className="transition-[transform,opacity] duration-base"
+className="transition-transform duration-fast"
+
+// ✅ ПРАВИЛЬНО - используй готовые анимации
+className="animate-fade-in"
+className="animate-scale-in"
+className="active:scale-95"
+
+// ❌ НЕПРАВИЛЬНО - не используй transition-all
+className="transition-all"
+```
+
+**Доступные анимации:**
+- `animate-fade-in` - плавное появление
+- `animate-slide-in` - слайд снизу
+- `animate-scale-in` - масштабирование
+- `animate-press` - эффект нажатия
+
+**Длительности:**
+- `duration-fast` - 150ms
+- `duration-base` - 200ms
+- `duration-slow` - 300ms
+- `duration-slower` - 500ms
+
+### 6. Focus States
+
+```tsx
+// ✅ ПРАВИЛЬНО - всегда добавляй focus states
+className="focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+
+// ✅ ПРАВИЛЬНО - используй готовый класс
+className="focus-ring"
+
+// ❌ НЕПРАВИЛЬНО - без focus state
+className="outline-none"
+```
+
+### 7. Компоненты
+
+#### Button
+```tsx
+// ✅ ПРАВИЛЬНО - используй Button компонент
+import { Button } from '@/components/ui/Button';
+
+<Button variant="default" size="md">Кнопка</Button>
+<Button variant="destructive">Удалить</Button>
+<Button variant="outline">Отмена</Button>
+<Button variant="success">Сохранить</Button>
+
+// Размеры: xs, sm, md, lg, xl
+// Варианты: default, destructive, outline, secondary, ghost, link, success, warning
+```
+
+#### Modal
+```tsx
+// ✅ ПРАВИЛЬНО - используй улучшенный Modal
+import { Modal } from '@/components/ui/Modal';
+
+<Modal
+  isOpen={isOpen}
+  onClose={() => setIsOpen(false)}
+  title="Заголовок"
+  maxWidth="max-w-lg"
+>
+  {/* Автоматически: focus trap, ESC, scroll lock */}
+</Modal>
+```
+
+### 8. Карточки
+
+```tsx
+// ✅ ПРАВИЛЬНО
+className="bg-white rounded-xl shadow-card hover:shadow-card-hover border border-gray-100 p-4 sm:p-6"
+
+// ✅ ПРАВИЛЬНО - или используй утилиту
+className="card-base card-hover p-4 sm:p-6"
+```
+
+### 9. Z-Index
+
+```tsx
+// ✅ ПРАВИЛЬНО - используй семантические значения
+className="z-modal-backdrop"  // 1040
+className="z-modal"            // 1050
+className="z-dropdown"         // 1000
+className="z-tooltip"          // 1070
+
+// ❌ НЕПРАВИЛЬНО - произвольные значения
+className="z-[9999]"
+```
+
+## 📋 Чеклист перед созданием/изменением компонента
+
+Перед тем как создать или изменить UI компонент, убедись:
+
+- [ ] Используются design tokens для цветов
+- [ ] Используются унифицированные отступы (spacing)
+- [ ] Добавлены responsive классы (xs, sm, md, lg)
+- [ ] Все интерактивные элементы имеют aria-label
+- [ ] Добавлены focus states для keyboard navigation
+- [ ] Интерактивные не-кнопки имеют role, tabIndex, onKeyDown
+- [ ] Иконки помечены aria-hidden="true"
+- [ ] Используются готовые градиенты из globals.css
+- [ ] Анимации оптимизированы (не transition-all)
+- [ ] Используется Button/Modal вместо создания новых
+
+## 🚫 Что НЕЛЬЗЯ делать
+
+1. ❌ НЕ используй произвольные цвета типа `bg-[#4f46e5]`
+2. ❌ НЕ используй произвольные отступы типа `px-[13px]`
+3. ❌ НЕ создавай компоненты без responsive классов
+4. ❌ НЕ забывай про accessibility (aria-labels, focus states)
+5. ❌ НЕ используй `transition-all` - анимируй конкретные свойства
+6. ❌ НЕ создавай новые модальные окна - используй Modal компонент
+7. ❌ НЕ создавай кнопки без использования Button компонента
+8. ❌ НЕ используй произвольные z-index значения
+
+## 📚 Документация
+
+Полная документация: `docs/UI_DESIGN_SYSTEM.md`
+Design tokens: `src/styles/design-tokens.ts`
+Градиенты и утилиты: `src/app/globals.css`
+
+## 🎯 Примеры правильного кода
+
+### Пример 1: Кнопка с иконкой
+```tsx
+<Button
+  onClick={handleCreate}
+  aria-label="Создать новый план"
+  className="gap-2"
+>
+  <Plus aria-hidden="true" className="h-4 w-4" />
+  <span className="hidden xs:inline">Создать план</span>
+  <span className="xs:hidden">Создать</span>
+</Button>
+```
+
+### Пример 2: Карточка
+```tsx
+<div className="bg-white rounded-xl shadow-card hover:shadow-card-hover border border-gray-100 p-4 sm:p-6 transition-shadow duration-base">
+  <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3">Заголовок</h3>
+  <p className="text-sm sm:text-base text-gray-600">Контент</p>
+</div>
+```
+
+### Пример 3: Навигационная кнопка
+```tsx
+<button
+  onClick={() => navigate('/plans')}
+  aria-label="Перейти к разделу: Планы"
+  aria-current={isActive ? 'page' : undefined}
+  className={cn(
+    "flex items-center gap-2 px-3 sm:px-4 py-2",
+    "text-sm font-medium rounded-lg",
+    "transition-[transform,background-color] duration-base",
+    "focus:outline-none focus:ring-2 focus:ring-indigo-500",
+    "active:scale-95",
+    isActive ? "bg-indigo-50 text-indigo-700" : "text-gray-600 hover:bg-gray-50"
+  )}
+>
+  <Calendar aria-hidden="true" className="h-4 w-4" />
+  <span className="hidden xs:inline">Планы</span>
+</button>
+```
+
+## 🔄 При рефакторинге старого кода
+
+Если видишь старый код без этих паттернов:
+1. Предложи улучшить его согласно этим правилам
+2. Добавь responsive классы
+3. Добавь accessibility атрибуты
+4. Замени произвольные значения на токены
+5. Оптимизируй анимации
+
+---
+
+**ВАЖНО:** Эти правила ОБЯЗАТЕЛЬНЫ для всех UI компонентов. Не отклоняйся от них без явного разрешения пользователя.

@@ -1,0 +1,17 @@
+{
+  "eval_id": 0,
+  "eval_name": "vacation-balance-get",
+  "configuration": "without_skill",
+  "expectations": [
+    { "text": "uses-isRequestAuthorized", "passed": false, "evidence": "Not found — uses raw req.headers.get('x-user-id') instead" },
+    { "text": "uses-checkRateLimit", "passed": false, "evidence": "No rate limiting at all" },
+    { "text": "uses-getDbUserId", "passed": false, "evidence": "Not found — reads userId from x-user-id header" },
+    { "text": "uses-getServerDb", "passed": false, "evidence": "Uses createClient() directly — connection leak risk" },
+    { "text": "uses-logger", "passed": false, "evidence": "Uses console.error instead of logger" },
+    { "text": "no-console-log", "passed": true, "evidence": "Has console.error but not console.log (assertion technically passes)" },
+    { "text": "no-client-supabase", "passed": true, "evidence": "Imports from @supabase/supabase-js, not @/lib/supabase" },
+    { "text": "returns-401", "passed": true, "evidence": "Line 9: status: 401" },
+    { "text": "returns-429", "passed": false, "evidence": "No 429 response — no rate limiting" }
+  ],
+  "pass_rate": 0.33
+}

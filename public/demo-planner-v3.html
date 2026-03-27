@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CS Platform — Планувальник</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      height: 100vh; display: flex;
+      color: #1a1d23; background: #f4f5f7; overflow: hidden;
+    }
+
+    :root {
+      --bg-panel: #ffffff;
+      --bg-hover: #f8f9fb;
+      --bg-active: #eef0ff;
+      --bg-muted: #f1f3f5;
+      --border: #e5e7eb;
+      --border-light: #f0f1f3;
+      --text-primary: #1a1d23;
+      --text-secondary: #6b7280;
+      --text-muted: #9ca3af;
+      --accent: #5b5fc7;
+      --accent-light: #eef0ff;
+      --accent-text: #4338ca;
+      --green: #16a34a; --green-bg: #ecfdf5;
+      --amber: #d97706; --amber-bg: #fffbeb;
+      --blue: #2563eb; --blue-bg: #eff6ff;
+      --red: #dc2626;
+      --purple: #7c3aed; --purple-bg: #f5f3ff;
+      --cyan: #0891b2; --cyan-bg: #ecfeff;
+      --slate: #64748b;
+      --radius: 8px;
+    }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+    /* ═══ NAV SIDEBAR ═══ */
+    .nav-sidebar {
+      width: 200px; flex-shrink: 0;
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      padding: 16px 8px 12px;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 10px; padding: 0 10px 20px; }
+    .nav-logo-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 800; }
+    .nav-logo-text { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+    .nav-logo-sub { font-size: 10px; color: var(--text-muted); }
+
+    .nav-link {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px; border-radius: var(--radius);
+      font-size: 13px; font-weight: 500; color: var(--text-secondary);
+      cursor: pointer; border: none; background: none; width: 100%; text-align: left; transition: all 0.12s;
+    }
+    .nav-link:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .nav-link.active { background: var(--bg-active); color: var(--accent-text); font-weight: 600; }
+    .nav-link svg { width: 16px; height: 16px; opacity: 0.5; flex-shrink: 0; }
+    .nav-link.active svg { opacity: 0.85; }
+    .nav-link .count { margin-left: auto; font-size: 10px; font-weight: 700; background: #fee2e2; color: var(--red); padding: 1px 6px; border-radius: 10px; }
+    .nav-sep { height: 1px; background: var(--border-light); margin: 8px 10px; }
+    .nav-user { display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: var(--radius); background: var(--bg-muted); margin-top: auto; }
+    .nav-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: 700; }
+    .nav-footer { display: flex; gap: 4px; margin-top: 8px; }
+    .nav-footer button { flex: 1; padding: 6px; border-radius: 6px; border: 1px solid var(--border-light); background: none; font-size: 10px; font-weight: 500; color: var(--text-muted); cursor: pointer; }
+    .nav-footer button:hover { background: var(--bg-hover); color: var(--text-secondary); }
+
+    /* ═══ MAIN ═══ */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ═══ TOOLBAR ═══ */
+    .toolbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .tb-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+    .tb-week {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--bg-panel);
+      font-size: 13px; font-weight: 600; color: var(--text-primary);
+    }
+    .tb-arrow {
+      width: 22px; height: 22px; border-radius: 5px; border: 1px solid var(--border);
+      background: none; cursor: pointer; font-size: 11px; color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center; transition: all 0.12s;
+    }
+    .tb-arrow:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .tb-btn {
+      display: flex; align-items: center; gap: 5px;
+      padding: 5px 12px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--bg-panel);
+      font-size: 11px; font-weight: 600; color: var(--text-secondary);
+      cursor: pointer; transition: all 0.12s; white-space: nowrap;
+    }
+    .tb-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .tb-btn.primary { background: var(--accent-light); color: var(--accent-text); border-color: rgba(99,102,241,0.2); }
+    .tb-btn.primary:hover { background: rgba(99,102,241,0.15); }
+    .tb-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .tb-badge { font-size: 9px; font-weight: 700; background: var(--blue-bg); color: var(--blue); padding: 1px 5px; border-radius: 8px; }
+
+    /* ═══ BODY (3 zones) ═══ */
+    .body { flex: 1; display: flex; overflow: hidden; gap: 0; background: var(--border); }
+
+    .zone { background: var(--bg-panel); display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ═══ RESIZE HANDLES ═══ */
+    .resize-handle {
+      width: 5px; flex-shrink: 0; cursor: col-resize;
+      background: var(--border); position: relative;
+      transition: background 0.15s;
+    }
+    .resize-handle:hover, .resize-handle.active {
+      background: var(--accent);
+    }
+    .resize-handle::after {
+      content: ''; position: absolute;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 3px; height: 24px; border-radius: 2px;
+      background: rgba(0,0,0,0.1);
+    }
+    .resize-handle:hover::after, .resize-handle.active::after {
+      background: rgba(255,255,255,0.6);
+    }
+
+    /* ═══ NAV GROUP ═══ */
+    .ng {
+      display: inline-flex; align-items: center; padding: 2px;
+      background: var(--bg-muted); border: 1px solid var(--border-light);
+      border-radius: 8px;
+    }
+    .ng-btn {
+      padding: 4px 12px; text-align: center;
+      font-size: 11px; font-weight: 500; border-radius: 6px;
+      border: none; background: transparent; color: var(--text-muted);
+      cursor: pointer; transition: all 0.12s; white-space: nowrap;
+    }
+    .ng-btn:hover { background: rgba(255,255,255,0.8); color: var(--text-secondary); }
+    .ng-btn.active {
+      background: var(--accent-light); color: var(--accent-text);
+      border: 1px solid rgba(99,102,241,0.2);
+      box-shadow: 0 1px 4px rgba(99,102,241,0.08);
+    }
+    .ng-btn[disabled] { opacity: 0.3; pointer-events: none; }
+    .zone-hdr { padding: 10px 14px; border-bottom: 1px solid var(--border-light); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .zone-title { font-size: 10px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
+
+    /* ═══ ZONE 1: PROCEDURES SIDEBAR ═══ */
+    .zone-procs { width: 25%; flex-shrink: 0; }
+
+    .proc-card {
+      padding: 10px 12px; margin: 4px 8px;
+      border-radius: var(--radius); border: 1px solid var(--border-light);
+      cursor: grab; transition: all 0.12s;
+    }
+    .proc-card:hover { border-color: var(--border); background: var(--bg-hover); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .proc-dept { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 4px; display: inline-block; margin-bottom: 4px; }
+    .proc-title { font-size: 11px; font-weight: 600; color: var(--text-primary); line-height: 1.35; }
+    .proc-bar { height: 3px; border-radius: 2px; background: var(--border-light); overflow: hidden; margin-top: 6px; }
+    .proc-bar > div { height: 100%; border-radius: 2px; }
+    .proc-stats { font-size: 9px; color: var(--text-muted); display: flex; gap: 6px; margin-top: 4px; align-items: center; }
+    .proc-collect { font-size: 11px; cursor: pointer; color: var(--purple); }
+    .proc-collect:hover { color: var(--accent-text); }
+
+    /* Stats chips */
+    .stats-row { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; margin-top: auto; border-top: 1px solid var(--border-light); }
+    .stat-chip {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 10px; border-radius: 6px;
+      font-size: 10px; font-weight: 600;
+    }
+    .stat-chip .sc-val { margin-left: auto; font-weight: 700; }
+
+    /* ═══ ZONE 2: CALENDAR GRID ═══ */
+    .zone-cal { width: 45%; flex-shrink: 0; min-width: 0; }
+
+    .cal-wrap { display: flex; flex: 1; overflow: auto; }
+    .cal-time { width: 40px; flex-shrink: 0; padding-top: 36px; }
+    .cal-time-label { height: 32px; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; font-size: 9px; font-weight: 500; color: var(--text-muted); }
+
+    .cal-cols { flex: 1; display: flex; min-width: 0; }
+    .cal-col { flex: 1; min-width: 0; border-left: 1px solid var(--border-light); }
+    .cal-col:first-child { border-left: none; }
+
+    .cal-day-hdr {
+      text-align: center; padding: 6px 0;
+      border-bottom: 1px solid var(--border-light);
+      height: 36px; flex-shrink: 0;
+    }
+    .cal-day-name { font-size: 9px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+    .cal-day-num { font-size: 14px; font-weight: 700; color: var(--text-primary); line-height: 1; }
+    .cal-day-hdr.today .cal-day-num { color: var(--accent-text); }
+
+    .cal-slots { position: relative; height: 576px; /* 18 slots × 32px */ flex-shrink: 0; }
+    .cal-slot { height: 32px; border-bottom: 1px solid var(--border-light); }
+    .cal-slot:nth-child(odd) { border-bottom-style: dashed; border-bottom-color: rgba(229,231,235,0.5); }
+
+    .lunch-zone { background: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(209,213,219,0.12) 4px, rgba(209,213,219,0.12) 8px); }
+
+    /* Calendar blocks */
+    .cal-block {
+      position: absolute; left: 2px; right: 2px;
+      border-radius: 6px; padding: 4px 7px;
+      border-left: 3px solid transparent;
+      overflow: hidden; cursor: pointer;
+      transition: all 0.15s; z-index: 2;
+      font-size: 10px;
+    }
+    .cal-block:hover { z-index: 30; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .cal-block .cb-subj { font-weight: 600; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cal-block:hover .cb-subj { white-space: normal; word-break: break-word; }
+    .cal-block .cb-time { font-size: 9px; color: inherit; opacity: 0.65; margin-top: 1px; }
+    .cal-block .cb-icon { position: absolute; top: 3px; right: 4px; font-size: 10px; }
+
+    /* Block statuses */
+    .cb-synced { border-left-color: var(--green); background: var(--green-bg); color: #15803d; }
+    .cb-modified { border-left-color: var(--blue); background: var(--blue-bg); color: #1d4ed8; }
+    .cb-collected { border-left-color: var(--purple); background: var(--purple-bg); color: #6d28d9; }
+    .cb-returned { border-left-color: var(--amber); background: var(--amber-bg); color: #b45309; }
+    .cb-external { border-left-color: var(--slate); background: var(--bg-muted); color: #475569; }
+    .cb-distributed { border-left-color: #d1d5db; background: #fafafa; color: var(--text-muted); }
+
+    .cb-ghost {
+      border: 2px dashed rgba(91,95,199,0.3);
+      background: rgba(238,240,255,0.6); color: var(--accent-text);
+      border-left: 2px dashed rgba(91,95,199,0.3);
+    }
+    .cb-ghost .ghost-btns { display: flex; gap: 3px; margin-top: 2px; }
+    .cb-ghost .ghost-btns button {
+      width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--border);
+      background: var(--bg-panel); cursor: pointer; font-size: 10px;
+      display: flex; align-items: center; justify-content: center; transition: all 0.12s;
+    }
+    .cb-ghost .ghost-btns .g-yes:hover { background: var(--green-bg); color: var(--green); border-color: rgba(22,163,74,0.3); }
+    .cb-ghost .ghost-btns .g-no:hover { background: #fef2f2; color: var(--red); border-color: rgba(220,38,38,0.3); }
+
+    /* Now line */
+    .now-line { position: absolute; left: 0; right: 0; height: 2px; background: var(--red); z-index: 15; pointer-events: none; }
+    .now-line::before { content: ''; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+
+    /* ═══ ZONE 3: TASKS + PICKER ═══ */
+    .zone-tasks { width: 30%; flex-shrink: 0; }
+
+    .picker-section { border-bottom: 1px solid var(--border-light); }
+    .picker-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 14px 4px; }
+
+    .pick-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 14px; cursor: pointer; transition: background 0.1s;
+    }
+    .pick-item:hover { background: var(--bg-hover); }
+    .pick-icon { font-size: 12px; flex-shrink: 0; width: 18px; text-align: center; }
+    .pick-title { font-size: 11px; font-weight: 500; color: var(--text-primary); flex: 1; }
+    .pick-sub { font-size: 9px; color: var(--text-muted); }
+    .pick-meta { font-size: 9px; color: var(--text-muted); white-space: nowrap; }
+
+    .pill { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+    .pill-green { background: var(--green-bg); color: var(--green); }
+    .pill-blue { background: var(--blue-bg); color: var(--blue); }
+    .pill-amber { background: var(--amber-bg); color: var(--amber); }
+    .pill-purple { background: var(--purple-bg); color: var(--purple); }
+    .pill-cyan { background: var(--cyan-bg); color: var(--cyan); }
+    .pill-muted { background: var(--bg-muted); color: var(--text-muted); }
+
+    .ai-btn {
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+      margin: 6px 14px 10px; padding: 6px;
+      border-radius: 6px; border: 1px dashed rgba(91,95,199,0.3);
+      background: rgba(238,240,255,0.4); color: var(--accent-text);
+      font-size: 10px; font-weight: 600; cursor: pointer; transition: all 0.12s;
+    }
+    .ai-btn:hover { background: var(--accent-light); border-style: solid; }
+
+    /* Legend */
+    .legend { padding: 10px 14px; border-top: 1px solid var(--border-light); margin-top: auto; }
+    .legend-title { font-size: 9px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 9px; color: var(--text-secondary); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+    /* ═══ WORKLOG STYLE (shared with plans) ═══ */
+    .wl-group { border-bottom: 1px solid var(--border-light); }
+    .wl-group:last-child { border-bottom: none; }
+    .wl-group-hdr {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px; background: var(--bg-muted); cursor: pointer;
+    }
+    .wl-group-hdr:hover { background: #eceef0; }
+    .wl-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .wl-role { font-size: 10px; color: var(--text-muted); }
+    .wl-hrs { font-size: 12px; font-weight: 700; color: var(--text-primary); margin-left: auto; }
+    .wl-add {
+      width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--border);
+      background: none; font-size: 14px; color: var(--text-muted); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; margin-left: 6px;
+      transition: all 0.12s;
+    }
+    .wl-add:hover { background: var(--green-bg); color: var(--green); border-color: rgba(22,163,74,0.3); }
+    .wl-task {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 16px 8px 26px;
+      border-top: 1px solid var(--border-light);
+      transition: background 0.1s;
+    }
+    .wl-task:hover { background: var(--bg-hover); }
+    .wl-icon { font-size: 13px; flex-shrink: 0; width: 18px; text-align: center; }
+    .wl-task-title { font-size: 12px; font-weight: 500; color: var(--text-primary); }
+    .wl-task-sub { font-size: 10px; color: var(--text-muted); }
+    .wl-task-hrs { font-size: 11px; font-weight: 700; color: var(--text-primary); min-width: 50px; text-align: right; }
+    .wl-task-date { font-size: 10px; color: var(--text-muted); min-width: 50px; text-align: right; }
+    .wl-pending { background: rgba(255,251,235,0.5); }
+    .wl-accept { display: flex; gap: 2px; margin-left: 4px; }
+    .wl-accept button {
+      width: 22px; height: 22px; border-radius: 5px; border: 1px solid var(--border);
+      background: none; cursor: pointer; font-size: 12px;
+      display: flex; align-items: center; justify-content: center; transition: all 0.12s;
+    }
+    .wl-accept .yes:hover { background: var(--green-bg); color: var(--green); border-color: rgba(22,163,74,0.3); }
+    .wl-accept .no:hover { background: #fef2f2; color: var(--red); border-color: rgba(220,38,38,0.3); }
+
+    /* Task cards (title + description layout) */
+    .wl-task-card {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border-light);
+      transition: background 0.1s;
+    }
+    .wl-task-card:hover { background: var(--bg-hover); }
+    .wl-task-card.wl-pending { background: rgba(255,251,235,0.5); }
+    .wl-card-top { display: flex; align-items: flex-start; gap: 8px; }
+    .wl-card-title { font-size: 12px; font-weight: 600; color: var(--text-primary); flex: 1; line-height: 1.4; }
+    .wl-card-meta { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .wl-card-hrs { font-size: 11px; font-weight: 700; color: var(--text-primary); }
+    .wl-card-date { font-size: 10px; color: var(--text-muted); }
+    .wl-card-desc {
+      font-size: 11px; color: var(--text-secondary); line-height: 1.5;
+      margin-top: 4px;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    }
+
+    /* ═══ TOP HORIZONTAL NAV ═══ */
+    .nav-sidebar { display: none; }
+    .top-nav {
+      display: flex; align-items: center; gap: 2px;
+    }
+    .top-nav-link {
+      padding: 5px 10px; border-radius: 6px; border: none; background: none;
+      font-size: 12px; font-weight: 500; color: var(--text-secondary);
+      cursor: pointer; transition: all 0.12s; white-space: nowrap;
+    }
+    .top-nav-link:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .top-nav-link.active { background: var(--accent-light); color: var(--accent-text); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<!-- ═══ PANEL 1: NAV ═══ -->
+<nav class="nav-sidebar">
+  <div class="nav-logo">
+    <div class="nav-logo-icon">CS</div>
+    <div>
+      <div class="nav-logo-text">CS Platform</div>
+      <div class="nav-logo-sub">Відділ ІБ</div>
+    </div>
+  </div>
+
+  <!-- Close button inside nav -->
+  <button onclick="closeNav()" style="align-self:flex-end;width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:none;cursor:pointer;color:var(--text-muted);font-size:14px;display:flex;align-items:center;justify-content:center;margin-bottom:4px;" title="Закрити">✕</button>
+  <button class="nav-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Активність</span><span class="count">3</span></button>
+  <button class="nav-link" onclick="openModule('plans')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg><span>Плани</span></button>
+  <button class="nav-link active" onclick="openModule('planner')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Планувальник</span></button>
+  <button class="nav-link" onclick="openModule('reports')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg><span>Звіти</span></button>
+  <button class="nav-link" onclick="openModule('kpi')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg><span>KPI</span></button>
+  <button class="nav-link" onclick="openModule('refs')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg><span>Довідники</span></button>
+  <button class="nav-link" onclick="openModule('kb')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>База знань</span></button>
+  <div class="nav-sep"></div>
+  <button class="nav-link" onclick="openModule('cabinet')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Кабінет</span></button>
+  <button class="nav-link" onclick="openModule('bot')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Бот</span></button>
+
+  <div class="nav-user">
+    <div class="nav-avatar">ІО</div>
+    <div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-primary);">Іванов О. С.</div>
+      <div style="font-size:10px;color:var(--text-muted);">head · Відділ ІБ</div>
+    </div>
+  </div>
+  <div class="nav-footer">
+    <button>⚙ Налаштування</button>
+    <button>? Допомога</button>
+  </div>
+</nav>
+
+<!-- ═══ MAIN ═══ -->
+<div class="main">
+
+  <!-- Top bar with horizontal nav -->
+  <div class="toolbar" style="gap:0;">
+    <div class="nav-logo-icon" style="width:28px;height:28px;font-size:10px;border-radius:6px;margin-right:10px;flex-shrink:0;">CS</div>
+    <div class="top-nav">
+      <button class="top-nav-link">Активність</button>
+      <button class="top-nav-link">Плани</button>
+      <button class="top-nav-link active">Планувальник</button>
+      <button class="top-nav-link">Звіти</button>
+      <button class="top-nav-link">KPI</button>
+      <button class="top-nav-link">Довідники</button>
+      <button class="top-nav-link">БЗ</button>
+      <button class="top-nav-link">Кабінет</button>
+      <button class="top-nav-link">Бот</button>
+    </div>
+    <div style="flex:1;"></div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <button class="top-nav-link" style="font-size:11px;">⚙</button>
+      <button class="top-nav-link" style="font-size:11px;">?</button>
+      <div class="nav-avatar" style="width:26px;height:26px;font-size:9px;">ІО</div>
+      <span style="font-size:11px;font-weight:600;color:var(--text-primary);">Іванов О.</span>
+    </div>
+  </div>
+
+  <!-- Body: 3 zones -->
+  <div class="body">
+
+    <!-- ═══ ZONE 2: PROCEDURES + WEEK NAV ═══ -->
+    <div class="zone zone-procs" id="zone-procs">
+      <!-- Nav: Year + Month row, then Week row -->
+      <div style="padding:8px 8px 6px;display:flex;flex-direction:column;gap:4px;border-bottom:1px solid var(--border-light);">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="ng">
+            <button class="ng-btn">2025</button>
+            <button class="ng-btn active">2026</button>
+            <button class="ng-btn">2027</button>
+          </div>
+          <div class="ng" style="flex:1;">
+            <button class="ng-btn" style="flex:1;">Лютий</button>
+            <button class="ng-btn active" style="flex:1;">Березень</button>
+            <button class="ng-btn" style="flex:1;">Квітень</button>
+          </div>
+        </div>
+        <div class="ng">
+          <button class="ng-btn" style="flex:1;">10–14 бер</button>
+          <button class="ng-btn active" style="flex:1;">17–21 бер</button>
+          <button class="ng-btn" style="flex:1;">24–28 бер</button>
+        </div>
+        <!-- Row 3: Status filter -->
+        <div class="ng">
+          <button class="ng-btn" style="flex:1;">Підготовка</button>
+          <button class="ng-btn active" style="flex:1;">В роботі</button>
+          <button class="ng-btn" style="flex:1;">Завершено</button>
+        </div>
+      </div>
+      <div class="zone-hdr" style="padding:8px 14px;">
+        <div class="zone-title">Процедури</div>
+      </div>
+      <div style="flex:1;overflow-y:auto;">
+
+        <div class="proc-card">
+          <div class="proc-dept" style="background:var(--green-bg);color:var(--green);">ВБ</div>
+          <div class="proc-title">2.1 Моніторинг інцидентів</div>
+          <div class="proc-bar"><div style="width:67%;background:linear-gradient(90deg,var(--green) 60%,var(--accent) 60%);"></div></div>
+          <div class="proc-stats">
+            <span style="color:var(--green);">✓16</span>
+            <span style="color:var(--accent);">+5</span>
+            <span style="color:var(--text-muted);">~3</span>
+            <span style="font-weight:700;">67%</span>
+            <span class="proc-collect" title="Зібрати задачі">📋</span>
+          </div>
+        </div>
+
+        <div class="proc-card">
+          <div class="proc-dept" style="background:var(--blue-bg);color:var(--blue);">ВБ</div>
+          <div class="proc-title">3.2 Аудит мережевої безпеки</div>
+          <div class="proc-bar"><div style="width:33%;background:linear-gradient(90deg,var(--green) 67%,var(--accent) 67%);"></div></div>
+          <div class="proc-stats">
+            <span style="color:var(--green);">✓8</span>
+            <span style="color:var(--accent);">+4</span>
+            <span style="font-weight:700;">33%</span>
+          </div>
+        </div>
+
+        <div class="proc-card">
+          <div class="proc-dept" style="background:var(--purple-bg);color:var(--purple);">ВБ</div>
+          <div class="proc-title">1.4 Управління доступом</div>
+          <div class="proc-bar"><div style="width:100%;background:var(--green);"></div></div>
+          <div class="proc-stats">
+            <span style="color:var(--green);">✓8</span>
+            <span style="font-weight:700;color:var(--green);">100%</span>
+          </div>
+        </div>
+
+        <div class="proc-card">
+          <div class="proc-dept" style="background:var(--amber-bg);color:var(--amber);">ВБ</div>
+          <div class="proc-title">4.1 Навчання персоналу</div>
+          <div class="proc-bar"><div style="width:50%;background:var(--accent);"></div></div>
+          <div class="proc-stats">
+            <span style="color:var(--green);">✓0</span>
+            <span style="color:var(--accent);">+4</span>
+            <span style="font-weight:700;">50%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div style="display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--border-light);flex-shrink:0;background:var(--bg-muted);flex-wrap:wrap;">
+        <div style="flex:1;min-width:60px;">
+          <div style="font-size:9px;color:var(--text-muted);">Процедур</div>
+          <div style="font-size:14px;font-weight:800;color:var(--text-primary);">4</div>
+        </div>
+        <div style="flex:1;min-width:60px;">
+          <div style="font-size:9px;color:var(--text-muted);">Годин</div>
+          <div style="font-size:14px;font-weight:800;color:var(--accent-text);">28</div>
+        </div>
+        <div style="flex:1;min-width:60px;">
+          <div style="font-size:9px;color:var(--text-muted);">Збір</div>
+          <div style="font-size:14px;font-weight:800;color:var(--purple);">1 📋</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="resize-handle" data-left="zone-procs" data-right="zone-cal"></div>
+    <!-- ═══ ZONE 3: CALENDAR GRID ═══ -->
+    <div class="zone zone-cal" id="zone-cal">
+      <!-- Calendar actions bar — inside the zone -->
+      <div style="display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border-light);flex-shrink:0;flex-wrap:wrap;">
+        <button class="tb-btn primary">🪄 Suggest</button>
+        <button class="tb-btn">📋 Copy</button>
+        <button class="tb-btn">✓✓ Accept</button>
+        <div style="flex:1;"></div>
+        <button class="tb-btn">🍴 12:30</button>
+        <button class="tb-btn">↓ Pull <span class="tb-dot" style="background:var(--amber);"></span></button>
+        <button class="tb-btn">↑ Push <span class="tb-badge">3</span></button>
+      </div>
+      <!-- Stats + legend moved to bottom -->
+      <div class="cal-wrap" style="flex:1;overflow:auto;">
+        <div class="cal-time">
+          <div style="height:36px;"></div>
+          <div class="cal-time-label">9:00</div><div class="cal-time-label"></div>
+          <div class="cal-time-label">10:00</div><div class="cal-time-label"></div>
+          <div class="cal-time-label">11:00</div><div class="cal-time-label"></div>
+          <div class="cal-time-label">12:00</div><div class="cal-time-label"></div>
+          <div class="cal-time-label">13:00</div><div class="cal-time-label"></div>
+          <div class="cal-time-label">14:00</div><div class="cal-time-label"></div>
+          <div class="cal-time-label">15:00</div><div class="cal-time-label"></div>
+          <div class="cal-time-label">16:00</div><div class="cal-time-label"></div>
+          <div class="cal-time-label">17:00</div><div class="cal-time-label"></div>
+        </div>
+
+        <div class="cal-cols">
+          <!-- ПН 17 -->
+          <div class="cal-col">
+            <div class="cal-day-hdr"><div class="cal-day-name">ПН</div><div class="cal-day-num">17</div></div>
+            <div class="cal-slots">
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot lunch-zone"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-block cb-synced" style="top:0;height:128px;">
+                <div class="cb-subj">Моніторинг інцидентів</div>
+                <div class="cb-time">9:00–11:00 · 2г</div>
+              </div>
+              <div class="cal-block cb-modified" style="top:128px;height:96px;">
+                <div class="cb-subj">Аудит мережі</div>
+                <div class="cb-time">11:00–12:30 · 1.5г</div>
+                <div class="cb-icon">✎</div>
+              </div>
+              <div class="cal-block cb-synced" style="top:256px;height:128px;">
+                <div class="cb-subj">Управління доступом</div>
+                <div class="cb-time">13:00–15:00 · 2г</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ВТ 18 -->
+          <div class="cal-col">
+            <div class="cal-day-hdr"><div class="cal-day-name">ВТ</div><div class="cal-day-num">18</div></div>
+            <div class="cal-slots">
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot lunch-zone"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-block cb-external" style="top:0;height:96px;">
+                <div class="cb-subj">Нарада з керівництвом</div>
+                <div class="cb-time">9:00–10:30</div>
+                <div class="cb-icon">🌐</div>
+              </div>
+              <div class="cal-block cb-synced" style="top:96px;height:128px;">
+                <div class="cb-subj">Моніторинг інцидентів</div>
+                <div class="cb-time">10:30–12:30 · 2г</div>
+              </div>
+              <div class="cal-block cb-synced" style="top:288px;height:96px;">
+                <div class="cb-subj">Навчання персоналу</div>
+                <div class="cb-time">13:30–15:00 · 1.5г</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- СР 19 (today) -->
+          <div class="cal-col">
+            <div class="cal-day-hdr today"><div class="cal-day-name">СР</div><div class="cal-day-num">19</div></div>
+            <div class="cal-slots">
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot lunch-zone"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div>
+
+              <div class="cal-block cb-ghost" style="top:0;height:128px;">
+                <div class="cb-subj">💡 Навчання персоналу</div>
+                <div class="cb-time">AI suggestion · 2г</div>
+                <div class="ghost-btns">
+                  <button class="g-yes" title="Прийняти">✓</button>
+                  <button class="g-no" title="Відхилити">✗</button>
+                </div>
+              </div>
+              <div class="cal-block cb-synced" style="top:160px;height:96px;">
+                <div class="cb-subj">Аудит мережі</div>
+                <div class="cb-time">11:30–13:00 · 1.5г</div>
+              </div>
+              <div class="now-line" style="top:96px;"></div>
+            </div>
+          </div>
+
+          <!-- ЧТ 20 -->
+          <div class="cal-col">
+            <div class="cal-day-hdr"><div class="cal-day-name">ЧТ</div><div class="cal-day-num">20</div></div>
+            <div class="cal-slots">
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot lunch-zone"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-block cb-synced" style="top:0;height:128px;">
+                <div class="cb-subj">Моніторинг інцидентів</div>
+                <div class="cb-time">9:00–11:00 · 2г</div>
+              </div>
+              <div class="cal-block cb-collected" style="top:160px;height:128px;">
+                <div class="cb-subj">Моніторинг інцидентів</div>
+                <div class="cb-time">14:00–16:00 · зібрано</div>
+                <div class="cb-icon">🔒</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ПТ 21 -->
+          <div class="cal-col">
+            <div class="cal-day-hdr"><div class="cal-day-name">ПТ</div><div class="cal-day-num">21</div></div>
+            <div class="cal-slots">
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot lunch-zone"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-slot"></div><div class="cal-slot"></div>
+              <div class="cal-block cb-synced" style="top:0;height:96px;">
+                <div class="cb-subj">Управління доступом</div>
+                <div class="cb-time">9:00–10:30 · 1.5г</div>
+              </div>
+              <div class="cal-block cb-returned" style="top:192px;height:96px;">
+                <div class="cb-subj">Аудит мережі</div>
+                <div class="cb-time">15:00–16:30 · змінено</div>
+                <div class="cb-icon">⚠️</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Stats + legend footer under calendar -->
+      <div style="display:flex;gap:8px;padding:6px 12px;border-top:1px solid var(--border-light);flex-shrink:0;flex-wrap:wrap;align-items:center;">
+        <div class="stat-chip" style="background:var(--blue-bg);color:var(--blue);font-size:10px;">📊 28/32 год</div>
+        <div class="stat-chip" style="background:var(--green-bg);color:var(--green);font-size:10px;">✓ 22 синхр</div>
+        <div class="stat-chip" style="background:var(--bg-muted);color:var(--slate);font-size:10px;">🌐 3 зовніш</div>
+        <div class="stat-chip" style="background:var(--green-bg);color:var(--green);font-size:10px;">88% покриття</div>
+        <div style="width:1px;height:14px;background:var(--border);margin:0 4px;"></div>
+        <div class="legend-item"><div class="legend-dot" style="border-left:3px solid var(--purple);background:var(--purple-bg);"></div>collected</div>
+        <div class="legend-item"><div class="legend-dot" style="border-left:3px solid var(--amber);background:var(--amber-bg);"></div>returned</div>
+        <div class="legend-item"><div class="legend-dot" style="border-left:3px solid var(--blue);background:var(--blue-bg);"></div>modified</div>
+        <div class="legend-item"><div class="legend-dot" style="border-left:3px solid var(--green);background:var(--green-bg);"></div>synced</div>
+        <div class="legend-item"><div class="legend-dot" style="border-left:3px solid var(--slate);background:var(--bg-muted);"></div>external</div>
+        <div class="legend-item"><div class="legend-dot" style="border:2px dashed rgba(91,95,199,0.3);background:rgba(238,240,255,0.6);"></div>ghost</div>
+      </div>
+    </div>
+
+    <div class="resize-handle" data-left="zone-cal" data-right="zone-tasks"></div>
+    <!-- ═══ ZONE 4: TASKS (worklog style) ═══ -->
+    <div class="zone zone-tasks" id="zone-tasks">
+      <div class="zone-hdr">
+        <div class="zone-title">Задачі</div>
+        <div style="flex:1"></div>
+        <span style="font-size:11px;color:var(--text-muted);">тиждень 17–21 бер</span>
+      </div>
+
+      <div style="flex:1;overflow-y:auto;">
+
+        <!-- Незавершені задачі -->
+        <div class="wl-group">
+          <div class="wl-group-hdr">
+            <div style="font-size:14px;">○</div>
+            <div>
+              <div class="wl-name">Незавершені задачі</div>
+              <div class="wl-role">потребують часу</div>
+            </div>
+            <div class="wl-hrs">5</div>
+            <button class="wl-add" title="Додати задачу">+</button>
+          </div>
+          <div class="wl-task-card">
+            <div class="wl-card-top">
+              <div class="wl-card-title">Розгляд та погодження доступів до ІС</div>
+              <div class="wl-card-meta"><span class="wl-card-hrs">1г</span><span class="wl-card-date">18.03</span></div>
+            </div>
+            <div class="wl-card-desc">Виконати розгляд, аналіз та погодження запитів на надання доступу до інформаційних систем відповідно до встановлених процедур управління правами доступу. Забезпечити дотримання принципів найменших привілеїв та розподілу обов'язків.</div>
+          </div>
+          <div class="wl-task-card">
+            <div class="wl-card-top">
+              <div class="wl-card-title">Аналіз нормативних документів з управління доступами</div>
+              <div class="wl-card-meta"><span class="wl-card-hrs">1г</span><span class="wl-card-date">16.03</span></div>
+            </div>
+            <div class="wl-card-desc">Провести аналіз внутрішніх нормативних документів, що регламентують управління правами доступу до ІС. Оцінити їх актуальність та відповідність чинним регуляторним вимогам.</div>
+          </div>
+          <div class="wl-task-card">
+            <div class="wl-card-top">
+              <div class="wl-card-title">Плановий перегляд нормативних документів з ІБ</div>
+              <div class="wl-card-meta"><span class="wl-card-hrs">2г</span><span class="wl-card-date">16.03</span></div>
+            </div>
+            <div class="wl-card-desc">Провести плановий перегляд нормативних документів з інформаційної безпеки на предмет актуальності та відповідності поточним вимогам. Підготувати рекомендації щодо подальших дій.</div>
+          </div>
+          <div class="wl-task-card">
+            <div class="wl-card-top">
+              <div class="wl-card-title">Процедура організації управління правами доступу</div>
+              <div class="wl-card-meta"><span class="wl-card-hrs">11г</span><span class="wl-card-date">16.03</span></div>
+            </div>
+          </div>
+          <div class="wl-task-card">
+            <div class="wl-card-top">
+              <div class="wl-card-title">Плановий перегляд нормативних документів з ІБ</div>
+              <div class="wl-card-meta"><span class="wl-card-hrs">1.5г</span><span class="wl-card-date">03.03</span></div>
+            </div>
+            <div class="wl-card-desc">Провести плановий перегляд нормативних документів з інформаційної безпеки на предмет актуальності та відповідності поточним вимогам.</div>
+          </div>
+        </div>
+
+        <!-- Задачі керівництва -->
+        <div class="wl-group">
+          <div class="wl-group-hdr">
+            <div style="font-size:14px;">⏳</div>
+            <div>
+              <div class="wl-name">Задачі керівництва</div>
+              <div class="wl-role">призначені chief / head</div>
+            </div>
+            <div class="wl-hrs">2</div>
+          </div>
+          <div class="wl-task-card wl-pending">
+            <div class="wl-card-top">
+              <div class="wl-card-title">Підготовка до аудиту</div>
+              <div class="wl-card-meta">
+                <span class="pill pill-purple" style="font-size:9px;">CHIEF</span>
+                <span class="wl-card-hrs" style="color:var(--text-muted);">0/6г</span>
+              </div>
+            </div>
+            <div class="wl-card-desc" style="color:var(--amber);">Очікує прийняття виконавцем</div>
+            <div class="wl-accept" style="margin-top:4px;">
+              <button class="yes" title="Прийняти">✓</button>
+              <button class="no" title="Відхилити">✗</button>
+            </div>
+          </div>
+          <div class="wl-task-card wl-pending">
+            <div class="wl-card-top">
+              <div class="wl-card-title">Інвентаризація ПЗ</div>
+              <div class="wl-card-meta">
+                <span class="pill pill-cyan" style="font-size:9px;">HEAD</span>
+                <span class="wl-card-hrs" style="color:var(--text-muted);">0/4г</span>
+              </div>
+            </div>
+            <div class="wl-card-desc" style="color:var(--amber);">Очікує прийняття виконавцем</div>
+            <div class="wl-accept" style="margin-top:4px;">
+              <button class="yes">✓</button>
+              <button class="no">✗</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Чернетки -->
+        <div class="wl-group">
+          <div class="wl-group-hdr">
+            <div style="font-size:14px;">📝</div>
+            <div>
+              <div class="wl-name">Чернетки</div>
+              <div class="wl-role">збережені з нарад</div>
+            </div>
+            <div class="wl-hrs">1</div>
+            <button class="wl-add" title="Нова чернетка">+</button>
+          </div>
+          <div class="wl-task-card">
+            <div class="wl-card-top">
+              <div class="wl-card-title">Ежемісячна нарада з ІТ проектів</div>
+              <div class="wl-card-meta"><span class="wl-card-date">03.03</span></div>
+            </div>
+            <div class="wl-card-desc"><b>Ключові теми:</b> створення єдиного сховища електронних документів, відповідність законодавству, оновлення політик ІБ...</div>
+          </div>
+        </div>
+
+        <!-- Шаблони задач -->
+        <div class="wl-group">
+          <div class="wl-group-hdr">
+            <div style="font-size:14px;">📋</div>
+            <div>
+              <div class="wl-name">Шаблони задач</div>
+              <div class="wl-role">швидке створення</div>
+            </div>
+            <div class="wl-hrs">3</div>
+          </div>
+          <div class="wl-task-card">
+            <div class="wl-card-top">
+              <div class="wl-card-title">Перевірка логів SIEM</div>
+              <div class="wl-card-meta"><span class="wl-card-hrs">2г</span><span class="wl-card-date">проц. 2.1</span></div>
+            </div>
+          </div>
+          <div class="wl-task-card">
+            <div class="wl-card-top">
+              <div class="wl-card-title">Аналіз вразливостей</div>
+              <div class="wl-card-meta"><span class="wl-card-hrs">4г</span><span class="wl-card-date">проц. 3.2</span></div>
+            </div>
+          </div>
+          <div class="wl-task-card">
+            <div class="wl-card-top">
+              <div class="wl-card-title">Оновлення правил FW</div>
+              <div class="wl-card-meta"><span class="wl-card-hrs">1г</span><span class="wl-card-date">проц. 1.4</span></div>
+            </div>
+          </div>
+          <div style="padding:6px 14px 10px;">
+            <button class="ai-btn">✨ Згенерувати шаблон (AI)</button>
+          </div>
+        </div>
+
+      </div>
+      <!-- Summary -->
+      <div style="display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--border-light);flex-shrink:0;background:var(--bg-muted);flex-wrap:wrap;">
+        <div style="flex:1;min-width:55px;">
+          <div style="font-size:9px;color:var(--text-muted);">Незаверш</div>
+          <div style="font-size:14px;font-weight:800;color:var(--blue);">5</div>
+        </div>
+        <div style="flex:1;min-width:55px;">
+          <div style="font-size:9px;color:var(--text-muted);">Керівн</div>
+          <div style="font-size:14px;font-weight:800;color:var(--amber);">2</div>
+        </div>
+        <div style="flex:1;min-width:55px;">
+          <div style="font-size:9px;color:var(--text-muted);">Чернетки</div>
+          <div style="font-size:14px;font-weight:800;color:var(--text-primary);">1</div>
+        </div>
+        <div style="flex:1;min-width:55px;">
+          <div style="font-size:9px;color:var(--text-muted);">Шаблони</div>
+          <div style="font-size:14px;font-weight:800;color:var(--text-primary);">3</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Nav switching
+document.querySelectorAll('.top-nav-link').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.top-nav-link').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+// Resize handles
+document.querySelectorAll('.resize-handle').forEach(handle => {
+  let startX, leftEl, rightEl, leftW, rightW;
+
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    startX = e.clientX;
+    leftEl = document.getElementById(handle.dataset.left);
+    rightEl = document.getElementById(handle.dataset.right);
+    leftW = leftEl.getBoundingClientRect().width;
+    rightW = rightEl.getBoundingClientRect().width;
+    handle.classList.add('active');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const onMove = e => {
+      const dx = e.clientX - startX;
+      const newLeft = Math.max(150, leftW + dx);
+      const newRight = Math.max(150, rightW - dx);
+      leftEl.style.width = newLeft + 'px';
+      rightEl.style.width = newRight + 'px';
+    };
+
+    const onUp = () => {
+      handle.classList.remove('active');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+});
+</script>
+</body>
+</html>

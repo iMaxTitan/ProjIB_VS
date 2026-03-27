@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CS Platform — Плани + Планувальник (макет)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════════
+       DESIGN TOKENS (з demo-design3.html)
+       ═══════════════════════════════════════════════ */
+    :root {
+      --depth-zone-bg: rgba(255,255,255, 0.52);
+      --depth-zone-blur: 16px;
+      --depth-zone-border: rgba(255,255,255, 0.45);
+      --depth-zone-border-top: rgba(255,255,255, 0.7);
+      --depth-zone-border-bottom: rgba(203,213,225, 0.3);
+      --depth-element-bg: rgba(255,255,255, 0.92);
+      --depth-element-border: rgba(255,255,255, 0.75);
+      --depth-element-border-top: rgba(255,255,255, 0.9);
+      --depth-element-border-bottom: rgba(203,213,225, 0.25);
+      --shadow-accent: rgba(99,102,241, 0.06);
+      --shadow-3d-inset-top: rgba(255,255,255, 0.6);
+      --shadow-3d-inset-bottom: rgba(0,0,0, 0.02);
+      --accent-selected-bg: rgba(99,102,241, 0.1);
+      --accent-selected-border: rgba(99,102,241, 0.25);
+      --accent-primary: #6366f1;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: linear-gradient(135deg, #f0f2f8 0%, #e8eaf4 50%, #f5f0ff 100%);
+      min-height: 100vh;
+      display: flex;
+      color: #1e293b;
+    }
+
+    /* ═══ SCROLLBAR ═══ */
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    /* ═══ L1: GLASS PANEL ═══ */
+    .glass-panel {
+      background: var(--depth-zone-bg);
+      backdrop-filter: blur(var(--depth-zone-blur));
+      -webkit-backdrop-filter: blur(var(--depth-zone-blur));
+      border: 1px solid var(--depth-zone-border);
+      border-top: 1px solid var(--depth-zone-border-top);
+      border-bottom: 1px solid var(--depth-zone-border-bottom);
+      box-shadow: 0 4px 24px var(--shadow-accent), 0 2px 6px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04), inset 0 1px 0 var(--shadow-3d-inset-top), inset 0 -1px 0 var(--shadow-3d-inset-bottom);
+    }
+
+    /* ═══ L2: ELEMENT CARD ═══ */
+    .element-card {
+      background: var(--depth-element-bg);
+      border-radius: 10px;
+      border: 1px solid var(--depth-element-border);
+      border-top: 1px solid var(--depth-element-border-top);
+      border-bottom: 1px solid var(--depth-element-border-bottom);
+      box-shadow: 0 2px 8px var(--shadow-accent), 0 1px 2px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 var(--shadow-3d-inset-bottom);
+      transition: all 0.15s ease;
+    }
+
+    /* ═══ SHARED CLASSES ═══ */
+    .sec-label { font-size: 10px; font-weight: 600; color: #94a3b8; letter-spacing: 0.06em; text-transform: uppercase; }
+    .prop-label { font-size: 10px; font-weight: 600; color: #94a3b8; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 3px; }
+    .stat-cell { background: rgba(241,245,249,0.65); border: 1px solid rgba(203,213,225,0.5); border-radius: 10px; padding: 8px 10px; box-shadow: inset 0 2px 5px rgba(99,102,241,0.06), inset 0 -1px 0 rgba(255,255,255,0.85), 0 1px 0 rgba(255,255,255,0.95); }
+    .info-card { background: rgba(255,255,255,0.72); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.5); border-radius: 12px; box-shadow: 0 4px 16px rgba(99,102,241,0.06), 0 1px 3px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.8); overflow: hidden; }
+    .detail-hdr { background: var(--accent-selected-bg); }
+    .hdr-sep { height: 3px; background: rgba(220,228,240,0.5); box-shadow: inset 0 2px 3px rgba(99,102,241,0.13), inset 0 1px 1px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,0.95); }
+    .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; }
+    .badge-emerald { background: rgba(16,185,129,0.12); color: #059669; }
+    .badge-blue { background: rgba(59,130,246,0.12); color: #2563eb; }
+    .badge-amber { background: rgba(245,158,11,0.12); color: #d97706; }
+    .badge-purple { background: rgba(139,92,246,0.12); color: #7c3aed; }
+    .badge-cyan { background: rgba(6,182,212,0.12); color: #0891b2; }
+    .badge-slate { background: rgba(100,116,139,0.12); color: #475569; }
+    .badge-red { background: rgba(239,68,68,0.12); color: #dc2626; }
+    .badge-indigo { background: rgba(99,102,241,0.12); color: #4f46e5; }
+
+    .task-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid rgba(226,232,240,0.3); transition: background 0.1s; }
+    .task-row:hover { background: rgba(255,255,255,0.6); }
+    .task-row:last-child { border-bottom: none; }
+
+    .plan-item { padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,0.68); border: 1px solid rgba(255,255,255,0.55); box-shadow: 0 2px 8px rgba(99,102,241,0.05), inset 0 1px 0 rgba(255,255,255,0.8); cursor: pointer; transition: all 0.15s; }
+    .plan-item:hover { background: rgba(255,255,255,0.88); }
+    .plan-item.active { background: var(--accent-selected-bg); border-color: var(--accent-selected-border); border-left: 3px solid var(--accent-primary); }
+
+    .nav-btn { padding: 4px 0; width: 40px; text-align: center; font-size: 11px; font-weight: 500; border-radius: 6px; cursor: pointer; border: none; transition: all 0.15s; background: transparent; color: #94a3b8; }
+    .nav-btn:hover { background: rgba(255,255,255,0.8); color: #64748b; }
+    .nav-btn.active { background: rgba(99,102,241,0.08); color: #4f46e5; border: 1px solid rgba(99,102,241,0.2); }
+    .nav-btn.ctx { background: rgba(99,102,241,0.28); color: white; }
+    .nav-btn[disabled] { opacity: 0.3; pointer-events: none; }
+    .nav-group { display: inline-flex; align-items: center; padding: 2px; background: rgba(255,255,255,0.72); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.5); border-radius: 8px; box-shadow: 0 4px 16px rgba(99,102,241,0.07), inset 0 1px 0 rgba(255,255,255,0.7); }
+
+    .status-wrap { display: flex; align-items: center; gap: 0; background: rgba(241,245,249,0.8); border: 1px solid rgba(203,213,225,0.6); border-radius: 8px; padding: 2px; }
+    .st-btn { padding: 3px 10px; font-size: 10px; font-weight: 600; border: none; border-radius: 6px; background: transparent; color: #94a3b8; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .st-btn.active { background: white; color: #1e293b; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+    .avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: white; flex-shrink: 0; }
+
+    /* Action icon button */
+    .act-btn { background: none; border: none; cursor: pointer; color: #cbd5e1; padding: 2px; transition: color 0.15s; display: flex; align-items: center; }
+    .act-btn:hover { color: var(--accent-primary); }
+    .act-btn.del:hover { color: #ef4444; }
+    .act-btn.ok:hover { color: #10b981; }
+
+    /* Calendar block */
+    .cal-block { position: absolute; left: 2px; right: 2px; border-radius: 8px; padding: 4px 8px; overflow: hidden; backdrop-filter: blur(8px); border-left: 3px solid transparent; cursor: pointer; transition: all 0.15s; z-index: 2; }
+    .cal-block:hover { z-index: 30; box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+    .cal-block .subj { font-size: 10px; font-weight: 600; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cal-block .time { font-size: 9px; opacity: 0.6; }
+
+    .cal-ghost { border: 2px dashed rgba(99,102,241,0.35); background: rgba(99,102,241,0.06); }
+
+    /* Status colors for calendar blocks */
+    .st-synced { border-left-color: #10b981; background: rgba(16,185,129,0.08); }
+    .st-modified { border-left-color: #3b82f6; background: rgba(59,130,246,0.08); }
+    .st-collected { border-left-color: #8b5cf6; background: rgba(139,92,246,0.08); }
+    .st-returned { border-left-color: #f59e0b; background: rgba(245,158,11,0.08); }
+    .st-external { border-left-color: #64748b; background: rgba(100,116,139,0.08); }
+    .st-distributed { border-left-color: #94a3b8; background: rgba(148,163,184,0.06); }
+
+    .lunch-zone { background: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(203,213,225,0.15) 4px, rgba(203,213,225,0.15) 8px); }
+
+    .progress-bar { height: 4px; border-radius: 2px; background: rgba(203,213,225,0.3); overflow: hidden; }
+    .progress-bar > div { height: 100%; border-radius: 2px; }
+
+    /* ═══════════════════════════════════
+       LEFT SIDEBAR NAVIGATION
+       ═══════════════════════════════════ */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 12px 8px;
+      gap: 4px;
+      border-right: 1px solid rgba(226,232,240,0.4);
+    }
+
+    .sidebar-logo {
+      padding: 8px 12px 16px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #334155;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sidebar-logo .logo-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 14px; font-weight: 800;
+    }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; color: #64748b;
+      cursor: pointer; transition: all 0.15s; border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.6); color: #334155; }
+    .nav-item.active { background: var(--accent-selected-bg); color: var(--accent-primary); font-weight: 600; }
+    .nav-item .nav-icon { width: 18px; height: 18px; opacity: 0.6; flex-shrink: 0; }
+    .nav-item.active .nav-icon { opacity: 1; }
+    .nav-item .nav-badge { margin-left: auto; font-size: 10px; font-weight: 700; background: rgba(99,102,241,0.12); color: #6366f1; padding: 1px 6px; border-radius: 10px; }
+
+    .nav-divider { height: 1px; background: rgba(226,232,240,0.4); margin: 8px 12px; }
+    .sidebar-footer { margin-top: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+
+    .user-card {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 10px;
+      background: rgba(255,255,255,0.4); margin-bottom: 4px;
+    }
+    .user-card .user-name { font-size: 12px; font-weight: 600; color: #334155; }
+    .user-card .user-role { font-size: 10px; color: #94a3b8; }
+
+    /* ═══════════════════════════════════
+       MAIN CONTENT GRID (2x2)
+       ═══════════════════════════════════ */
+    .main-content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 12px;
+      padding: 12px;
+      overflow: hidden;
+    }
+
+    .panel {
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-label {
+      padding: 6px 14px;
+      font-size: 9px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: white; border-radius: 12px 12px 0 0;
+    }
+    .panel-label.plans { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+    .panel-label.planner { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+
+    .panel-body {
+      flex: 1; overflow-y: auto; overflow-x: hidden;
+    }
+
+    /* Two-col inside panel */
+    .split { display: flex; flex: 1; overflow: hidden; }
+    .split-left { width: 200px; flex-shrink: 0; border-right: 1px solid rgba(226,232,240,0.3); overflow-y: auto; padding: 8px; }
+    .split-right { flex: 1; overflow-y: auto; }
+
+    /* Proc sidebar card */
+    .proc-card { padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.4); margin-bottom: 6px; transition: all 0.15s; cursor: grab; }
+    .proc-card:hover { background: rgba(255,255,255,0.8); }
+    .proc-card .proc-title { font-size: 11px; font-weight: 600; color: #334155; line-height: 1.3; }
+    .proc-card .proc-dept { font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 4px; display: inline-block; margin-bottom: 3px; }
+    .proc-card .proc-stats { font-size: 9px; color: #64748b; display: flex; gap: 6px; margin-top: 4px; }
+
+    /* Employee group card */
+    .emp-group { border-radius: 10px; overflow: hidden; border: 1px solid rgba(226,232,240,0.4); margin: 8px; background: rgba(255,255,255,0.4); }
+    .emp-group-hdr { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(248,250,252,0.6); border-bottom: 1px solid rgba(226,232,240,0.3); }
+
+    /* Calendar grid */
+    .cal-grid-wrap { display: flex; flex: 1; }
+    .cal-time-col { width: 36px; flex-shrink: 0; padding-top: 0; }
+    .cal-time-col span { font-size: 9px; color: #94a3b8; font-weight: 500; height: 32px; display: flex; align-items: center; justify-content: flex-end; padding-right: 4px; }
+    .cal-days { flex: 1; display: flex; }
+    .cal-day { flex: 1; position: relative; border-left: 1px solid rgba(226,232,240,0.25); }
+    .cal-day-hdr { text-align: center; padding: 4px 0; border-bottom: 1px solid rgba(226,232,240,0.4); }
+    .cal-day-hdr .d-name { font-size: 9px; font-weight: 600; color: #94a3b8; text-transform: uppercase; }
+    .cal-day-hdr .d-num { font-size: 14px; font-weight: 700; color: #334155; }
+    .cal-day-hdr.today .d-num { color: var(--accent-primary); }
+    .cal-slots { position: relative; }
+    .cal-slot { height: 32px; border-bottom: 1px solid rgba(203,213,225,0.35); }
+    .cal-slot:nth-child(odd) { border-bottom-style: dashed; border-bottom-color: rgba(203,213,225,0.2); }
+
+    /* Now line */
+    .now-line { position: absolute; left: 0; right: 0; height: 2px; background: #ef4444; z-index: 20; }
+    .now-line::before { content: ''; position: absolute; left: -3px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; }
+
+    /* Toolbar */
+    .toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid rgba(226,232,240,0.3); background: rgba(248,250,252,0.4); flex-wrap: wrap; }
+    .tool-btn { display: flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(226,232,240,0.5); background: rgba(255,255,255,0.6); font-size: 11px; font-weight: 500; color: #64748b; cursor: pointer; transition: all 0.15s; }
+    .tool-btn:hover { background: rgba(255,255,255,0.9); color: #334155; }
+    .tool-btn .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+    .stat-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════
+     LEFT SIDEBAR — Навігація платформи
+     ════════════════════════════════════════════ -->
+<div class="sidebar glass-panel" style="border-radius: 0;">
+  <div class="sidebar-logo">
+    <div class="logo-icon">CS</div>
+    <div>
+      <div style="line-height:1.2">CS Platform</div>
+      <div style="font-size:9px;font-weight:400;color:#94a3b8">Відділ ІБ</div>
+    </div>
+  </div>
+
+  <!-- Sections -->
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    Активність
+    <span class="nav-badge">12</span>
+  </button>
+  <button class="nav-item active">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg>
+    Плани
+  </button>
+  <button class="nav-item" style="background:rgba(139,92,246,0.06);color:#7c3aed;">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+    Планувальник
+  </button>
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>
+    Звіти
+  </button>
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+    KPI
+  </button>
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+    Довідники
+  </button>
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    База знань
+  </button>
+
+  <div class="nav-divider"></div>
+
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    Кабінет
+  </button>
+  <button class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    Бот
+  </button>
+
+  <!-- Footer -->
+  <div class="sidebar-footer">
+    <div class="user-card">
+      <div class="avatar" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);">ІО</div>
+      <div>
+        <div class="user-name">Іванов Олександр</div>
+        <div class="user-role">head · ВБ</div>
+      </div>
+    </div>
+    <button class="nav-item" style="padding:6px 12px;font-size:12px;">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Налаштування
+    </button>
+    <button class="nav-item" style="padding:6px 12px;font-size:12px;">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+      Допомога
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MAIN — 4 PANELS (2×2)
+     ════════════════════════════════════════════ -->
+<div class="main-content">
+
+  <!-- ═══════════════════════════════════════
+       PANEL 1: ПЛАНИ — Дерево + Деталі місячного плану
+       ═══════════════════════════════════════ -->
+  <div class="panel glass-panel">
+    <div class="panel-label plans">① Плани — Дерево + Деталі місячного плану</div>
+    <div class="split" style="flex:1;overflow:hidden;">
+      <!-- Tree (left) -->
+      <div class="split-left custom-scroll" style="padding:8px;width:190px;">
+        <!-- Nav: Year -->
+        <div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-bottom:6px;">
+          <span style="font-size:10px;color:#94a3b8;cursor:pointer;">◂</span>
+          <span style="font-size:13px;font-weight:700;color:#334155;">2026</span>
+          <span style="font-size:10px;color:#94a3b8;cursor:pointer;">▸</span>
+        </div>
+        <!-- Nav: Quarters -->
+        <div class="nav-group" style="margin-bottom:6px;width:100%;justify-content:center;">
+          <button class="nav-btn ctx" style="width:36px;">Q1</button>
+          <button class="nav-btn" style="width:36px;" disabled>Q2</button>
+          <button class="nav-btn" style="width:36px;" disabled>Q3</button>
+          <button class="nav-btn" style="width:36px;" disabled>Q4</button>
+        </div>
+        <!-- Nav: Months -->
+        <div class="nav-group" style="margin-bottom:10px;width:100%;justify-content:center;">
+          <button class="nav-btn" style="width:48px;">Січ</button>
+          <button class="nav-btn" style="width:48px;">Лют</button>
+          <button class="nav-btn active" style="width:48px;">Бер</button>
+        </div>
+
+        <!-- Plan tree -->
+        <div style="display:flex;flex-direction:column;gap:5px;">
+          <div class="plan-item" style="padding:6px 8px;">
+            <div style="font-size:10px;font-weight:600;color:#334155;">Річний план 2026</div>
+            <div style="display:flex;align-items:center;gap:4px;margin-top:3px;">
+              <span class="badge badge-blue" style="font-size:9px;padding:1px 5px;">В роботі</span>
+            </div>
+          </div>
+          <div style="margin-left:10px;display:flex;flex-direction:column;gap:4px;">
+            <div class="plan-item" style="padding:6px 8px;">
+              <div style="font-size:10px;font-weight:600;color:#334155;">Q1 — Аудит інфраструктури</div>
+              <div class="progress-bar" style="margin-top:4px;"><div style="width:67%;background:#6366f1;"></div></div>
+              <div style="font-size:9px;color:#94a3b8;margin-top:2px;">67% · 80/120 год</div>
+            </div>
+            <div style="margin-left:10px;display:flex;flex-direction:column;gap:3px;">
+              <div class="plan-item" style="padding:5px 8px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <span style="font-size:10px;font-weight:500;color:#64748b;">Січень</span>
+                  <span class="badge badge-emerald" style="font-size:8px;padding:1px 4px;">Завершено</span>
+                </div>
+              </div>
+              <div class="plan-item" style="padding:5px 8px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <span style="font-size:10px;font-weight:500;color:#64748b;">Лютий</span>
+                  <span class="badge badge-blue" style="font-size:8px;padding:1px 4px;">В роботі</span>
+                </div>
+              </div>
+              <div class="plan-item active" style="padding:5px 8px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <span style="font-size:10px;font-weight:600;color:#4f46e5;">Березень</span>
+                  <span class="badge badge-amber" style="font-size:8px;padding:1px 4px;">Підготовка</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail (right) -->
+      <div class="split-right custom-scroll">
+        <!-- Header -->
+        <div class="detail-hdr" style="padding:10px 14px;">
+          <div style="font-size:9px;color:#94a3b8;">2026 → Q1 → Березень</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">
+            <div style="font-size:14px;font-weight:700;color:#1e293b;">Місячний план — Березень</div>
+            <div style="display:flex;gap:4px;">
+              <button class="act-btn" title="Copy">📋</button>
+              <button class="act-btn" title="Edit">✏️</button>
+              <button class="act-btn del" title="Delete">🗑</button>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+            <div class="status-wrap">
+              <button class="st-btn active">Підготовка</button>
+              <button class="st-btn">В роботі</button>
+              <button class="st-btn">Завершено</button>
+            </div>
+          </div>
+        </div>
+        <div class="hdr-sep"></div>
+
+        <!-- Plan details -->
+        <div style="padding:10px 14px;display:flex;flex-direction:column;gap:10px;">
+          <!-- Procedure -->
+          <div class="info-card" style="padding:10px 12px;">
+            <div class="prop-label">Процедура</div>
+            <div style="font-size:12px;font-weight:600;color:#334155;">2.1 Моніторинг інцидентів</div>
+            <div style="font-size:10px;color:#64748b;margin-top:2px;">Відстеження та аналіз інцидентів ІБ, реагування</div>
+          </div>
+
+          <!-- Assignees -->
+          <div class="info-card" style="padding:10px 12px;">
+            <div class="prop-label">Відповідальні</div>
+            <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:5px;">
+                <div class="avatar" style="background:#6366f1;width:22px;height:22px;font-size:8px;">ІО</div>
+                <span style="font-size:11px;">Іванов О.</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:5px;">
+                <div class="avatar" style="background:#8b5cf6;width:22px;height:22px;font-size:8px;">ПС</div>
+                <span style="font-size:11px;">Петренко С.</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:5px;">
+                <div class="avatar" style="background:#06b6d4;width:22px;height:22px;font-size:8px;">КН</div>
+                <span style="font-size:11px;">Коваль Н.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Companies + Distribution -->
+          <div class="info-card" style="padding:10px 12px;">
+            <div class="prop-label">Компанії та розподіл</div>
+            <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;">
+              <label style="display:flex;align-items:center;gap:6px;font-size:11px;">
+                <input type="checkbox" checked> ТОВ «Альфа» <span class="badge badge-slate" style="font-size:9px;">35%</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:11px;">
+                <input type="checkbox" checked> ТОВ «Бета» <span class="badge badge-slate" style="font-size:9px;">40%</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:11px;">
+                <input type="checkbox" checked> ПрАТ «Гамма» <span class="badge badge-slate" style="font-size:9px;">25%</span>
+              </label>
+            </div>
+            <div style="margin-top:6px;display:flex;gap:8px;">
+              <label style="font-size:10px;display:flex;align-items:center;gap:3px;"><input type="radio" name="dist" checked> Рівномірно</label>
+              <label style="font-size:10px;display:flex;align-items:center;gap:3px;"><input type="radio" name="dist"> За серверами</label>
+              <label style="font-size:10px;display:flex;align-items:center;gap:3px;"><input type="radio" name="dist"> За РС</label>
+            </div>
+          </div>
+
+          <!-- Project + KB -->
+          <div style="display:flex;gap:8px;">
+            <div class="info-card" style="padding:10px 12px;flex:1;">
+              <div class="prop-label">Проєкт</div>
+              <label style="font-size:11px;display:flex;align-items:center;gap:4px;"><input type="checkbox" checked> Впровадження SIEM</label>
+            </div>
+            <div class="info-card" style="padding:10px 12px;flex:1;">
+              <div class="prop-label">Документ БЗ</div>
+              <span class="badge badge-indigo" style="font-size:10px;">Політика моніторингу v2.1</span>
+            </div>
+          </div>
+
+          <!-- Hours stats -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+            <div class="stat-cell">
+              <div style="font-size:9px;color:#94a3b8;font-weight:500;">Заплановано</div>
+              <div style="font-size:16px;font-weight:700;color:#334155;">120<span style="font-size:10px;font-weight:400;color:#94a3b8;"> год</span></div>
+            </div>
+            <div class="stat-cell">
+              <div style="font-size:9px;color:#94a3b8;font-weight:500;">Виконано</div>
+              <div style="font-size:16px;font-weight:700;color:#059669;">45<span style="font-size:10px;font-weight:400;color:#94a3b8;"> год</span></div>
+            </div>
+            <div class="stat-cell">
+              <div style="font-size:9px;color:#94a3b8;font-weight:500;">Залишок</div>
+              <div style="font-size:16px;font-weight:700;color:#d97706;">75<span style="font-size:10px;font-weight:400;color:#94a3b8;"> год</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       PANEL 2: ПЛАНИ — Журнал робіт (WorkLog)
+       ═══════════════════════════════════════ -->
+  <div class="panel glass-panel">
+    <div class="panel-label plans">② Плани — Журнал робіт (задачі по виконавцях)</div>
+    <div class="panel-body custom-scroll" style="padding:0;">
+      <!-- Header -->
+      <div class="detail-hdr" style="padding:8px 14px;">
+        <div style="font-size:9px;color:#94a3b8;">2026 → Q1 → Лютий · 2.1 Моніторинг інцидентів</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:13px;font-weight:700;color:#1e293b;">Журнал робіт — Лютий</div>
+          <div class="status-wrap">
+            <button class="st-btn">Підготовка</button>
+            <button class="st-btn active">В роботі</button>
+            <button class="st-btn">Завершено</button>
+          </div>
+        </div>
+      </div>
+      <div class="hdr-sep"></div>
+
+      <!-- Employee Group 1 -->
+      <div class="emp-group">
+        <div class="emp-group-hdr">
+          <div class="avatar" style="background:#6366f1;">ІО</div>
+          <div style="flex:1;">
+            <div style="font-size:12px;font-weight:600;color:#334155;">Іванов Олександр</div>
+            <div style="font-size:10px;color:#94a3b8;">analyst · 42/60 год</div>
+          </div>
+          <div class="progress-bar" style="width:80px;"><div style="width:70%;background:#6366f1;"></div></div>
+          <button class="act-btn ok" title="Додати задачу" style="font-size:14px;">＋</button>
+        </div>
+        <div>
+          <div class="task-row">
+            <span style="color:#10b981;font-size:12px;">✓</span>
+            <div style="flex:1;">
+              <div style="font-size:11px;font-weight:500;">Налаштування SIEM алертів</div>
+            </div>
+            <span class="badge badge-purple" style="font-size:8px;">CHIEF</span>
+            <span style="font-size:10px;color:#64748b;width:35px;text-align:right;">8 год</span>
+            <span style="font-size:10px;color:#94a3b8;">03.02</span>
+          </div>
+          <div class="task-row">
+            <span style="color:#10b981;font-size:12px;">✓</span>
+            <div style="flex:1;">
+              <div style="font-size:11px;font-weight:500;">Аналіз логів за тиждень 1</div>
+            </div>
+            <span style="font-size:10px;color:#64748b;width:35px;text-align:right;">6 год</span>
+            <span style="font-size:10px;color:#94a3b8;">07.02</span>
+          </div>
+          <div class="task-row">
+            <span style="color:#3b82f6;font-size:12px;">○</span>
+            <div style="flex:1;">
+              <div style="font-size:11px;font-weight:500;">Звіт по інцидентах</div>
+            </div>
+            <span style="font-size:10px;color:#64748b;width:35px;text-align:right;">4 год</span>
+            <span style="font-size:10px;color:#94a3b8;">14.02</span>
+          </div>
+          <div class="task-row" style="background:rgba(245,158,11,0.04);">
+            <span style="color:#f59e0b;font-size:12px;">○</span>
+            <div style="flex:1;">
+              <div style="font-size:11px;font-weight:500;">Перевірка правил кореляції</div>
+              <div style="font-size:9px;color:#94a3b8;">Очікує прийняття</div>
+            </div>
+            <span class="badge badge-cyan" style="font-size:8px;">HEAD</span>
+            <span style="font-size:10px;color:#64748b;width:35px;text-align:right;">0 год</span>
+            <div style="display:flex;gap:2px;">
+              <button class="act-btn ok" title="Прийняти" style="color:#10b981;font-size:14px;">✓</button>
+              <button class="act-btn del" title="Відхилити" style="color:#ef4444;font-size:14px;">✗</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Employee Group 2 -->
+      <div class="emp-group">
+        <div class="emp-group-hdr">
+          <div class="avatar" style="background:#8b5cf6;">ПС</div>
+          <div style="flex:1;">
+            <div style="font-size:12px;font-weight:600;color:#334155;">Петренко Сергій</div>
+            <div style="font-size:10px;color:#94a3b8;">employee · 28/40 год</div>
+          </div>
+          <div class="progress-bar" style="width:80px;"><div style="width:70%;background:#8b5cf6;"></div></div>
+          <button class="act-btn ok" title="Додати задачу" style="font-size:14px;">＋</button>
+        </div>
+        <div>
+          <div class="task-row">
+            <span style="color:#10b981;font-size:12px;">✓</span>
+            <div style="flex:1;"><div style="font-size:11px;font-weight:500;">Патчинг серверів БД</div></div>
+            <span style="font-size:10px;color:#64748b;width:35px;text-align:right;">12 год</span>
+            <span style="font-size:10px;color:#94a3b8;">10.02</span>
+          </div>
+          <div class="task-row">
+            <span style="color:#10b981;font-size:12px;">✓</span>
+            <div style="flex:1;"><div style="font-size:11px;font-weight:500;">Оновлення FW правил</div></div>
+            <span style="font-size:10px;color:#64748b;width:35px;text-align:right;">8 год</span>
+            <span style="font-size:10px;color:#94a3b8;">12.02</span>
+          </div>
+          <div class="task-row">
+            <span style="color:#3b82f6;font-size:12px;">○</span>
+            <div style="flex:1;"><div style="font-size:11px;font-weight:500;">Інвентаризація ПЗ</div></div>
+            <span class="badge badge-purple" style="font-size:8px;">CHIEF</span>
+            <span style="font-size:10px;color:#64748b;width:35px;text-align:right;">0 год</span>
+            <span style="font-size:10px;color:#94a3b8;">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Employee Group 3 -->
+      <div class="emp-group">
+        <div class="emp-group-hdr">
+          <div class="avatar" style="background:#06b6d4;">КН</div>
+          <div style="flex:1;">
+            <div style="font-size:12px;font-weight:600;color:#334155;">Коваль Наталія</div>
+            <div style="font-size:10px;color:#94a3b8;">analyst · 15/20 год</div>
+          </div>
+          <div class="progress-bar" style="width:80px;"><div style="width:75%;background:#06b6d4;"></div></div>
+          <button class="act-btn ok" title="Додати задачу" style="font-size:14px;">＋</button>
+        </div>
+        <div>
+          <div class="task-row">
+            <span style="color:#10b981;font-size:12px;">✓</span>
+            <div style="flex:1;"><div style="font-size:11px;font-weight:500;">Аналіз вразливостей Q1</div></div>
+            <span style="font-size:10px;color:#64748b;width:35px;text-align:right;">10 год</span>
+            <span style="font-size:10px;color:#94a3b8;">08.02</span>
+          </div>
+          <div class="task-row">
+            <span style="color:#3b82f6;font-size:12px;">○</span>
+            <div style="flex:1;"><div style="font-size:11px;font-weight:500;">Тестування бекапів</div></div>
+            <span style="font-size:10px;color:#64748b;width:35px;text-align:right;">5 год</span>
+            <span style="font-size:10px;color:#94a3b8;">20.02</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:8px;margin:4px 8px 8px;border-top:1px solid rgba(226,232,240,0.4);">
+        <div class="stat-cell">
+          <div style="font-size:9px;color:#94a3b8;">Всього план</div>
+          <div style="font-size:14px;font-weight:700;color:#334155;">120 год</div>
+        </div>
+        <div class="stat-cell">
+          <div style="font-size:9px;color:#94a3b8;">Виконано</div>
+          <div style="font-size:14px;font-weight:700;color:#059669;">85 год</div>
+        </div>
+        <div class="stat-cell">
+          <div style="font-size:9px;color:#94a3b8;">Покриття</div>
+          <div style="font-size:14px;font-weight:700;color:#6366f1;">71%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       PANEL 3: ПЛАНУВАЛЬНИК — Календарна сітка
+       ═══════════════════════════════════════ -->
+  <div class="panel glass-panel">
+    <div class="panel-label planner">③ Планувальник — Тижнева сітка + Процедури</div>
+    <div style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span style="font-size:10px;color:#94a3b8;cursor:pointer;">◂</span>
+          <span style="font-size:11px;font-weight:700;color:#334155;">17–21 березня 2026</span>
+          <span style="font-size:10px;color:#94a3b8;cursor:pointer;">▸</span>
+        </div>
+        <div style="display:flex;gap:4px;flex:1;justify-content:center;">
+          <button class="tool-btn">🪄 Suggest</button>
+          <button class="tool-btn">📋 Copy</button>
+          <button class="tool-btn">✓✓ Accept all</button>
+        </div>
+        <div style="display:flex;gap:4px;">
+          <button class="tool-btn">🍴 12:30</button>
+          <button class="tool-btn">↓ Pull <span class="dot" style="background:#f59e0b;"></span></button>
+          <button class="tool-btn">↑ Push <span class="badge badge-blue" style="font-size:8px;padding:0 4px;margin-left:2px;">3</span></button>
+        </div>
+      </div>
+
+      <div style="display:flex;flex:1;overflow:hidden;">
+        <!-- Sidebar: procedures -->
+        <div class="split-left custom-scroll" style="width:170px;padding:6px;">
+          <div class="sec-label" style="margin-bottom:6px;padding:0 4px;">Процедури</div>
+
+          <div class="proc-card">
+            <div class="proc-dept" style="background:rgba(16,185,129,0.12);color:#059669;">ВБ</div>
+            <div class="proc-title">2.1 Моніторинг інцидентів</div>
+            <div class="progress-bar" style="margin-top:4px;">
+              <div style="width:67%;background:linear-gradient(90deg,#10b981 60%,#6366f1 60%);"></div>
+            </div>
+            <div class="proc-stats">
+              <span style="color:#10b981;">✓16</span>
+              <span style="color:#6366f1;">+5</span>
+              <span style="color:#94a3b8;">~3</span>
+              <span>67%</span>
+              <span style="color:#8b5cf6;" title="Зібрати задачі">📋</span>
+            </div>
+          </div>
+
+          <div class="proc-card">
+            <div class="proc-dept" style="background:rgba(59,130,246,0.12);color:#2563eb;">ВБ</div>
+            <div class="proc-title">3.2 Аудит мережі</div>
+            <div class="progress-bar" style="margin-top:4px;">
+              <div style="width:33%;background:linear-gradient(90deg,#10b981 67%,#6366f1 67%);"></div>
+            </div>
+            <div class="proc-stats">
+              <span style="color:#10b981;">✓8</span>
+              <span style="color:#6366f1;">+4</span>
+              <span>33%</span>
+            </div>
+          </div>
+
+          <div class="proc-card">
+            <div class="proc-dept" style="background:rgba(139,92,246,0.12);color:#7c3aed;">ВБ</div>
+            <div class="proc-title">1.4 Управління доступом</div>
+            <div class="progress-bar" style="margin-top:4px;">
+              <div style="width:100%;background:#10b981;"></div>
+            </div>
+            <div class="proc-stats">
+              <span style="color:#10b981;">✓8</span>
+              <span style="font-weight:700;color:#059669;">100%</span>
+            </div>
+          </div>
+
+          <div class="proc-card">
+            <div class="proc-dept" style="background:rgba(245,158,11,0.12);color:#d97706;">ВБ</div>
+            <div class="proc-title">4.1 Навчання персоналу</div>
+            <div class="progress-bar" style="margin-top:4px;">
+              <div style="width:50%;background:#6366f1;"></div>
+            </div>
+            <div class="proc-stats">
+              <span style="color:#10b981;">✓0</span>
+              <span style="color:#6366f1;">+4</span>
+              <span>50%</span>
+            </div>
+          </div>
+
+          <!-- Stats chips -->
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:4px;">
+            <div class="stat-chip" style="background:rgba(59,130,246,0.08);color:#2563eb;">📊 28/32 год</div>
+            <div class="stat-chip" style="background:rgba(16,185,129,0.08);color:#059669;">✓ 22 синхр</div>
+            <div class="stat-chip" style="background:rgba(100,116,139,0.08);color:#64748b;">🌐 3 зовніш</div>
+            <div class="stat-chip" style="background:rgba(16,185,129,0.08);color:#059669;">88% покриття</div>
+          </div>
+        </div>
+
+        <!-- Calendar grid -->
+        <div style="flex:1;overflow:auto;" class="custom-scroll">
+          <div class="cal-grid-wrap">
+            <div class="cal-time-col">
+              <span style="height:28px;"></span><!-- header spacer -->
+              <span>9:00</span><span>9:30</span>
+              <span>10:00</span><span>10:30</span>
+              <span>11:00</span><span>11:30</span>
+              <span>12:00</span><span>12:30</span>
+              <span>13:00</span><span>13:30</span>
+              <span>14:00</span><span>14:30</span>
+              <span>15:00</span><span>15:30</span>
+              <span>16:00</span><span>16:30</span>
+              <span>17:00</span><span>17:30</span>
+            </div>
+            <div class="cal-days">
+              <!-- Monday -->
+              <div class="cal-day">
+                <div class="cal-day-hdr"><div class="d-name">ПН</div><div class="d-num">17</div></div>
+                <div class="cal-slots" style="height:576px;">
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot lunch-zone"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div>
+                  <!-- Blocks -->
+                  <div class="cal-block st-synced" style="top:0;height:128px;">
+                    <div class="subj">Моніторинг інцидентів</div>
+                    <div class="time">9:00–11:00 · 2г</div>
+                  </div>
+                  <div class="cal-block st-modified" style="top:128px;height:96px;">
+                    <div class="subj">Аудит мережі</div>
+                    <div class="time">11:00–12:30 · 1.5г</div>
+                  </div>
+                  <div class="cal-block st-synced" style="top:256px;height:128px;">
+                    <div class="subj">Управління доступом</div>
+                    <div class="time">13:00–15:00 · 2г</div>
+                  </div>
+                </div>
+              </div>
+              <!-- Tuesday -->
+              <div class="cal-day">
+                <div class="cal-day-hdr"><div class="d-name">ВТ</div><div class="d-num">18</div></div>
+                <div class="cal-slots" style="height:576px;">
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot lunch-zone"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-block st-external" style="top:0;height:96px;">
+                    <div class="subj">🌐 Нарада з керівництвом</div>
+                    <div class="time">9:00–10:30</div>
+                  </div>
+                  <div class="cal-block st-synced" style="top:96px;height:128px;">
+                    <div class="subj">Моніторинг інцидентів</div>
+                    <div class="time">10:30–12:30 · 2г</div>
+                  </div>
+                  <div class="cal-block st-synced" style="top:288px;height:96px;">
+                    <div class="subj">Навчання персоналу</div>
+                    <div class="time">13:30–15:00 · 1.5г</div>
+                  </div>
+                </div>
+              </div>
+              <!-- Wednesday -->
+              <div class="cal-day">
+                <div class="cal-day-hdr today"><div class="d-name">СР</div><div class="d-num">19</div></div>
+                <div class="cal-slots" style="height:576px;">
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot lunch-zone"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div>
+                  <!-- Ghost suggestion -->
+                  <div class="cal-block cal-ghost" style="top:0;height:128px;">
+                    <div class="subj" style="color:#6366f1;">💡 Навчання персоналу</div>
+                    <div class="time" style="color:#6366f1;">AI suggestion · 2г</div>
+                    <div style="display:flex;gap:4px;margin-top:2px;">
+                      <button class="act-btn ok" style="color:#10b981;font-size:12px;">✓</button>
+                      <button class="act-btn del" style="color:#ef4444;font-size:12px;">✗</button>
+                    </div>
+                  </div>
+                  <div class="cal-block st-synced" style="top:160px;height:96px;">
+                    <div class="subj">Аудит мережі</div>
+                    <div class="time">11:30–13:00 · 1.5г</div>
+                  </div>
+                  <!-- Now line -->
+                  <div class="now-line" style="top:96px;"></div>
+                </div>
+              </div>
+              <!-- Thursday -->
+              <div class="cal-day">
+                <div class="cal-day-hdr"><div class="d-name">ЧТ</div><div class="d-num">20</div></div>
+                <div class="cal-slots" style="height:576px;">
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot lunch-zone"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-block st-synced" style="top:0;height:128px;">
+                    <div class="subj">Моніторинг інцидентів</div>
+                    <div class="time">9:00–11:00 · 2г</div>
+                  </div>
+                  <div class="cal-block st-collected" style="top:160px;height:128px;">
+                    <div class="subj">🔒 Моніторинг інцидентів</div>
+                    <div class="time">14:00–16:00 · зібрано</div>
+                  </div>
+                </div>
+              </div>
+              <!-- Friday -->
+              <div class="cal-day">
+                <div class="cal-day-hdr"><div class="d-name">ПТ</div><div class="d-num">21</div></div>
+                <div class="cal-slots" style="height:576px;">
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot lunch-zone"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-slot"></div><div class="cal-slot"></div>
+                  <div class="cal-block st-synced" style="top:0;height:96px;">
+                    <div class="subj">Управління доступом</div>
+                    <div class="time">9:00–10:30 · 1.5г</div>
+                  </div>
+                  <div class="cal-block st-returned" style="top:192px;height:96px;">
+                    <div class="subj">⚠️ Аудит мережі</div>
+                    <div class="time">15:00–16:30 · змінено</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       PANEL 4: ПЛАНУВАЛЬНИК — Task Picker + Зустріч
+       ═══════════════════════════════════════ -->
+  <div class="panel glass-panel">
+    <div class="panel-label planner">④ Планувальник — Task Picker + Модалка зустрічі</div>
+    <div class="panel-body custom-scroll" style="padding:10px;display:flex;flex-direction:column;gap:12px;">
+
+      <!-- Task Picker Dropdown -->
+      <div class="info-card" style="padding:0;overflow:visible;">
+        <div style="padding:8px 12px;border-bottom:1px solid rgba(226,232,240,0.3);">
+          <div class="sec-label">Task Picker — відкривається по кліку на блок календаря</div>
+        </div>
+
+        <!-- Templates section -->
+        <div style="padding:6px 12px 2px;">
+          <div class="prop-label">Шаблони задач</div>
+        </div>
+        <div class="task-row" style="padding:5px 12px;">
+          <span style="font-size:12px;">📋</span>
+          <div style="flex:1;">
+            <div style="font-size:11px;font-weight:500;">Перевірка логів SIEM</div>
+            <div style="font-size:9px;color:#94a3b8;">процедура 2.1 · 2 год</div>
+          </div>
+        </div>
+        <div class="task-row" style="padding:5px 12px;">
+          <span style="font-size:12px;">📋</span>
+          <div style="flex:1;">
+            <div style="font-size:11px;font-weight:500;">Аналіз вразливостей</div>
+            <div style="font-size:9px;color:#94a3b8;">процедура 3.2 · 4 год</div>
+          </div>
+        </div>
+        <div class="task-row" style="padding:5px 12px;">
+          <span style="font-size:12px;">📋</span>
+          <div style="flex:1;">
+            <div style="font-size:11px;font-weight:500;">Оновлення правил FW</div>
+            <div style="font-size:9px;color:#94a3b8;">процедура 1.4 · 1 год</div>
+          </div>
+        </div>
+        <div style="padding:4px 12px 6px;">
+          <button class="tool-btn" style="width:100%;justify-content:center;font-size:10px;">✨ Згенерувати шаблон (AI)</button>
+        </div>
+
+        <!-- Incomplete tasks -->
+        <div style="padding:4px 12px 2px;border-top:1px solid rgba(226,232,240,0.2);">
+          <div class="prop-label">Незавершені задачі</div>
+        </div>
+        <div class="task-row" style="padding:5px 12px;">
+          <span style="color:#3b82f6;font-size:11px;">○</span>
+          <div style="flex:1;">
+            <div style="font-size:11px;font-weight:500;">Звіт по інцидентах</div>
+            <div style="font-size:9px;color:#94a3b8;">0/4 год · до 14.03</div>
+          </div>
+        </div>
+        <div class="task-row" style="padding:5px 12px;">
+          <span style="color:#3b82f6;font-size:11px;">○</span>
+          <div style="flex:1;">
+            <div style="font-size:11px;font-weight:500;">Патчинг серверів</div>
+            <div style="font-size:9px;color:#94a3b8;">0/8 год · до 21.03</div>
+          </div>
+        </div>
+
+        <!-- Chief/Head tasks -->
+        <div style="padding:4px 12px 2px;border-top:1px solid rgba(226,232,240,0.2);">
+          <div class="prop-label">Задачі керівництва</div>
+        </div>
+        <div class="task-row" style="padding:5px 12px;">
+          <span style="color:#f59e0b;font-size:11px;">○</span>
+          <div style="flex:1;">
+            <div style="font-size:11px;font-weight:500;">Підготовка до аудиту</div>
+          </div>
+          <span class="badge badge-purple" style="font-size:8px;">CHIEF</span>
+          <span style="font-size:9px;color:#94a3b8;">0/6г</span>
+        </div>
+        <div class="task-row" style="padding:5px 12px;">
+          <span style="color:#f59e0b;font-size:11px;">○</span>
+          <div style="flex:1;">
+            <div style="font-size:11px;font-weight:500;">Інвентаризація ПЗ</div>
+          </div>
+          <span class="badge badge-cyan" style="font-size:8px;">HEAD</span>
+          <span style="font-size:9px;color:#94a3b8;">0/4г</span>
+        </div>
+
+        <!-- Drafts -->
+        <div style="padding:4px 12px 2px;border-top:1px solid rgba(226,232,240,0.2);">
+          <div class="prop-label">Чернетки</div>
+        </div>
+        <div class="task-row" style="padding:5px 12px;">
+          <span style="font-size:11px;">📝</span>
+          <div style="flex:1;"><div style="font-size:11px;font-weight:500;color:#64748b;">Нова процедура безпеки</div></div>
+        </div>
+        <div class="task-row" style="padding:5px 12px;">
+          <span style="font-size:11px;">📝</span>
+          <div style="flex:1;"><div style="font-size:11px;font-weight:500;color:#64748b;">Звіт для замовника</div></div>
+        </div>
+      </div>
+
+      <!-- Meeting Detail Modal -->
+      <div class="info-card" style="padding:0;">
+        <div class="detail-hdr" style="padding:10px 12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:13px;font-weight:700;color:#1e293b;">Нарада з керівництвом</div>
+              <div style="font-size:10px;color:#64748b;">18 березня 2026, 09:00–10:30</div>
+            </div>
+            <span class="badge badge-slate">external</span>
+          </div>
+        </div>
+        <div class="hdr-sep"></div>
+
+        <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px;">
+          <!-- Attendees -->
+          <div>
+            <div class="prop-label">Учасники</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px;">
+              <div style="display:flex;align-items:center;gap:4px;">
+                <div class="avatar" style="background:#334155;width:20px;height:20px;font-size:7px;">ДІ</div>
+                <span style="font-size:10px;">Директор ІБ</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;">
+                <div class="avatar" style="background:#6366f1;width:20px;height:20px;font-size:7px;">ІО</div>
+                <span style="font-size:10px;">Іванов О.</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;">
+                <div class="avatar" style="background:#8b5cf6;width:20px;height:20px;font-size:7px;">ПС</div>
+                <span style="font-size:10px;">Петренко С.</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;">
+                <div class="avatar" style="background:#06b6d4;width:20px;height:20px;font-size:7px;">КН</div>
+                <span style="font-size:10px;">Коваль Н.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Location -->
+          <div>
+            <div class="prop-label">Місце</div>
+            <div style="font-size:11px;color:#334155;">Microsoft Teams (онлайн)</div>
+          </div>
+
+          <!-- AI Summary -->
+          <div>
+            <div class="prop-label">AI Підсумок</div>
+            <div class="stat-cell" style="font-size:11px;line-height:1.5;color:#334155;">
+              <strong>Ключові рішення:</strong><br>
+              • MFA для сервісних акаунтів — до кінця квітня<br>
+              • Аудит хмарних ресурсів — відповідальний Іванов О.<br>
+              • Бюджет на Microsoft Sentinel — затверджено
+            </div>
+          </div>
+
+          <!-- Transcript preview -->
+          <div>
+            <div class="prop-label">Транскрипція</div>
+            <div style="font-size:10px;color:#64748b;line-height:1.4;max-height:48px;overflow:hidden;position:relative;">
+              Обговорили питання безпеки хмарної інфраструктури. Основні висновки: необхідно впровадити MFA для всіх сервісних акаунтів, провести повний аудит хмарних ресурсів...
+              <div style="position:absolute;bottom:0;left:0;right:0;height:20px;background:linear-gradient(transparent,rgba(255,255,255,0.9));"></div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div style="display:flex;gap:6px;padding-top:4px;">
+            <button class="tool-btn" style="flex:1;justify-content:center;background:rgba(99,102,241,0.08);color:#4f46e5;border-color:rgba(99,102,241,0.2);">💾 Зберегти як чернетку</button>
+            <button class="tool-btn" style="flex:1;justify-content:center;">📋 Створити задачу</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status legend -->
+      <div class="element-card" style="padding:8px 12px;">
+        <div class="sec-label" style="margin-bottom:6px;">Легенда статусів блоків</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:10px;">
+            <div style="width:12px;height:12px;border-radius:3px;border-left:3px solid #8b5cf6;background:rgba(139,92,246,0.08);"></div>
+            <span><strong>collected</strong> — зібрано в задачу</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:10px;">
+            <div style="width:12px;height:12px;border-radius:3px;border-left:3px solid #f59e0b;background:rgba(245,158,11,0.08);"></div>
+            <span><strong>returned</strong> — змінено в Outlook</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:10px;">
+            <div style="width:12px;height:12px;border-radius:3px;border-left:3px solid #3b82f6;background:rgba(59,130,246,0.08);"></div>
+            <span><strong>modified</strong> — потребує Push</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:10px;">
+            <div style="width:12px;height:12px;border-radius:3px;border-left:3px solid #10b981;background:rgba(16,185,129,0.08);"></div>
+            <span><strong>synced</strong> — в Outlook</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:10px;">
+            <div style="width:12px;height:12px;border-radius:3px;border-left:3px solid #64748b;background:rgba(100,116,139,0.08);"></div>
+            <span><strong>external</strong> — з Outlook</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:10px;">
+            <div style="width:12px;height:12px;border-radius:3px;border:2px dashed rgba(99,102,241,0.35);background:rgba(99,102,241,0.06);"></div>
+            <span><strong>ghost</strong> — AI suggestion</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

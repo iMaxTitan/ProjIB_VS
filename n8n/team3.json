@@ -1,0 +1,252 @@
+{
+  "name": "team3",
+  "nodes": [
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      },
+      "id": "a77572ef-52b9-4ba7-bdab-659303e28363",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        288
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "i8we5rZ4gmivre3P",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "2186f47a-204a-46cb-8c81-cf39d9ea2f9a",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.query }}",
+        "options": {
+          "systemMessage": "=# Overview\nВи – віртуальний помічник для Microsoft Teams, який допомагає надсилати повідомлення у чати або конкретним користувачам.\nВы – виртуальный помощник для Microsoft Teams, который помогает отправлять сообщения в чаты или конкретным пользователям.\n\n## Как обрабатывать запрос:\n1. Определить текст сообщения.\n2. Определить, куда отправить:\n   - Если указан чат → искать его в `getListChats`.\n   - Если указаны пользователи → искать их в списке чатов и определить `chatId`.\n3. Отправить сообщение в нужный чат с помощью `sendTeams`.\n\nПример запроса:\n- \"Передай сообщение Ивану Петренко и Ольге Власенко: Завтра собрание в 10:00.\"\n- \"Відправ це повідомлення у групу Керівництво: Плануємо зустріч на 15:00.\"\n\nЕсли чат или пользователи не найдены → вернуть ошибку."
+        }
+      },
+      "id": "bf8b57cf-01b2-44d7-a87b-76b010152d11",
+      "name": "Teams Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [
+        240,
+        0
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://graph.microsoft.com/v1.0/me/chats",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftTeamsOAuth2Api"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        368
+      ],
+      "id": "0b8d3e56-718c-4262-acec-1b552e1452c0",
+      "name": "getListChats",
+      "credentials": {
+        "microsoftTeamsOAuth2Api": {
+          "id": "Xv7bVTA0d2sRsd2m",
+          "name": "Microsoft Teams account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "getChatID",
+        "jsCode": "const chatNameOrUsers = $json.chatNameOrUsers.toLowerCase();\nconst chats = $json.value;\n\nlet chatFound = chats.find(c => c.topic && c.topic.toLowerCase() === chatNameOrUsers);\n\nif (!chatFound) {\n    chatFound = chats.find(c => c.members.some(user => \n        chatNameOrUsers.includes(user.displayName.toLowerCase())\n    ));\n}\n\nreturn chatFound ? [{ chatId: chatFound.id }] : [];"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        288,
+        368
+      ],
+      "id": "a8aa7ba4-50e2-400f-97f9-69d4f651a91e",
+      "name": "getChatID"
+    },
+    {
+      "parameters": {
+        "resource": "chatMessage",
+        "chatId": {
+          "__rl": true,
+          "value": "={{ $fromAI('ChatID', ``, 'string') }}",
+          "mode": "id"
+        },
+        "message": "={{ $fromAI('Message', ``, 'string') }}",
+        "options": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.microsoftTeamsTool",
+      "typeVersion": 2,
+      "position": [
+        112,
+        432
+      ],
+      "id": "4729f36c-daa2-411c-ac05-257143ec694f",
+      "name": "sendTeams",
+      "webhookId": "56eeb230-c669-4809-8d75-5c900d1d235e",
+      "credentials": {
+        "microsoftTeamsOAuth2Api": {
+          "id": "Xv7bVTA0d2sRsd2m",
+          "name": "Microsoft Teams account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "39c2f302-03be-4464-a17a-d7cc481d6d44",
+              "name": "=response",
+              "value": "={{$json.output}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d25b2fcc-e1ad-40f6-aa7f-5a29aecf635a",
+      "name": "Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        592,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7ab380a2-a8d3-421c-ab4e-748ea8fb7904",
+              "name": "response",
+              "value": "Unable to perform task. Please try again.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "83e6498b-3523-46fd-8e73-823c986fc5a4",
+      "name": "Try Again",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        608,
+        112
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Teams Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Teams Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "sendTeams": {
+      "ai_tool": [
+        [
+          {
+            "node": "Teams Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getChatID": {
+      "ai_tool": [
+        [
+          {
+            "node": "Teams Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getListChats": {
+      "ai_tool": [
+        [
+          {
+            "node": "Teams Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Teams Agent": {
+      "main": [
+        [
+          {
+            "node": "Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Try Again",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b08678e7-58ba-44c2-85c2-df01c17c5f44",
+  "meta": {
+    "instanceId": "1b7c25b262c0803b8bd2e97ba9e4425035f87e239473aca977c4899ed07f8360"
+  },
+  "id": "Jz3CCOTeNKcK9etx",
+  "tags": []
+}

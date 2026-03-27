@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CS Platform — Design System Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwindcss.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        }
+      }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .section-demo { @apply mb-12 pb-8 border-b border-slate-200; }
+    .demo-label { @apply text-xs font-bold uppercase tracking-wider text-indigo-400 mb-3; }
+    .demo-row { @apply flex flex-wrap items-center gap-3 mb-4; }
+    .glass-card { background: rgba(255,255,255,0.8); backdrop-filter: blur(12px); border: 1px solid rgba(148,163,184,0.3); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-700 p-6 max-w-5xl mx-auto">
+
+  <div class="mb-8">
+    <h1 class="text-2xl font-bold text-slate-900 tracking-tight">CS Platform — Design System</h1>
+    <p class="text-sm text-slate-500 mt-1">Предлагаемые стандарты единого оформления</p>
+  </div>
+
+  <!-- ================================ -->
+  <!-- 1. COLOR PALETTE                 -->
+  <!-- ================================ -->
+  <div class="section-demo">
+    <div class="demo-label">1. Палитра — Slate (единый серый, замена gray)</div>
+
+    <p class="text-sm text-slate-500 mb-4">Все нейтральные цвета через <code class="text-xs bg-slate-100 px-1.5 py-0.5 rounded">slate-*</code>. Никаких <code class="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded line-through">gray-*</code>.</p>
+
+    <div class="flex gap-1 mb-4">
+      <div class="flex flex-col items-center">
+        <div class="w-14 h-10 rounded-lg bg-slate-50 border border-slate-200"></div>
+        <span class="text-[10px] text-slate-400 mt-1">50</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <div class="w-14 h-10 rounded-lg bg-slate-100"></div>
+        <span class="text-[10px] text-slate-400 mt-1">100</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <div class="w-14 h-10 rounded-lg bg-slate-200"></div>
+        <span class="text-[10px] text-slate-400 mt-1">200</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <div class="w-14 h-10 rounded-lg bg-slate-300"></div>
+        <span class="text-[10px] text-slate-400 mt-1">300</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <div class="w-14 h-10 rounded-lg bg-slate-400"></div>
+        <span class="text-[10px] text-slate-400 mt-1">400</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <div class="w-14 h-10 rounded-lg bg-slate-500"></div>
+        <span class="text-[10px] text-slate-400 mt-1">500</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <div class="w-14 h-10 rounded-lg bg-slate-600"></div>
+        <span class="text-[10px] text-slate-400 mt-1">600</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <div class="w-14 h-10 rounded-lg bg-slate-700"></div>
+        <span class="text-[10px] text-slate-400 mt-1">700</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <div class="w-14 h-10 rounded-lg bg-slate-800"></div>
+        <span class="text-[10px] text-slate-400 mt-1">800</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <div class="w-14 h-10 rounded-lg bg-slate-900"></div>
+        <span class="text-[10px] text-slate-400 mt-1">900</span>
+      </div>
+    </div>
+
+    <p class="text-xs font-medium text-slate-500 mb-2">Семантические цвета</p>
+    <div class="flex gap-3 flex-wrap">
+      <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200">
+        <div class="w-4 h-4 rounded bg-indigo-500"></div>
+        <span class="text-xs font-medium text-indigo-700">Primary (indigo)</span>
+      </div>
+      <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200">
+        <div class="w-4 h-4 rounded bg-emerald-500"></div>
+        <span class="text-xs font-medium text-emerald-700">Success</span>
+      </div>
+      <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+        <div class="w-4 h-4 rounded bg-amber-500"></div>
+        <span class="text-xs font-medium text-amber-700">Warning</span>
+      </div>
+      <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
+        <div class="w-4 h-4 rounded bg-red-500"></div>
+        <span class="text-xs font-medium text-red-700">Error / Destructive</span>
+      </div>
+      <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200">
+        <div class="w-4 h-4 rounded bg-blue-500"></div>
+        <span class="text-xs font-medium text-blue-700">Info</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ -->
+  <!-- 2. TYPOGRAPHY                    -->
+  <!-- ================================ -->
+  <div class="section-demo">
+    <div class="demo-label">2. Типографика — 5 уровней</div>
+
+    <div class="space-y-4 bg-white rounded-2xl p-6 border border-slate-200">
+      <div class="pb-3 border-b border-slate-100">
+        <span class="text-[10px] font-mono text-slate-400">h1 — Заголовок страницы</span>
+        <h1 class="text-xl font-bold text-slate-900 tracking-tight">Квартальный план Q1 2026</h1>
+      </div>
+      <div class="pb-3 border-b border-slate-100">
+        <span class="text-[10px] font-mono text-slate-400">h2 — Заголовок секции</span>
+        <h2 class="text-lg font-semibold text-slate-800">Список задач на март</h2>
+      </div>
+      <div class="pb-3 border-b border-slate-100">
+        <span class="text-[10px] font-mono text-slate-400">h3 — Подзаголовок / название карточки</span>
+        <h3 class="text-base font-semibold text-slate-700">Процедура аудита серверов</h3>
+      </div>
+      <div class="pb-3 border-b border-slate-100">
+        <span class="text-[10px] font-mono text-slate-400">body — Основной текст</span>
+        <p class="text-sm text-slate-700 leading-relaxed">Плановые часы распределены по предприятиям согласно квартальному плану. Фактическое выполнение отслеживается в ежедневных задачах.</p>
+      </div>
+      <div class="pb-3 border-b border-slate-100">
+        <span class="text-[10px] font-mono text-slate-400">small — Вспомогательный текст / описание</span>
+        <p class="text-sm text-slate-500">Последнее обновление: 3 марта 2026</p>
+      </div>
+      <div class="pb-3 border-b border-slate-100">
+        <span class="text-[10px] font-mono text-slate-400">caption — Метка / подпись</span>
+        <p class="text-xs text-slate-500">12 документов загружено</p>
+      </div>
+      <div>
+        <span class="text-[10px] font-mono text-slate-400">label — Лейбл формы (единый стиль для ВСЕХ модулей)</span>
+        <label class="block text-sm font-medium text-slate-700 mt-1">Наименование процедуры</label>
+      </div>
+    </div>
+
+    <div class="mt-4 bg-slate-100/50 rounded-xl p-4">
+      <p class="text-xs font-medium text-slate-500 mb-2">Фиксированные классы:</p>
+      <table class="text-xs w-full">
+        <thead>
+          <tr class="text-left text-slate-400">
+            <th class="pb-1 pr-4">Уровень</th>
+            <th class="pb-1 pr-4">Tailwind</th>
+            <th class="pb-1">Когда</th>
+          </tr>
+        </thead>
+        <tbody class="text-slate-600">
+          <tr><td class="py-0.5 pr-4 font-medium">h1</td><td class="pr-4 font-mono text-[11px]">text-xl font-bold text-slate-900</td><td>Заголовок страницы / панели деталей</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">h2</td><td class="pr-4 font-mono text-[11px]">text-lg font-semibold text-slate-800</td><td>Секция внутри панели</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">h3</td><td class="pr-4 font-mono text-[11px]">text-base font-semibold text-slate-700</td><td>Название карточки / подсекции</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">body</td><td class="pr-4 font-mono text-[11px]">text-sm text-slate-700</td><td>Основной текст, описания</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">muted</td><td class="pr-4 font-mono text-[11px]">text-sm text-slate-500</td><td>Вспомогательный текст</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">caption</td><td class="pr-4 font-mono text-[11px]">text-xs text-slate-500</td><td>Подписи, метаданные</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">label</td><td class="pr-4 font-mono text-[11px]">text-sm font-medium text-slate-700</td><td>Лейблы форм (все модули)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ================================ -->
+  <!-- 3. BADGES                        -->
+  <!-- ================================ -->
+  <div class="section-demo">
+    <div class="demo-label">3. Бейджи — один размер, семантические цвета</div>
+
+    <p class="text-sm text-slate-500 mb-4">Один единственный размер: <code class="text-xs bg-slate-100 px-1.5 py-0.5 rounded">text-xs px-2 py-0.5 rounded-full font-medium</code></p>
+
+    <div class="demo-row">
+      <span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600">Нейтральный</span>
+      <span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">Primary</span>
+      <span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700">Выполнено</span>
+      <span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">Внимание</span>
+      <span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">Ошибка</span>
+      <span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">Инфо</span>
+      <span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700">Категория</span>
+    </div>
+
+    <p class="text-xs text-slate-400 mt-2">С иконкой:</p>
+    <div class="demo-row mt-2">
+      <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        Завершён
+      </span>
+      <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M12 3l9.5 16.5H2.5L12 3z"/></svg>
+        130% плана
+      </span>
+      <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        5 документов
+      </span>
+    </div>
+
+    <div class="mt-4 p-3 bg-red-50/50 border border-red-200/50 rounded-xl">
+      <p class="text-xs text-red-600 font-medium mb-1">Запрещено (так было раньше):</p>
+      <div class="flex gap-2 items-center">
+        <span class="inline-flex text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-slate-200 text-slate-500 line-through">text-[10px] px-1.5</span>
+        <span class="inline-flex text-[9px] px-1 py-0.5 rounded-full font-semibold bg-slate-200 text-slate-500 line-through">text-[9px] px-1</span>
+        <span class="inline-flex text-xs px-3 py-1.5 rounded-full font-medium bg-slate-200 text-slate-500 line-through">px-3 py-1.5</span>
+        <span class="text-xs text-red-500">разные размеры</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ -->
+  <!-- 4. BUTTONS                       -->
+  <!-- ================================ -->
+  <div class="section-demo">
+    <div class="demo-label">4. Кнопки — всегда через компонент Button</div>
+
+    <p class="text-xs text-slate-500 mb-3">Размер <b>sm</b> — стандарт для тулбаров и панелей дашборда</p>
+
+    <div class="space-y-4">
+      <div>
+        <p class="text-xs text-slate-400 mb-2">Варианты (размер sm — для дашборда):</p>
+        <div class="demo-row">
+          <button class="inline-flex items-center justify-center h-9 px-3 py-2 text-sm font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-colors">
+            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Создать
+          </button>
+          <button class="inline-flex items-center justify-center h-9 px-3 py-2 text-sm font-medium rounded-md border-2 border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-colors">
+            Отмена
+          </button>
+          <button class="inline-flex items-center justify-center h-9 px-3 py-2 text-sm font-medium rounded-md bg-slate-100 text-slate-900 hover:bg-slate-200 transition-colors">
+            Secondary
+          </button>
+          <button class="inline-flex items-center justify-center h-9 px-3 py-2 text-sm font-medium rounded-md hover:bg-slate-100 text-slate-700 transition-colors">
+            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Обновить
+          </button>
+          <button class="inline-flex items-center justify-center h-9 px-3 py-2 text-sm font-medium rounded-md bg-red-500 text-white hover:bg-red-600 shadow-sm transition-colors">
+            Удалить
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <p class="text-xs text-slate-400 mb-2">Иконки-кнопки (в заголовках карточек):</p>
+        <div class="demo-row">
+          <div class="flex items-center gap-1 bg-gradient-to-r from-indigo-400/80 to-blue-400/80 p-3 rounded-xl">
+            <button class="p-2 hover:bg-white/20 rounded-xl transition-colors text-white/80 hover:text-white" title="Редактировать">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            </button>
+            <button class="p-2 hover:bg-white/20 rounded-xl transition-colors text-white/80 hover:text-white" title="Копировать">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/></svg>
+            </button>
+            <button class="p-2 rounded-xl transition-colors text-white/80 hover:text-white hover:bg-red-500/25" title="Удалить">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+            <button class="p-2 hover:bg-white/20 rounded-xl transition-colors text-white/80 hover:text-white" title="Закрыть">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <span class="text-xs text-slate-400">p-2, w-4 h-4 иконка, hover:bg-white/20</span>
+        </div>
+      </div>
+
+      <div class="p-3 bg-red-50/50 border border-red-200/50 rounded-xl">
+        <p class="text-xs text-red-600 font-medium mb-1">Запрещено:</p>
+        <p class="text-xs text-red-500">Сырой &lt;button className="px-3 py-2 bg-indigo-500..."&gt; без компонента Button</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ -->
+  <!-- 5. CARDS & HEADERS               -->
+  <!-- ================================ -->
+  <div class="section-demo">
+    <div class="demo-label">5. Карточки и заголовки — единый стиль</div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- Gradient Detail Card -->
+      <div class="rounded-3xl shadow-lg border border-white/30 overflow-hidden" style="background: rgba(255,255,255,0.8); backdrop-filter: blur(12px);">
+        <div class="p-4 bg-gradient-to-r from-amber-400/80 to-orange-400/80 text-white">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+              </div>
+              <div>
+                <h1 class="text-xl font-bold tracking-tight">Аудит серверов</h1>
+                <p class="text-sm text-white/70">Процедура ИТ-безопасности</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-1">
+              <button class="p-2 hover:bg-white/20 rounded-xl transition-colors text-white/80 hover:text-white">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              </button>
+              <button class="p-2 rounded-xl transition-colors text-white/80 hover:text-white hover:bg-red-500/25">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="p-5 space-y-4">
+          <!-- DetailSection -->
+          <div>
+            <div class="text-xs font-bold uppercase tracking-wider text-amber-400 pl-1 flex items-center gap-1.5 mb-2">
+              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              Основная информация
+            </div>
+            <p class="text-sm text-slate-700 leading-relaxed">Ежеквартальная проверка состояния серверной инфраструктуры.</p>
+          </div>
+          <!-- StatBox -->
+          <div class="flex items-center gap-3 p-3 rounded-2xl" style="background: rgba(255,255,255,0.8); backdrop-filter: blur(12px); border: 1px solid rgba(148,163,184,0.3);">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-500/10 text-amber-600 border border-amber-500/20 shadow-sm">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div>
+              <div class="text-base font-bold text-slate-900 leading-none font-mono tracking-tighter">24.5 ч</div>
+              <div class="text-[10px] font-bold text-slate-500 leading-tight mt-1 uppercase tracking-widest">Плановые часы</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Simple Card -->
+      <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center">
+          <h2 class="text-lg font-semibold text-slate-800">Сотрудники отдела</h2>
+          <button class="inline-flex items-center justify-center h-8 px-2.5 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-colors">
+            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Добавить
+          </button>
+        </div>
+        <div class="p-4 space-y-2">
+          <!-- List items -->
+          <button class="w-full p-3 rounded-xl border text-left transition-all bg-indigo-50 border-indigo-300 shadow-sm">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-slate-800">Иванов Пётр Сергеевич</p>
+                <p class="text-xs text-slate-500 mt-0.5">Ведущий инженер</p>
+              </div>
+              <span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700">100%</span>
+            </div>
+          </button>
+          <button class="w-full p-3 rounded-xl border text-left transition-all bg-white border-slate-200 hover:border-indigo-300 hover:shadow-sm">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-slate-800">Сидорова Анна Викторовна</p>
+                <p class="text-xs text-slate-500 mt-0.5">Инженер</p>
+              </div>
+              <span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">75%</span>
+            </div>
+          </button>
+          <button class="w-full p-3 rounded-xl border text-left transition-all bg-white border-slate-200 hover:border-indigo-300 hover:shadow-sm">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-slate-800">Козлов Дмитрий Алексеевич</p>
+                <p class="text-xs text-slate-500 mt-0.5">Техник</p>
+              </div>
+              <span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">45%</span>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ -->
+  <!-- 6. FORMS                         -->
+  <!-- ================================ -->
+  <div class="section-demo">
+    <div class="demo-label">6. Формы — единый стиль лейблов и полей</div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 max-w-md space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Наименование задачи</label>
+        <input type="text" value="Проверка резервного копирования" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-300 transition-colors">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Предприятие</label>
+        <select class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-300 transition-colors">
+          <option>ООО "Инфраструктура"</option>
+          <option>АО "Серверные технологии"</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Часы</label>
+        <input type="number" value="8" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-300 transition-colors">
+        <p class="text-xs text-slate-500 mt-1">Максимум 8 часов в день</p>
+      </div>
+
+      <!-- Error state -->
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Процедура</label>
+        <input type="text" class="w-full px-3 py-2 text-sm rounded-lg border border-red-300 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-300 transition-colors">
+        <p class="text-xs text-red-600 mt-1">Выберите процедуру</p>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button class="inline-flex items-center justify-center h-9 px-3 py-2 text-sm font-medium rounded-md border-2 border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-colors">Отмена</button>
+        <button class="inline-flex items-center justify-center h-9 px-3 py-2 text-sm font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-colors">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ -->
+  <!-- 7. EMPTY & LOADING               -->
+  <!-- ================================ -->
+  <div class="section-demo">
+    <div class="demo-label">7. Пустые состояния и загрузка — стандарт</div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- Empty State -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-8 flex flex-col items-center justify-center text-center">
+        <div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        </div>
+        <h3 class="text-base font-semibold text-slate-700 mb-1">Нет документов</h3>
+        <p class="text-sm text-slate-500 mb-4">Загрузите первый документ в базу знаний</p>
+        <button class="inline-flex items-center justify-center h-9 px-3 py-2 text-sm font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-colors">
+          <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          Загрузить
+        </button>
+      </div>
+
+      <!-- Loading Skeleton -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+        <p class="text-xs text-slate-400 mb-2">Skeleton-загрузка (повторяет форму контента):</p>
+        <!-- Skeleton list items -->
+        <div class="animate-pulse space-y-3">
+          <div class="flex items-center gap-3 p-3 rounded-xl border border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-slate-200"></div>
+            <div class="flex-1 space-y-2">
+              <div class="h-3.5 bg-slate-200 rounded-full w-3/4"></div>
+              <div class="h-3 bg-slate-100 rounded-full w-1/2"></div>
+            </div>
+            <div class="h-5 w-12 bg-slate-200 rounded-full"></div>
+          </div>
+          <div class="flex items-center gap-3 p-3 rounded-xl border border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-slate-200"></div>
+            <div class="flex-1 space-y-2">
+              <div class="h-3.5 bg-slate-200 rounded-full w-2/3"></div>
+              <div class="h-3 bg-slate-100 rounded-full w-2/5"></div>
+            </div>
+            <div class="h-5 w-12 bg-slate-200 rounded-full"></div>
+          </div>
+          <div class="flex items-center gap-3 p-3 rounded-xl border border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-slate-200"></div>
+            <div class="flex-1 space-y-2">
+              <div class="h-3.5 bg-slate-200 rounded-full w-4/5"></div>
+              <div class="h-3 bg-slate-100 rounded-full w-1/3"></div>
+            </div>
+            <div class="h-5 w-12 bg-slate-200 rounded-full"></div>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-400 mt-4 mb-2">Spinner (только для кнопок / inline):</p>
+        <div class="flex items-center gap-3">
+          <div class="w-5 h-5 border-2 rounded-full border-indigo-500 border-t-transparent animate-spin"></div>
+          <button class="inline-flex items-center justify-center h-9 px-3 py-2 text-sm font-medium rounded-md bg-indigo-600 text-white opacity-70 cursor-not-allowed">
+            <svg class="w-4 h-4 mr-1.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            Сохранение...
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ -->
+  <!-- 8. ERRORS & TOASTS               -->
+  <!-- ================================ -->
+  <div class="section-demo">
+    <div class="demo-label">8. Ошибки и уведомления</div>
+
+    <div class="space-y-3 max-w-lg">
+      <!-- Inline error in modal -->
+      <div class="p-3 bg-red-50 border border-red-100 rounded-xl">
+        <p class="text-sm text-red-600">Ошибка при сохранении: превышен лимит часов</p>
+      </div>
+
+      <!-- Warning inline -->
+      <div class="p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-center gap-2">
+        <svg class="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M12 3l9.5 16.5H2.5L12 3z"/></svg>
+        <p class="text-sm text-amber-700">На этой неделе уже использовано 36 из 40 часов</p>
+      </div>
+
+      <!-- Toast examples -->
+      <p class="text-xs text-slate-400 mt-4">Toast-уведомления (sonner):</p>
+      <div class="flex gap-2 flex-wrap">
+        <div class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 shadow-lg text-sm">
+          <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          <span class="text-slate-700">Сохранено</span>
+        </div>
+        <div class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 shadow-lg text-sm">
+          <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <span class="text-slate-700">Ошибка при удалении</span>
+        </div>
+        <div class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 shadow-lg text-sm">
+          <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M12 3l9.5 16.5H2.5L12 3z"/></svg>
+          <span class="text-slate-700">Выберите процедуру</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ -->
+  <!-- 9. STAT CARDS                    -->
+  <!-- ================================ -->
+  <div class="section-demo">
+    <div class="demo-label">9. Карточки статистики</div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-sm font-semibold text-slate-700">Задачи</span>
+          <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        </div>
+        <div class="text-2xl font-bold text-indigo-600 mt-1">127</div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-sm font-semibold text-slate-700">Часы</span>
+          <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div class="text-2xl font-bold text-emerald-600 mt-1">1,024</div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-sm font-semibold text-slate-700">KPI</span>
+          <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        </div>
+        <div class="text-2xl font-bold text-amber-600 mt-1">98%</div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-sm font-semibold text-slate-700">Документы</span>
+          <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        </div>
+        <div class="text-2xl font-bold text-purple-600 mt-1">42</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ -->
+  <!-- 10. GROUP HEADERS & TABS         -->
+  <!-- ================================ -->
+  <div class="section-demo">
+    <div class="demo-label">10. Табы и групповые заголовки</div>
+
+    <!-- Tabs -->
+    <p class="text-xs text-slate-400 mb-2">DashboardTopTabs (единый компонент, без кастомных радио-кнопок):</p>
+    <div class="flex items-end gap-0.5 mb-4">
+      <button class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-lg border-t border-l border-r bg-indigo-500 border-indigo-500 text-white shadow-sm -mb-px">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        Планы
+      </button>
+      <button class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-lg border-t border-l border-r bg-indigo-50/70 border-indigo-200/50 text-indigo-600 hover:bg-indigo-100/70 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Отчёты
+      </button>
+      <button class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-lg border-t border-l border-r bg-indigo-50/70 border-indigo-200/50 text-indigo-600 hover:bg-indigo-100/70 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        Справочники
+      </button>
+    </div>
+
+    <!-- Group Header -->
+    <p class="text-xs text-slate-400 mb-2">GroupHeader (градиентный заголовок группы):</p>
+    <div class="space-y-2 max-w-md">
+      <div class="flex items-center gap-1">
+        <button class="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 rounded-lg text-left bg-gradient-to-r from-purple-100/80 to-violet-50/80 border border-purple-200/50 hover:from-purple-200/80 hover:to-violet-100/80 transition-colors">
+          <svg class="h-4 w-4 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          <span class="block truncate text-sm font-semibold text-purple-700">Аудит и безопасность</span>
+          <span class="text-xs px-2 py-0.5 rounded-full shrink-0 text-purple-500 bg-white/70">12</span>
+        </button>
+        <button class="h-8 w-8 min-w-8 flex items-center justify-center rounded-lg border border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        </button>
+      </div>
+      <div class="flex items-center gap-1">
+        <button class="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 rounded-lg text-left bg-gradient-to-r from-amber-100/80 to-orange-50/80 border border-amber-200/50 hover:from-amber-200/80 hover:to-orange-100/80 transition-colors">
+          <svg class="h-4 w-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          <span class="block truncate text-sm font-semibold text-amber-700">Инфраструктура</span>
+          <span class="text-xs px-2 py-0.5 rounded-full shrink-0 text-amber-500 bg-white/70">8</span>
+        </button>
+        <button class="h-8 w-8 min-w-8 flex items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================ -->
+  <!-- 11. TWO-PANEL LAYOUT             -->
+  <!-- ================================ -->
+  <div class="section-demo">
+    <div class="demo-label">11. Двухпанельный layout (TwoPanelLayout)</div>
+
+    <p class="text-xs text-slate-500 mb-3">Левая панель — список/фильтры. Правая панель — детали. Resizable разделитель. На мобильных — BottomDrawer.</p>
+
+    <div class="border border-slate-200 rounded-2xl overflow-hidden bg-white" style="height: 420px;">
+      <div class="flex h-full">
+        <!-- Left Panel -->
+        <div class="w-[280px] min-w-[280px] border-r border-slate-200 flex flex-col bg-white">
+          <!-- Left Panel Header -->
+          <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-slate-800">Процедуры</h2>
+            <button class="inline-flex items-center justify-center h-7 px-2 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-colors">
+              <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+              Новая
+            </button>
+          </div>
+
+          <!-- Search -->
+          <div class="px-3 py-2 border-b border-slate-100">
+            <div class="relative">
+              <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input type="text" placeholder="Поиск..." class="w-full pl-9 pr-3 py-1.5 text-sm rounded-lg border border-slate-200 bg-white/60 placeholder-slate-400 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-300 transition-colors">
+            </div>
+          </div>
+
+          <!-- Group + List Items -->
+          <div class="flex-1 overflow-y-auto p-2 space-y-2">
+            <!-- Group Header -->
+            <button class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left bg-gradient-to-r from-purple-100/80 to-violet-50/80 border border-purple-200/50">
+              <svg class="h-4 w-4 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+              <span class="text-sm font-semibold text-purple-700 truncate">Аудит</span>
+              <span class="text-xs px-2 py-0.5 rounded-full text-purple-500 bg-white/70 ml-auto">3</span>
+            </button>
+
+            <!-- Selected item -->
+            <button class="w-full p-2.5 rounded-xl border text-left bg-indigo-50 border-indigo-300 shadow-sm">
+              <p class="text-sm font-medium text-slate-800 truncate">Аудит серверов</p>
+              <p class="text-xs text-slate-500 mt-0.5">Ежеквартально</p>
+            </button>
+            <!-- Normal item -->
+            <button class="w-full p-2.5 rounded-xl border text-left bg-white border-slate-200 hover:border-indigo-300 hover:shadow-sm transition-all">
+              <p class="text-sm font-medium text-slate-800 truncate">Проверка бэкапов</p>
+              <p class="text-xs text-slate-500 mt-0.5">Ежемесячно</p>
+            </button>
+            <button class="w-full p-2.5 rounded-xl border text-left bg-white border-slate-200 hover:border-indigo-300 hover:shadow-sm transition-all">
+              <p class="text-sm font-medium text-slate-800 truncate">Анализ логов безопасности</p>
+              <p class="text-xs text-slate-500 mt-0.5">Еженедельно</p>
+            </button>
+
+            <!-- Another group -->
+            <button class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left bg-gradient-to-r from-amber-100/80 to-orange-50/80 border border-amber-200/50">
+              <svg class="h-4 w-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              <span class="text-sm font-semibold text-amber-700 truncate">Инфраструктура</span>
+              <span class="text-xs px-2 py-0.5 rounded-full text-amber-500 bg-white/70 ml-auto">5</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Resizer -->
+        <div class="w-1 bg-slate-100 hover:bg-indigo-300 cursor-col-resize transition-colors flex-shrink-0 flex items-center justify-center group">
+          <div class="w-0.5 h-8 bg-slate-300 group-hover:bg-indigo-400 rounded-full transition-colors"></div>
+        </div>
+
+        <!-- Right Panel (Details) -->
+        <div class="flex-1 overflow-y-auto bg-indigo-50/30">
+          <!-- Gradient Detail Card -->
+          <div class="rounded-none" style="background: rgba(255,255,255,0.8); backdrop-filter: blur(12px);">
+            <div class="p-4 bg-gradient-to-r from-indigo-400/80 to-blue-400/80 text-white">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                  </div>
+                  <div>
+                    <h1 class="text-xl font-bold tracking-tight">Аудит серверов</h1>
+                    <p class="text-sm text-white/70">Процедура ИТ-безопасности</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button class="p-2 hover:bg-white/20 rounded-xl transition-colors text-white/80 hover:text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                  </button>
+                  <button class="p-2 rounded-xl transition-colors text-white/80 hover:text-white hover:bg-red-500/25">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="p-5 space-y-4">
+              <div>
+                <div class="text-xs font-bold uppercase tracking-wider text-indigo-400 pl-1 flex items-center gap-1.5 mb-2">
+                  <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  Описание
+                </div>
+                <p class="text-sm text-slate-700 leading-relaxed">Ежеквартальная проверка состояния серверной инфраструктуры, включая физические серверы и виртуальные машины.</p>
+              </div>
+              <div class="flex gap-3">
+                <div class="flex items-center gap-3 p-3 rounded-2xl flex-1" style="background: rgba(255,255,255,0.8); backdrop-filter: blur(12px); border: 1px solid rgba(148,163,184,0.3);">
+                  <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  </div>
+                  <div>
+                    <div class="text-base font-bold text-slate-900 leading-none font-mono tracking-tighter">24.5 ч</div>
+                    <div class="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest">Плановые</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3 p-3 rounded-2xl flex-1" style="background: rgba(255,255,255,0.8); backdrop-filter: blur(12px); border: 1px solid rgba(148,163,184,0.3);">
+                  <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                  </div>
+                  <div>
+                    <div class="text-base font-bold text-slate-900 leading-none font-mono tracking-tighter">22.0 ч</div>
+                    <div class="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest">Факт</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="text-xs text-slate-400 mt-2">Desktop: split с resizable. Mobile: детали в BottomDrawer. Компонент: <code class="bg-slate-100 px-1 rounded">TwoPanelLayout</code></p>
+  </div>
+
+  <!-- ================================ -->
+  <!-- 12. TABLES (ReportTableStyles)   -->
+  <!-- ================================ -->
+  <div class="section-demo">
+    <div class="demo-label">12. Таблицы — стиль сводного отчёта (ReportTableStyles.ts)</div>
+
+    <p class="text-xs text-slate-500 mb-3">Единый источник: <code class="bg-slate-100 px-1 rounded">ReportTableStyles.ts</code>. Все таблицы отчётов используют эти стили.</p>
+
+    <!-- Toolbar with segmented tabs + action buttons -->
+    <div class="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+
+      <!-- Toolbar -->
+      <div class="px-3 sm:px-4 py-2.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between gap-2 flex-wrap">
+        <!-- Segmented tabs -->
+        <div class="inline-flex rounded-lg bg-slate-200/60 p-0.5">
+          <button class="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md bg-white text-indigo-700 shadow-sm transition-colors focus:outline-none">По процедурам</button>
+          <button class="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md text-slate-500 hover:text-slate-700 transition-colors focus:outline-none">По компаниям</button>
+          <button class="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md text-slate-500 hover:text-slate-700 transition-colors focus:outline-none">По сотрудникам</button>
+        </div>
+        <!-- Action buttons -->
+        <div class="flex items-center gap-1.5">
+          <button class="px-2.5 py-1 text-sm font-medium rounded-lg border inline-flex items-center gap-1.5 border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            AI
+          </button>
+          <button class="px-2.5 py-1 text-sm font-medium rounded-lg border inline-flex items-center gap-1.5 border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+            PDF
+          </button>
+          <button class="px-2.5 py-1 text-sm font-medium rounded-lg border inline-flex items-center gap-1.5 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            DOCX
+          </button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs table-fixed">
+          <thead class="sticky top-0 z-10">
+            <tr class="border-b border-slate-200 bg-slate-50/50 text-slate-600">
+              <th class="text-left px-1.5 py-1.5 font-semibold border-r border-slate-200/80" style="width:180px;">Сотрудник</th>
+              <th class="text-left px-1.5 py-1.5 font-semibold border-r border-slate-200/80" style="width:160px;">Процедура</th>
+              <th class="text-center px-1.5 py-1.5 font-semibold border-r border-slate-200/80" style="width:70px;">План</th>
+              <th class="text-center px-1.5 py-1.5 font-semibold border-r border-slate-200/80" style="width:70px;">Факт</th>
+              <th class="text-center px-1.5 py-1.5 font-semibold border-r border-slate-200/80" style="width:55px;">%</th>
+              <th class="text-center px-1.5 py-1.5 font-semibold" style="width:90px;">Статус</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Row 0: white -->
+            <tr class="border-b border-slate-100 transition-colors hover:bg-indigo-50/30 bg-white align-top">
+              <td class="px-1.5 py-1.5 text-slate-700 font-medium border-r border-slate-100 truncate">Иванов П.С.</td>
+              <td class="px-1.5 py-1.5 text-slate-500 border-r border-slate-100 truncate">Аудит серверов</td>
+              <td class="px-1.5 py-1.5 text-slate-700 text-center tabular-nums border-r border-slate-100">24,5</td>
+              <td class="px-1.5 py-1.5 text-slate-700 text-center tabular-nums border-r border-slate-100">26,0</td>
+              <td class="px-1.5 py-1.5 text-center tabular-nums font-medium border-r border-slate-100 text-emerald-600">106%</td>
+              <td class="px-1.5 py-1.5 text-center"><span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700">Выполнено</span></td>
+            </tr>
+            <!-- Row 1: zebra -->
+            <tr class="border-b border-slate-100 transition-colors hover:bg-indigo-50/30 bg-slate-50/30 align-top">
+              <td class="px-1.5 py-1.5 text-slate-700 font-medium border-r border-slate-100 truncate">Сидорова А.В.</td>
+              <td class="px-1.5 py-1.5 text-slate-500 border-r border-slate-100 truncate">Проверка бэкапов</td>
+              <td class="px-1.5 py-1.5 text-slate-700 text-center tabular-nums border-r border-slate-100">16,0</td>
+              <td class="px-1.5 py-1.5 text-slate-700 text-center tabular-nums border-r border-slate-100">12,5</td>
+              <td class="px-1.5 py-1.5 text-center tabular-nums font-medium border-r border-slate-100 text-amber-600">78%</td>
+              <td class="px-1.5 py-1.5 text-center"><span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">В работе</span></td>
+            </tr>
+            <!-- Row 2: white -->
+            <tr class="border-b border-slate-100 transition-colors hover:bg-indigo-50/30 bg-white align-top">
+              <td class="px-1.5 py-1.5 text-slate-700 font-medium border-r border-slate-100 truncate">Козлов Д.А.</td>
+              <td class="px-1.5 py-1.5 text-slate-500 border-r border-slate-100 truncate">Анализ логов</td>
+              <td class="px-1.5 py-1.5 text-slate-700 text-center tabular-nums border-r border-slate-100">20,0</td>
+              <td class="px-1.5 py-1.5 text-slate-700 text-center tabular-nums border-r border-slate-100">8,0</td>
+              <td class="px-1.5 py-1.5 text-center tabular-nums font-medium border-r border-slate-100 text-red-600">40%</td>
+              <td class="px-1.5 py-1.5 text-center"><span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">Отставание</span></td>
+            </tr>
+            <!-- Row 3: zebra -->
+            <tr class="border-b border-slate-100 transition-colors hover:bg-indigo-50/30 bg-slate-50/30 align-top">
+              <td class="px-1.5 py-1.5 text-slate-700 font-medium border-r border-slate-100 truncate">Петрова М.И.</td>
+              <td class="px-1.5 py-1.5 text-slate-500 border-r border-slate-100 truncate">Аудит серверов</td>
+              <td class="px-1.5 py-1.5 text-slate-700 text-center tabular-nums border-r border-slate-100">30,0</td>
+              <td class="px-1.5 py-1.5 text-slate-700 text-center tabular-nums border-r border-slate-100">42,0</td>
+              <td class="px-1.5 py-1.5 text-center tabular-nums font-medium border-r border-slate-100 text-amber-600">140%</td>
+              <td class="px-1.5 py-1.5 text-center"><span class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">Превышение</span></td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr class="border-t-2 border-slate-300 bg-slate-50">
+              <td class="px-1.5 py-2 font-bold text-slate-800 border-r border-slate-100" colspan="2">Итого</td>
+              <td class="px-1.5 py-2 font-bold text-slate-800 text-center tabular-nums border-r border-slate-100">90,5</td>
+              <td class="px-1.5 py-2 font-bold text-slate-800 text-center tabular-nums border-r border-slate-100">88,5</td>
+              <td class="px-1.5 py-2 font-bold text-indigo-700 text-center tabular-nums border-r border-slate-100">98%</td>
+              <td class="px-1.5 py-2"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Reference -->
+    <div class="mt-4 bg-slate-100/50 rounded-xl p-4">
+      <p class="text-xs font-medium text-slate-500 mb-2">Источник стилей: <code class="bg-white px-1 rounded">ReportTableStyles.ts</code></p>
+      <table class="text-xs w-full">
+        <tbody class="text-slate-600">
+          <tr><td class="py-0.5 pr-4 font-medium w-32">Рамка</td><td class="font-mono text-[11px]">rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">Таблица</td><td class="font-mono text-[11px]">w-full text-xs table-fixed</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">Шапка thead</td><td class="font-mono text-[11px]">sticky top-0 z-10</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">Строка шапки</td><td class="font-mono text-[11px]">border-b border-slate-200 bg-slate-50/50 text-slate-600</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">th ячейка</td><td class="font-mono text-[11px]">px-1.5 py-1.5 font-semibold + text-left|center + border-r border-slate-200/80</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">Строка body</td><td class="font-mono text-[11px]">border-b border-slate-100 hover:bg-indigo-50/30 align-top</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">Зебра (чётные)</td><td class="font-mono text-[11px]">bg-slate-50/30</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">td ячейка</td><td class="font-mono text-[11px]">px-1.5 py-1.5 text-slate-700 tabular-nums + border-r border-slate-100</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">Нули</td><td class="font-mono text-[11px]">text-slate-300</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">Итого tfoot</td><td class="font-mono text-[11px]">border-t-2 border-slate-300 bg-slate-50 font-bold</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">Гранд-тотал</td><td class="font-mono text-[11px]">font-bold text-indigo-700</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ================================ -->
+  <!-- 13. SEGMENTED TABS (inner)       -->
+  <!-- ================================ -->
+  <div class="section-demo" style="border: none;">
+    <div class="demo-label">13. Сегментированные табы (внутри панели)</div>
+
+    <p class="text-xs text-slate-500 mb-3">Для переключения видов внутри правой панели (отчёты, детали). Заменяет кастомные radio-кнопки.</p>
+
+    <div class="space-y-4">
+      <!-- Variant 1: indigo -->
+      <div>
+        <p class="text-xs text-slate-400 mb-2">Стандартный (indigo):</p>
+        <div class="inline-flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+          <button class="px-3 py-1.5 text-xs font-medium rounded-md bg-white text-slate-800 shadow-sm transition-colors">По процедурам</button>
+          <button class="px-3 py-1.5 text-xs font-medium rounded-md text-slate-500 hover:text-slate-700 hover:bg-white/50 transition-colors">По компаниям</button>
+          <button class="px-3 py-1.5 text-xs font-medium rounded-md text-slate-500 hover:text-slate-700 hover:bg-white/50 transition-colors">По сотрудникам</button>
+        </div>
+      </div>
+
+      <!-- Variant 2: colored context -->
+      <div>
+        <p class="text-xs text-slate-400 mb-2">С цветовым контекстом (в рамке отчёта):</p>
+        <div class="inline-flex items-center gap-1 p-1 bg-indigo-50 rounded-lg border border-indigo-100">
+          <button class="px-3 py-1.5 text-xs font-medium rounded-md bg-indigo-500 text-white shadow-sm transition-colors">План</button>
+          <button class="px-3 py-1.5 text-xs font-medium rounded-md text-indigo-600 hover:bg-indigo-100 transition-colors">Отчёт</button>
+          <button class="px-3 py-1.5 text-xs font-medium rounded-md text-indigo-600 hover:bg-indigo-100 transition-colors">Отделы</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4 bg-slate-100/50 rounded-xl p-4">
+      <p class="text-xs font-medium text-slate-500 mb-2">Источник: <code class="bg-white px-1 rounded">reportSegmentedButtonClass()</code> из <code class="bg-white px-1 rounded">ReportTableStyles.ts</code></p>
+      <table class="text-xs w-full">
+        <tbody class="text-slate-600">
+          <tr><td class="py-0.5 pr-4 font-medium w-28">Контейнер</td><td class="font-mono text-[11px]">inline-flex rounded-lg bg-slate-200/60 p-0.5</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">Активный</td><td class="font-mono text-[11px]">bg-white text-indigo-700 shadow-sm</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">Неактивный</td><td class="font-mono text-[11px]">text-slate-500 hover:text-slate-700</td></tr>
+          <tr><td class="py-0.5 pr-4 font-medium">Общие</td><td class="font-mono text-[11px]">px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ================================ -->
+  <!-- SUMMARY                          -->
+  <!-- ================================ -->
+  <div class="mt-8 p-5 bg-indigo-50 rounded-xl border border-indigo-200">
+    <p class="text-base font-bold text-indigo-800 mb-2">Этот файл — живой справочник дизайна</p>
+    <p class="text-sm text-indigo-600 mb-3">Хочешь поменять стиль? Открой этот HTML, покажи что менять — и скажи "измени стиль вот этого элемента".</p>
+
+    <p class="text-sm font-semibold text-indigo-700 mb-1">Покрытые компоненты (13 секций):</p>
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-1 text-sm text-indigo-600">
+      <div>1. Палитра цветов</div>
+      <div>2. Типографика</div>
+      <div>3. Бейджи</div>
+      <div>4. Кнопки</div>
+      <div>5. Карточки и заголовки</div>
+      <div>6. Формы</div>
+      <div>7. Пустые + загрузка</div>
+      <div>8. Ошибки и toast</div>
+      <div>9. Статистика</div>
+      <div>10. Табы и группы</div>
+      <div>11. Двухпанельный layout</div>
+      <div>12. Таблицы</div>
+      <div>13. Сегментированные табы</div>
+    </div>
+  </div>
+
+</body>
+</html>

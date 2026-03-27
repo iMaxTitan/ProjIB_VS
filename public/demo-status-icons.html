@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<title>Status Icons</title>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  body { font-family: Inter, system-ui, sans-serif; background: #f0f2f8; padding: 40px; }
+  .group { background: rgba(255,255,255,0.8); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+  .group h2 { font-size: 14px; font-weight: 700; color: #334155; margin: 0 0 16px; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 8px; margin-bottom: 4px; }
+  .row:hover { background: rgba(99,102,241,0.05); }
+  .icon-box { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .label { font-size: 12px; font-weight: 600; color: #475569; min-width: 140px; }
+  .icon-name { font-size: 11px; color: #94a3b8; }
+  .process-name { font-size: 12px; font-weight: 600; color: #1e293b; flex: 1; }
+  .pct { font-size: 11px; font-weight: 700; min-width: 32px; text-align: right; }
+
+  .c-gray { color: #cbd5e1; }
+  .c-amber { color: #f59e0b; }
+  .c-indigo { color: #6366f1; }
+  .c-green { color: #10b981; }
+  .c-blue { color: #3b82f6; }
+  .c-red { color: #ef4444; }
+  .c-purple { color: #8b5cf6; }
+  .c-cyan { color: #06b6d4; }
+  .c-slate { color: #94a3b8; }
+
+  .pct-green { color: #059669; }
+  .pct-indigo { color: #4f46e5; }
+  .pct-amber { color: #d97706; }
+
+  .sep { border-top: 1px solid #e2e8f0; margin: 12px 0; }
+  h3 { font-size: 12px; font-weight: 600; color: #64748b; margin: 16px 0 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+</style>
+</head>
+<body>
+
+<div class="group">
+  <h2>Варіант Д — Minimal (Check style)</h2>
+  <div class="row"><div class="icon-box c-gray"><i data-lucide="minus" style="width:14px;height:14px;"></i></div><div class="label">Немає плану</div><div class="icon-name">Minus</div></div>
+  <div class="row"><div class="icon-box c-amber"><i data-lucide="clock" style="width:14px;height:14px;"></i></div><div class="label">Не затверджено</div><div class="icon-name">Clock</div></div>
+  <div class="row"><div class="icon-box c-indigo"><i data-lucide="play" style="width:14px;height:14px;"></i></div><div class="label">В роботі</div><div class="icon-name">Play</div></div>
+  <div class="row"><div class="icon-box c-green"><i data-lucide="check" style="width:14px;height:14px;"></i></div><div class="label">Виконано</div><div class="icon-name">Check</div></div>
+</div>
+
+<div class="group">
+  <h2>Варіант Е — Dot + Arrow</h2>
+  <div class="row"><div class="icon-box c-gray"><i data-lucide="dot" style="width:14px;height:14px;"></i></div><div class="label">Немає плану</div><div class="icon-name">Dot</div></div>
+  <div class="row"><div class="icon-box c-amber"><i data-lucide="pause" style="width:14px;height:14px;"></i></div><div class="label">Не затверджено</div><div class="icon-name">Pause</div></div>
+  <div class="row"><div class="icon-box c-indigo"><i data-lucide="arrow-right" style="width:14px;height:14px;"></i></div><div class="label">В роботі</div><div class="icon-name">ArrowRight</div></div>
+  <div class="row"><div class="icon-box c-green"><i data-lucide="check" style="width:14px;height:14px;"></i></div><div class="label">Виконано</div><div class="icon-name">Check</div></div>
+</div>
+
+<div class="group">
+  <h2>Варіант Ж — Ultra light</h2>
+  <div class="row"><div class="icon-box c-gray"><i data-lucide="minus" style="width:14px;height:14px;"></i></div><div class="label">Немає плану</div><div class="icon-name">Minus</div></div>
+  <div class="row"><div class="icon-box c-amber"><i data-lucide="ellipsis" style="width:14px;height:14px;"></i></div><div class="label">Не затверджено</div><div class="icon-name">Ellipsis</div></div>
+  <div class="row"><div class="icon-box c-indigo"><i data-lucide="loader" style="width:14px;height:14px;"></i></div><div class="label">В роботі</div><div class="icon-name">Loader</div></div>
+  <div class="row"><div class="icon-box c-green"><i data-lucide="check" style="width:14px;height:14px;"></i></div><div class="label">Виконано</div><div class="icon-name">Check</div></div>
+</div>
+
+<div class="group">
+  <h2>Варіант З — Signal style</h2>
+  <div class="row"><div class="icon-box c-gray"><i data-lucide="ban" style="width:14px;height:14px;"></i></div><div class="label">Немає плану</div><div class="icon-name">Ban</div></div>
+  <div class="row"><div class="icon-box c-amber"><i data-lucide="hourglass" style="width:14px;height:14px;"></i></div><div class="label">Не затверджено</div><div class="icon-name">Hourglass</div></div>
+  <div class="row"><div class="icon-box c-indigo"><i data-lucide="zap" style="width:14px;height:14px;"></i></div><div class="label">В роботі</div><div class="icon-name">Zap</div></div>
+  <div class="row"><div class="icon-box c-green"><i data-lucide="check" style="width:14px;height:14px;"></i></div><div class="label">Виконано</div><div class="icon-name">Check</div></div>
+</div>
+
+<div class="sep"></div>
+
+<div class="group">
+  <h2>Як виглядатиме в сайдбарі (Варіанти Д, Е, Ж, З)</h2>
+
+  <h3>Варіант Д</h3>
+  <div class="row" style="background:rgba(99,102,241,0.06);">
+    <div style="padding:2px;"><i data-lucide="chevron-right" style="width:14px;height:14px;color:#94a3b8;transform:rotate(90deg);"></i></div>
+    <div class="icon-box c-indigo"><i data-lucide="play" style="width:14px;height:14px;"></i></div>
+    <div class="process-name">Моніторинг та реагування на інциденти ІБ</div>
+    <div class="pct pct-indigo">75%</div>
+  </div>
+  <div class="row">
+    <div style="padding:2px;"><i data-lucide="chevron-right" style="width:14px;height:14px;color:#94a3b8;"></i></div>
+    <div class="icon-box c-green"><i data-lucide="check" style="width:14px;height:14px;"></i></div>
+    <div class="process-name">Управління безпекою ІС</div>
+    <div class="pct pct-green">100%</div>
+  </div>
+  <div class="row">
+    <div style="padding:2px;"><i data-lucide="chevron-right" style="width:14px;height:14px;color:#94a3b8;"></i></div>
+    <div class="icon-box c-amber"><i data-lucide="clock" style="width:14px;height:14px;"></i></div>
+    <div class="process-name">Управління правами доступу</div>
+    <div class="pct pct-amber">0%</div>
+  </div>
+  <div class="row">
+    <div style="padding:2px;"><i data-lucide="chevron-right" style="width:14px;height:14px;color:#94a3b8;"></i></div>
+    <div class="icon-box c-gray"><i data-lucide="minus" style="width:14px;height:14px;"></i></div>
+    <div class="process-name" style="color:#94a3b8;">Навчання та підвищення обізнаності</div>
+    <div class="pct" style="color:#cbd5e1;">—</div>
+  </div>
+
+  <h3>Варіант З</h3>
+  <div class="row" style="background:rgba(99,102,241,0.06);">
+    <div style="padding:2px;"><i data-lucide="chevron-right" style="width:14px;height:14px;color:#94a3b8;transform:rotate(90deg);"></i></div>
+    <div class="icon-box c-indigo"><i data-lucide="zap" style="width:14px;height:14px;"></i></div>
+    <div class="process-name">Моніторинг та реагування на інциденти ІБ</div>
+    <div class="pct pct-indigo">75%</div>
+  </div>
+  <div class="row">
+    <div style="padding:2px;"><i data-lucide="chevron-right" style="width:14px;height:14px;color:#94a3b8;"></i></div>
+    <div class="icon-box c-green"><i data-lucide="check" style="width:14px;height:14px;"></i></div>
+    <div class="process-name">Управління безпекою ІС</div>
+    <div class="pct pct-green">100%</div>
+  </div>
+  <div class="row">
+    <div style="padding:2px;"><i data-lucide="chevron-right" style="width:14px;height:14px;color:#94a3b8;"></i></div>
+    <div class="icon-box c-amber"><i data-lucide="hourglass" style="width:14px;height:14px;"></i></div>
+    <div class="process-name">Управління правами доступу</div>
+    <div class="pct pct-amber">0%</div>
+  </div>
+  <div class="row">
+    <div style="padding:2px;"><i data-lucide="chevron-right" style="width:14px;height:14px;color:#94a3b8;"></i></div>
+    <div class="icon-box c-gray"><i data-lucide="ban" style="width:14px;height:14px;"></i></div>
+    <div class="process-name" style="color:#94a3b8;">Навчання та підвищення обізнаності</div>
+    <div class="pct" style="color:#cbd5e1;">—</div>
+  </div>
+</div>
+
+<div class="sep"></div>
+
+<div class="group">
+  <h2>Варіант А — Circle family</h2>
+  <div class="row"><div class="icon-box c-gray"><i data-lucide="circle-dashed" style="width:16px;height:16px;"></i></div><div class="label">Немає плану</div><div class="icon-name">CircleDashed</div></div>
+  <div class="row"><div class="icon-box c-amber"><i data-lucide="circle-dot" style="width:16px;height:16px;"></i></div><div class="label">Не затверджено</div><div class="icon-name">CircleDot</div></div>
+  <div class="row"><div class="icon-box c-indigo"><i data-lucide="clock" style="width:16px;height:16px;"></i></div><div class="label">В роботі</div><div class="icon-name">Clock</div></div>
+  <div class="row"><div class="icon-box c-green"><i data-lucide="circle-check" style="width:16px;height:16px;"></i></div><div class="label">Виконано</div><div class="icon-name">CircleCheck</div></div>
+</div>
+
+<div class="group">
+  <h2>Варіант Б — Filled style</h2>
+  <div class="row"><div class="icon-box c-gray"><i data-lucide="circle" style="width:16px;height:16px;"></i></div><div class="label">Немає плану</div><div class="icon-name">Circle</div></div>
+  <div class="row"><div class="icon-box c-amber"><i data-lucide="circle-alert" style="width:16px;height:16px;"></i></div><div class="label">Не затверджено</div><div class="icon-name">CircleAlert</div></div>
+  <div class="row"><div class="icon-box c-indigo"><i data-lucide="loader" style="width:16px;height:16px;"></i></div><div class="label">В роботі</div><div class="icon-name">Loader</div></div>
+  <div class="row"><div class="icon-box c-green"><i data-lucide="check-circle-2" style="width:16px;height:16px;"></i></div><div class="label">Виконано</div><div class="icon-name">CheckCircle2</div></div>
+</div>
+
+<div class="group">
+  <h2>Варіант В — Minimal</h2>
+  <div class="row"><div class="icon-box c-gray"><i data-lucide="minus" style="width:16px;height:16px;"></i></div><div class="label">Немає плану</div><div class="icon-name">Minus</div></div>
+  <div class="row"><div class="icon-box c-amber"><i data-lucide="circle" style="width:16px;height:16px;"></i></div><div class="label">Не затверджено</div><div class="icon-name">Circle</div></div>
+  <div class="row"><div class="icon-box c-indigo"><i data-lucide="timer" style="width:16px;height:16px;"></i></div><div class="label">В роботі</div><div class="icon-name">Timer</div></div>
+  <div class="row"><div class="icon-box c-green"><i data-lucide="check" style="width:16px;height:16px;"></i></div><div class="label">Виконано</div><div class="icon-name">Check</div></div>
+</div>
+
+<div class="group">
+  <h2>Варіант Г — Play/Pause style</h2>
+  <div class="row"><div class="icon-box c-gray"><i data-lucide="circle-off" style="width:16px;height:16px;"></i></div><div class="label">Немає плану</div><div class="icon-name">CircleOff</div></div>
+  <div class="row"><div class="icon-box c-amber"><i data-lucide="circle-pause" style="width:16px;height:16px;"></i></div><div class="label">Не затверджено</div><div class="icon-name">CirclePause</div></div>
+  <div class="row"><div class="icon-box c-indigo"><i data-lucide="circle-play" style="width:16px;height:16px;"></i></div><div class="label">В роботі</div><div class="icon-name">CirclePlay</div></div>
+  <div class="row"><div class="icon-box c-green"><i data-lucide="circle-check-big" style="width:16px;height:16px;"></i></div><div class="label">Виконано</div><div class="icon-name">CircleCheckBig</div></div>
+</div>
+
+<div class="sep"></div>
+
+<div class="group">
+  <h2>Як виглядатиме в сайдбарі (Варіант А)</h2>
+  <div class="row" style="background:rgba(99,102,241,0.06);">
+    <div style="padding:2px;"><i data-lucide="chevron-right" style="width:14px;height:14px;color:#94a3b8;transform:rotate(90deg);"></i></div>
+    <div class="icon-box c-indigo"><i data-lucide="clock" style="width:14px;height:14px;"></i></div>
+    <div class="process-name">Моніторинг та реагування на інциденти ІБ</div>
+    <div class="pct pct-indigo">75%</div>
+  </div>
+  <div class="row" style="padding-left:40px;">
+    <div style="font-size:11px;color:#475569;flex:1;">Процедура моніторингу подій ІБ</div>
+    <div class="pct pct-indigo">75%</div>
+  </div>
+  <div class="row" style="padding-left:40px;">
+    <div style="font-size:11px;color:#475569;flex:1;">Процедура управління інцидентами ІБ</div>
+    <div class="pct pct-amber">50%</div>
+  </div>
+
+  <div class="row">
+    <div style="padding:2px;"><i data-lucide="chevron-right" style="width:14px;height:14px;color:#94a3b8;"></i></div>
+    <div class="icon-box c-green"><i data-lucide="circle-check" style="width:14px;height:14px;"></i></div>
+    <div class="process-name">Управління безпекою ІС</div>
+    <div class="pct pct-green">100%</div>
+  </div>
+
+  <div class="row">
+    <div style="padding:2px;"><i data-lucide="chevron-right" style="width:14px;height:14px;color:#94a3b8;"></i></div>
+    <div class="icon-box c-amber"><i data-lucide="circle-dot" style="width:14px;height:14px;"></i></div>
+    <div class="process-name">Управління правами доступу</div>
+    <div class="pct pct-amber">0%</div>
+  </div>
+
+  <div class="row">
+    <div style="padding:2px;"><i data-lucide="chevron-right" style="width:14px;height:14px;color:#94a3b8;"></i></div>
+    <div class="icon-box c-gray"><i data-lucide="circle-dashed" style="width:14px;height:14px;"></i></div>
+    <div class="process-name" style="color:#94a3b8;">Навчання та підвищення обізнаності</div>
+    <div class="pct" style="color:#cbd5e1;">—</div>
+  </div>
+</div>
+
+<div class="sep"></div>
+
+<div class="group">
+  <h2>Кнопки дій — варіанти</h2>
+
+  <h3>Набір А — Circle family (під стиль Г)</h3>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;padding:8px 0;">
+    <div class="row"><div class="icon-box c-green"><i data-lucide="circle-check-big" style="width:16px;height:16px;"></i></div><div class="label">Затвердити</div><div class="icon-name">CircleCheckBig</div></div>
+    <div class="row"><div class="icon-box c-red"><i data-lucide="circle-x" style="width:16px;height:16px;"></i></div><div class="label">Відхилити</div><div class="icon-name">CircleX</div></div>
+    <div class="row"><div class="icon-box c-slate"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></div><div class="label">Видалити</div><div class="icon-name">Trash2</div></div>
+    <div class="row"><div class="icon-box c-indigo"><i data-lucide="pencil" style="width:16px;height:16px;"></i></div><div class="label">Редагувати</div><div class="icon-name">Pencil</div></div>
+  </div>
+
+  <h3>Набір Б — Shield style</h3>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;padding:8px 0;">
+    <div class="row"><div class="icon-box c-green"><i data-lucide="shield-check" style="width:16px;height:16px;"></i></div><div class="label">Затвердити</div><div class="icon-name">ShieldCheck</div></div>
+    <div class="row"><div class="icon-box c-red"><i data-lucide="shield-x" style="width:16px;height:16px;"></i></div><div class="label">Відхилити</div><div class="icon-name">ShieldX</div></div>
+    <div class="row"><div class="icon-box c-slate"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></div><div class="label">Видалити</div><div class="icon-name">Trash2</div></div>
+    <div class="row"><div class="icon-box c-indigo"><i data-lucide="square-pen" style="width:16px;height:16px;"></i></div><div class="label">Редагувати</div><div class="icon-name">SquarePen</div></div>
+  </div>
+
+  <h3>Набір В — Thumb style</h3>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;padding:8px 0;">
+    <div class="row"><div class="icon-box c-green"><i data-lucide="thumb-up" style="width:16px;height:16px;"></i></div><div class="label">Затвердити</div><div class="icon-name">ThumbsUp</div></div>
+    <div class="row"><div class="icon-box c-red"><i data-lucide="thumb-down" style="width:16px;height:16px;"></i></div><div class="label">Відхилити</div><div class="icon-name">ThumbsDown</div></div>
+    <div class="row"><div class="icon-box c-slate"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></div><div class="label">Видалити</div><div class="icon-name">Trash2</div></div>
+    <div class="row"><div class="icon-box c-indigo"><i data-lucide="pencil-line" style="width:16px;height:16px;"></i></div><div class="label">Редагувати</div><div class="icon-name">PencilLine</div></div>
+  </div>
+
+  <h3>Набір Г — Check/X minimal</h3>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;padding:8px 0;">
+    <div class="row"><div class="icon-box c-green"><i data-lucide="check" style="width:16px;height:16px;"></i></div><div class="label">Затвердити</div><div class="icon-name">Check</div></div>
+    <div class="row"><div class="icon-box c-red"><i data-lucide="x" style="width:16px;height:16px;"></i></div><div class="label">Відхилити</div><div class="icon-name">X</div></div>
+    <div class="row"><div class="icon-box c-slate"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></div><div class="label">Видалити</div><div class="icon-name">Trash2</div></div>
+    <div class="row"><div class="icon-box c-indigo"><i data-lucide="pencil" style="width:16px;height:16px;"></i></div><div class="label">Редагувати</div><div class="icon-name">Pencil</div></div>
+  </div>
+</div>
+
+<div class="sep"></div>
+
+<div class="group">
+  <h2>Приклад хедера з кнопками (Варіант Г статуси + А дії)</h2>
+  <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(248,250,252,0.8);border-radius:10px;border:1px solid rgba(226,232,240,0.6);">
+    <div style="width:3px;height:20px;border-radius:2px;background:#6366f1;flex-shrink:0;"></div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:12px;font-weight:600;color:#334155;">Моніторинг та реагування на інциденти ІБ</div>
+    </div>
+    <div style="display:flex;gap:2px;">
+      <button style="padding:4px;border:none;background:none;cursor:pointer;border-radius:6px;color:#10b981;" title="Затвердити"><i data-lucide="circle-check-big" style="width:16px;height:16px;"></i></button>
+      <button style="padding:4px;border:none;background:none;cursor:pointer;border-radius:6px;color:#ef4444;" title="Відхилити"><i data-lucide="circle-x" style="width:16px;height:16px;"></i></button>
+      <button style="padding:4px;border:none;background:none;cursor:pointer;border-radius:6px;color:#6366f1;" title="Редагувати"><i data-lucide="pencil" style="width:16px;height:16px;"></i></button>
+      <button style="padding:4px;border:none;background:none;cursor:pointer;border-radius:6px;color:#94a3b8;" title="Видалити"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></button>
+    </div>
+    <div style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;background:rgba(99,102,241,0.1);color:#4f46e5;font-size:10px;font-weight:600;">
+      <i data-lucide="circle-play" style="width:12px;height:12px;"></i> В роботі
+    </div>
+  </div>
+
+  <div style="height:8px;"></div>
+
+  <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(248,250,252,0.8);border-radius:10px;border:1px solid rgba(226,232,240,0.6);">
+    <div style="width:3px;height:20px;border-radius:2px;background:#f59e0b;flex-shrink:0;"></div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:12px;font-weight:600;color:#334155;">Управління безпекою ІС</div>
+    </div>
+    <div style="display:flex;gap:2px;">
+      <button style="padding:4px;border:none;background:none;cursor:pointer;border-radius:6px;color:#10b981;" title="Затвердити"><i data-lucide="circle-check-big" style="width:16px;height:16px;"></i></button>
+      <button style="padding:4px;border:none;background:none;cursor:pointer;border-radius:6px;color:#ef4444;" title="Відхилити"><i data-lucide="circle-x" style="width:16px;height:16px;"></i></button>
+      <button style="padding:4px;border:none;background:none;cursor:pointer;border-radius:6px;color:#6366f1;" title="Редагувати"><i data-lucide="pencil" style="width:16px;height:16px;"></i></button>
+      <button style="padding:4px;border:none;background:none;cursor:pointer;border-radius:6px;color:#94a3b8;" title="Видалити"><i data-lucide="trash-2" style="width:16px;height:16px;"></i></button>
+    </div>
+    <div style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;background:rgba(245,158,11,0.1);color:#d97706;font-size:10px;font-weight:600;">
+      <i data-lucide="circle-pause" style="width:12px;height:12px;"></i> Не затверджено
+    </div>
+  </div>
+</div>
+
+<div class="sep"></div>
+
+<div class="group">
+  <h2>Затвердити / Відхилити — варіанти</h2>
+
+  <h3>Shield</h3>
+  <div style="display:flex;gap:24px;">
+    <div class="row"><div class="icon-box c-green"><i data-lucide="shield-check" style="width:16px;height:16px;"></i></div><div class="label">Затвердити</div></div>
+    <div class="row"><div class="icon-box c-red"><i data-lucide="shield-x" style="width:16px;height:16px;"></i></div><div class="label">Відхилити</div></div>
+  </div>
+
+  <h3>Thumbs</h3>
+  <div style="display:flex;gap:24px;">
+    <div class="row"><div class="icon-box c-green"><i data-lucide="thumbs-up" style="width:16px;height:16px;"></i></div><div class="label">Затвердити</div></div>
+    <div class="row"><div class="icon-box c-red"><i data-lucide="thumbs-down" style="width:16px;height:16px;"></i></div><div class="label">Відхилити</div></div>
+  </div>
+
+  <h3>Badge</h3>
+  <div style="display:flex;gap:24px;">
+    <div class="row"><div class="icon-box c-green"><i data-lucide="badge-check" style="width:16px;height:16px;"></i></div><div class="label">Затвердити</div></div>
+    <div class="row"><div class="icon-box c-red"><i data-lucide="badge-x" style="width:16px;height:16px;"></i></div><div class="label">Відхилити</div></div>
+  </div>
+
+  <h3>File</h3>
+  <div style="display:flex;gap:24px;">
+    <div class="row"><div class="icon-box c-green"><i data-lucide="file-check" style="width:16px;height:16px;"></i></div><div class="label">Затвердити</div></div>
+    <div class="row"><div class="icon-box c-red"><i data-lucide="file-x" style="width:16px;height:16px;"></i></div><div class="label">Відхилити</div></div>
+  </div>
+
+  <h3>User</h3>
+  <div style="display:flex;gap:24px;">
+    <div class="row"><div class="icon-box c-green"><i data-lucide="user-check" style="width:16px;height:16px;"></i></div><div class="label">Затвердити</div></div>
+    <div class="row"><div class="icon-box c-red"><i data-lucide="user-x" style="width:16px;height:16px;"></i></div><div class="label">Відхилити</div></div>
+  </div>
+
+  <h3>Clipboard</h3>
+  <div style="display:flex;gap:24px;">
+    <div class="row"><div class="icon-box c-green"><i data-lucide="clipboard-check" style="width:16px;height:16px;"></i></div><div class="label">Затвердити</div></div>
+    <div class="row"><div class="icon-box c-red"><i data-lucide="clipboard-x" style="width:16px;height:16px;"></i></div><div class="label">Відхилити</div></div>
+  </div>
+</div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>
