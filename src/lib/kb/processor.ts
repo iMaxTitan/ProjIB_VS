@@ -153,8 +153,8 @@ async function embedAndInsertChunks(
   prefixes: string[], categoryName: string, title: string,
   docMeta?: DocMetaForEmbedding | null,
 ): Promise<void> {
-  const EMBED_BATCH = 100;
-  const DB_BATCH = 50;
+  const EMBED_BATCH = 80;
+  const DB_BATCH = 100;
 
   // Delete old chunks before re-indexing (idempotent: no-op if none exist)
   const { error: delErr } = await db.from('kb_chunks').delete().eq('document_id', documentId);

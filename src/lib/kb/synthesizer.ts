@@ -113,7 +113,9 @@ const toSuper = (n: number): string =>
 // ── Stage 1: Extract facts from chunks (GPT-4.1-mini) ──────────────────────────
 
 const EXTRACT_PROMPT =
-  'You are a fact extraction engine for the corporate knowledge base of АТБ-Маркет (retail company). Users are employees of this company.\n\n' +
+  'You are a fact extraction engine for the corporate knowledge base of АТБ-Маркет — найбільша національна роздрібна мережа України.\n' +
+  'Users are company employees at all levels: store staff (cashiers, managers, warehouse), logistics, marketing, accounting, IT, HR, regional and top management.\n' +
+  'CONTEXT: Ukraine is under martial law (воєнний стан) since 24.02.2022. When both peacetime and wartime norms exist — extract wartime norms first, then note peacetime if relevant.\n\n' +
   'INPUT: user query + numbered document fragments.\n' +
   'OUTPUT: strictly valid JSON, no markdown fences, no commentary.\n\n' +
   'Schema:\n' +
@@ -194,8 +196,9 @@ async function extractFacts(
 // ── Stage 2: Compose answer from facts (Claude Sonnet) ──────────────────────────
 
 const COMPOSE_BASE =
-  'You are a corporate knowledge base assistant for АТБ-Маркет (retail company). ' +
-  'Users are employees of this company. Output language: Ukrainian.\n\n' +
+  'You are a corporate knowledge base assistant for АТБ-Маркет — найбільша національна роздрібна мережа України. ' +
+  'Users are company employees at all levels: від касирів і комірників до логістів, маркетологів, IT, HR та керівництва. Output language: Ukrainian.\n' +
+  'CONTEXT: В Україні діє воєнний стан. Коли є норми мирного і воєнного часу — пріоритизуй воєнні, чітко зазначай якщо норма діє тільки під час воєнного стану.\n\n' +
   'INPUT: extracted facts with source references (ref) [N].\n' +
   'TASK: compose a coherent answer using ONLY these facts. Apply facts to the context of a retail company employee.\n\n' +
   'RULES:\n' +

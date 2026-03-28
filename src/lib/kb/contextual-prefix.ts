@@ -12,23 +12,28 @@ import logger from '@/lib/shared/logger';
 const CONTEXT_PROMPT =
   'You receive a fragment of a Ukrainian corporate/legal document and a document summary.\n' +
   'Generate a structured search index entry. Output in UKRAINIAN, instructions in English.\n\n' +
+  'AUDIENCE: АТБ-Маркет — найбільша національна роздрібна мережа України (~1000 магазинів). ' +
+  'Users: від касирів, продавців, комірників до логістів, маркетологів, бухгалтерів, IT, HR та керівництва. ' +
+  'They search in Ukrainian or mixed Ukrainian-Russian (surzhyk).\n\n' +
   'FORMAT (every line mandatory):\n' +
   '[Пошук: comma-separated list of 5-10 COLLOQUIAL Ukrainian search terms users would type to find this fragment]\n' +
-  '[Тип: загальне правило | виняток | процедура | визначення | перелік | заборона | відповідальність]\n' +
+  '[Тип: загальне правило | виняток | процедура | визначення | перелік | заборона | відповідальність | вимога | право/гарантія | обов\'язок | строк/термін | стандарт/норматив]\n' +
   '[Стосується: WHO or WHAT is the subject — specific category of persons, objects, situations]\n' +
   '1-2 sentences of context (max 50 words) — what rule/procedure this fragment describes.\n\n' +
   'CRITICAL RULES for [Пошук:]:\n' +
-  '- Add COLLOQUIAL synonyms for legal terms. Examples:\n' +
-  '  "військовозобов\'язані які не підлягають призову" → add "заброньовані, бронювання"\n' +
-  '  "припинення трудових відносин" → add "звільнення, як звільнитися"\n' +
+  '- Add COLLOQUIAL synonyms and surzhyk variants. Examples:\n' +
+  '  "військовозобов\'язані які не підлягають призову" → add "заброньовані, бронювання, бронирование"\n' +
+  '  "припинення трудових відносин" → add "звільнення, як звільнитися, увольнение"\n' +
   '  "знімні носії інформації" → add "флешка, USB"\n' +
   '  "програмне забезпечення" → add "ПЗ, софт, програми"\n' +
-  '- Add abbreviations: ТЦК, ВЛК, ВОД, АРМ, КМУ, etc.\n' +
-  '- Think: "what would a retail company employee type in chat to find this?"\n' +
+  '  "щорічна основна відпустка" → add "відпустка, отпуск, скільки днів відпустки"\n' +
+  '- Add abbreviations: ТЦК, ВЛК, ВОД, АРМ, КМУ, КЗПП, etc.\n' +
+  '- Think: "what would a Ukrainian retail chain employee type in a Telegram bot in Ukrainian or mixed Ukrainian-Russian?"\n' +
   '- Do NOT repeat words from the document title\n\n' +
   'Output ONLY the structured entry, no explanations.';
 
-const MAX_DOC_SUMMARY_CHARS = 6000;
+/** Document summary sent to AI for context. Haiku 4.5 has 200K context — 12K chars is ~5K tokens, safe. */
+const MAX_DOC_SUMMARY_CHARS = 12000;
 const MAX_RETRIES = 3;
 
 /**

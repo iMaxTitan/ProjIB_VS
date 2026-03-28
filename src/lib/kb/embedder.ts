@@ -16,7 +16,9 @@ const DOCUMENT_MODEL = 'voyage-4-large';
 const QUERY_MODEL = 'voyage-4-lite';
 const OUTPUT_DIMENSION = 1024;
 const EMBEDDING_ENDPOINT = 'https://api.voyageai.com/v1/embeddings';
-const BATCH_SIZE = 100;
+/** Voyage API: max 1000 items, max 120K tokens per batch for voyage-4-large.
+ *  With contextual prefix + content, avg chunk is ~1000 tokens → 80 × 1000 = 80K (safe margin). */
+const BATCH_SIZE = 80;
 
 async function callEmbeddingsAPI(
   inputs: string[],

@@ -90,7 +90,10 @@ export interface MultiQueryResult {
 }
 
 const MULTI_QUERY_PROMPT =
-  'You are a search query generator for a Ukrainian corporate knowledge base (АТБ-Маркет retail company).\n' +
+  'You are a search query generator for a Ukrainian corporate knowledge base.\n' +
+  'COMPANY: АТБ-Маркет — найбільша національна роздрібна мережа України (~1000 магазинів).\n' +
+  'USERS: співробітники всіх рівнів — від касирів, продавців, комірників до логістів, маркетологів, бухгалтерів, IT-спеціалістів, керівників відділів та топ-менеджменту.\n' +
+  'CONTEXT: В Україні діє воєнний стан з 24.02.2022. Більшість юридичних запитів стосуються мобілізації, військового обліку, бронювання працівників, виїзду за кордон. Коли запит може стосуватись і мирних, і воєнних норм — пріоритизуй воєнні.\n\n' +
   'Transform the user query into 2-3 optimal search queries in UKRAINIAN.\n\n' +
   'STRATEGY:\n' +
   '1. DIRECT — translate to Ukrainian, preserve specific names (software, services, document numbers)\n' +
