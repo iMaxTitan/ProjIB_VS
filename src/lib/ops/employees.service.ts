@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/shared/supabase';
+import { getServerDb } from '@/lib/shared/db-server';
 import logger from '@/lib/shared/logger';
 
 export interface Employee {
@@ -18,7 +18,7 @@ export const employeeService = {
      */
     async getEmployees(departmentId?: string): Promise<Employee[]> {
         try {
-            let query = supabase
+            let query = getServerDb()
                 .from('v_user_details')
                 .select('*')
                 .order('full_name');

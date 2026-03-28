@@ -3,8 +3,15 @@
  */
 import type { SupabaseClient } from '@/lib/shared/postgrest-client';
 import { supabase } from '@/lib/shared/supabase';
+import { getServerDb } from '@/lib/shared/db-server';
 import logger from '@/lib/shared/logger';
 import { ActivityStats, ActivityStatsRow, ActivityContextRow } from './types';
+
+/** Returns supabase (browser, has JWT) or getServerDb() (Node, service-role). */
+function defaultDb(): SupabaseClient {
+    if (typeof window !== 'undefined') return supabase;
+    return getServerDb();
+}
 
 export interface AIContext {
     current: { hours: number; tasks: number; activeUsers: number; avgHoursPerTask: number; avgHoursPerUser: number };
@@ -32,7 +39,7 @@ export async function getActivityStats(
     today.setHours(0, 0, 0, 0);
     const periodStart = new Date(today);
     periodStart.setDate(today.getDate() - daysBack);
-    const client = db || supabase;
+    const client = db || defaultDb();
     let query = client.from('v_activity_feed').select('spent_hours, event_time, user_id, department_id').eq('event_type', 'task_created').gte('event_time', periodStart.toISOString());
     if (userRole === 'employee') query = query.eq('user_id', userId);
     else if (userRole === 'head') query = query.eq('department_id', userDeptId);
@@ -65,8 +72,9 @@ export async function getActivityStats(
 /**
  * Получение списка отделов для фильтра (только для chief).
  */
-export async function getDepartmentsForFilter(): Promise<{ id: string; name: string }[]> {
-    const { data } = await supabase.from('departments').select('department_id, department_name').order('department_name');
+export async function getDepartmentsForFilter(db?: SupabaseClient): Promise<{ id: string; name: string }[]> {
+    const client = db || defaultDb();
+    const { data } = await client.from('departments').select('department_id, department_name').order('department_name');
     return data?.map(d => ({ id: d.department_id, name: d.department_name })) || [];
 }
 
@@ -78,7 +86,8 @@ export async function getAIContext(
     userRole: string,
     userDepartmentId: string | null,
     daysBack: number,
-    departmentId?: string
+    departmentId?: string,
+    db?: SupabaseClient,
 ): Promise<AIContext> {
     const periodType = daysBack <= 7 ? 'week' : daysBack <= 30 ? 'month' : daysBack <= 90 ? 'quarter' : 'year';
     const userDeptId = departmentId || (userRole === 'head' ? userDepartmentId : null);
@@ -88,12 +97,13 @@ export async function getAIContext(
     const previousStart = new Date(currentStart);
     previousStart.setDate(previousStart.getDate() - daysBack);
 
+    const client = db || defaultDb();
     const fetchAllRows = async (startDate: Date, endDate: Date): Promise<ActivityContextRow[]> => {
         const PAGE = 1000;
         const allRows: ActivityContextRow[] = [];
         let offset = 0;
         while (true) {
-            let query = supabase.from('v_activity_feed').select('spent_hours, user_id, user_name, department_id, department_name').eq('event_type', 'task_created').gte('event_time', startDate.toISOString()).lt('event_time', endDate.toISOString()).range(offset, offset + PAGE - 1);
+            let query = client.from('v_activity_feed').select('spent_hours, user_id, user_name, department_id, department_name').eq('event_type', 'task_created').gte('event_time', startDate.toISOString()).lt('event_time', endDate.toISOString()).range(offset, offset + PAGE - 1);
             if (userRole === 'employee') query = query.eq('user_id', userId);
             else if (userRole === 'head') query = query.eq('department_id', userDeptId);
             else if (userRole === 'chief' && departmentId) query = query.eq('department_id', departmentId);

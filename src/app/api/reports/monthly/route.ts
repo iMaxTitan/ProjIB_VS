@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ExcelReportGenerator } from '@/lib/ops/reports/excel';
 import { GraphSharePointService } from '@/lib/ops/graph/sharepoint-service';
-import { supabase } from '@/lib/shared/supabase';
+import { getServerDb } from '@/lib/shared/db-server';
 import logger from '@/lib/shared/logger';
 import { isRequestAuthorized, getRequesterKey, checkRateLimit } from '@/lib/shared/api/request-guards';
 import { config } from '@/lib/shared/config';
@@ -39,7 +39,7 @@ async function logReportGeneration(
   isAutomatic: boolean
 ): Promise<void> {
   try {
-    await supabase.from('activities').insert({
+    await getServerDb().from('activities').insert({
       action_type: 'report_generated',
       target_type: 'monthly_report',
       target_id: departmentId || '00000000-0000-0000-0000-000000000000',
@@ -196,7 +196,7 @@ export async function GET(request: NextRequest) {
     logger.log(`[Monthly Report Cron] Генерация отчетов за ${month}/${year}`);
 
     // Получаем все отделы для генерации отчетов
-    const { data: departments, error: deptError } = await supabase
+    const { data: departments, error: deptError } = await getServerDb()
       .from('departments')
       .select('department_id, department_code, department_name');
 

@@ -1,13 +1,10 @@
 import { createPostgrestClient } from '@/lib/shared/postgrest-client';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_API_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_POSTGREST_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing PostgREST environment variables (NEXT_PUBLIC_API_URL, NEXT_PUBLIC_POSTGREST_ANON_KEY)');
-}
-
-export const supabase = createPostgrestClient(supabaseUrl, supabaseAnonKey);
+// Client queries go through authenticated proxy (/api/db → PostgREST).
+// The proxy validates auth via httpOnly cookie and uses service-role key.
+// Passing '/api/db/rest/v1' makes PostgrestClient set _url = '/api/db'
+// so requests become /api/db/{table}?filters — caught by the [...path] route.
+export const supabase = createPostgrestClient('/api/db/rest/v1', '');
 
 const CUSTOM_JWT_STORAGE_KEY = 'supabase_custom_jwt';
 let currentSupabaseJwt: string | null = null;

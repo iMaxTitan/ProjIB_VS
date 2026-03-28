@@ -3,7 +3,7 @@
  * ЕДИНСТВЕННЫЙ файл в проекте где разрешён process.env (server-side).
  *
  * Исключения (Next.js constraint — NEXT_PUBLIC_* должны быть inline):
- *   - src/lib/shared/supabase.ts — NEXT_PUBLIC_API_URL, NEXT_PUBLIC_POSTGREST_ANON_KEY
+ *   - src/lib/shared/supabase.ts — uses /api/db proxy (no env vars needed)
  *   - src/lib/shared/auth/config.ts — NEXT_PUBLIC_AZURE_* (client-side MSAL)
  *   - src/lib/shared/logger.ts  — NODE_ENV (нужен до инициализации config)
  */
@@ -13,7 +13,7 @@ export const config = {
     url:            process.env.NEXT_PUBLIC_API_URL ?? '',
     /** Direct PostgREST URL for server-side (bypasses HTTPS proxy loop) */
     serverUrl:      process.env.POSTGREST_URL || process.env.NEXT_PUBLIC_API_URL || '',
-    anonKey:        process.env.NEXT_PUBLIC_POSTGREST_ANON_KEY ?? '',
+    anonKey:        process.env.POSTGREST_ANON_KEY ?? '',
     serviceRoleKey: process.env.POSTGREST_SERVICE_KEY ?? '',
     jwtSecret:      process.env.POSTGREST_JWT_SECRET ?? '',
   },

@@ -360,7 +360,7 @@ export class PostgrestClient {
     const base = url.replace(/\/$/, '');
     const isDirect = base.endsWith('/rest/v1') || process.env.POSTGREST_DIRECT === '1';
     this._url = isDirect ? base.replace(/\/rest\/v1$/, '') : `${base}/rest/v1`;
-    this._headers = { Authorization: `Bearer ${apiKey}` };
+    this._headers = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
     this._customFetch = options?.global?.fetch;
     this.rest = { headers: { ...this._headers } };
     this.headers = { ...this._headers };

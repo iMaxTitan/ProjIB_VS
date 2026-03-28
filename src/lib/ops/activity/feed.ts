@@ -1,7 +1,9 @@
 /**
  * Activity service — feed query functions (primary + fallback chain).
  */
+import type { SupabaseClient } from '@/lib/shared/postgrest-client';
 import { supabase } from '@/lib/shared/supabase';
+import { getServerDb } from '@/lib/shared/db-server';
 import logger from '@/lib/shared/logger';
 import {
     ActivityEvent,
@@ -13,6 +15,12 @@ import {
     QuarterlyPlanLookupRow,
 } from './types';
 import { mapFeedRowToActivityEvent, mapLegacyRowToActivityEvent } from './mappers';
+
+/** Returns supabase (browser, has JWT) or getServerDb() (Node, service-role). */
+function defaultDb(): SupabaseClient {
+    if (typeof window !== 'undefined') return supabase;
+    return getServerDb();
+}
 
 // Internal row types for daily_tasks fallback
 type DailyTaskFeedRow = { daily_task_id: string; monthly_plan_id: string; user_id: string | null; description: string | null; spent_hours: number | null; task_date: string | null; created_at: string | null };
@@ -38,7 +46,7 @@ export async function getActivityFeed(
         return getActivityFeedByDateRange(userId, userRole, userDepartmentId, filters);
     }
     try {
-        const { data, error } = await supabase.rpc('get_activity_feed', {
+        const { data, error } = await defaultDb().rpc('get_activity_feed', {
             p_user_id: userId,
             p_department_id: departmentId || null,
             p_days_back: daysBack,
@@ -62,7 +70,7 @@ async function getActivityFeedByDateRange(
     filters: ActivityFilters
 ): Promise<ActivityEvent[]> {
     const { departmentId, dateFrom, dateTo, limit = 500 } = filters;
-    let query = supabase.from('v_activity_feed').select('*').order('event_time', { ascending: false }).limit(limit);
+    let query = defaultDb().from('v_activity_feed').select('*').order('event_time', { ascending: false }).limit(limit);
     if (dateFrom) query = query.gte('event_time', dateFrom.toISOString());
     if (dateTo) query = query.lte('event_time', dateTo.toISOString());
     if (userRole === 'employee') query = query.eq('user_id', userId);
@@ -82,7 +90,7 @@ async function getActivityFeedFallback(
     const { departmentId, daysBack = 7, limit = 50 } = filters;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysBack);
-    let query = supabase.from('v_activity_feed').select('*').gte('event_time', startDate.toISOString()).order('event_time', { ascending: false }).limit(limit * 2);
+    let query = defaultDb().from('v_activity_feed').select('*').gte('event_time', startDate.toISOString()).order('event_time', { ascending: false }).limit(limit * 2);
     if (userRole === 'employee') query = query.eq('user_id', userId);
     else if (userRole === 'head') query = query.eq('department_id', userDepartmentId);
     else if (userRole === 'chief' && departmentId) query = query.eq('department_id', departmentId);
@@ -124,15 +132,15 @@ async function getActivityFeedFromActivities(
     const annualMap = new Map<string, AnnualPlanLookupRow>();
     const quarterlyMap = new Map<string, QuarterlyPlanLookupRow>();
     if (userIds.length > 0) {
-        const { data: profilesData, error: profilesError } = await supabase.from('v_user_details').select('user_id, email, full_name, photo_base64, role, department_id, department_name').in('user_id', userIds);
+        const { data: profilesData, error: profilesError } = await defaultDb().from('v_user_details').select('user_id, email, full_name, photo_base64, role, department_id, department_name').in('user_id', userIds);
         if (!profilesError) for (const p of (profilesData || []) as LegacyActivityProfile[]) { if (p.user_id) profileMap.set(p.user_id, p); }
     }
     if (annualIds.length > 0) {
-        const { data: annualData, error: annualError } = await supabase.from('annual_plans').select('annual_id, goal, expected_result').in('annual_id', annualIds);
+        const { data: annualData, error: annualError } = await defaultDb().from('annual_plans').select('annual_id, goal, expected_result').in('annual_id', annualIds);
         if (!annualError) for (const a of (annualData || []) as AnnualPlanLookupRow[]) annualMap.set(a.annual_id, a);
     }
     if (quarterlyIds.length > 0) {
-        const { data: qData, error: qError } = await supabase.from('quarterly_plans').select('quarterly_id, goal, expected_result, quarter, department_id').in('quarterly_id', quarterlyIds);
+        const { data: qData, error: qError } = await defaultDb().from('quarterly_plans').select('quarterly_id, goal, expected_result, quarter, department_id').in('quarterly_id', quarterlyIds);
         if (!qError) for (const q of (qData || []) as QuarterlyPlanLookupRow[]) quarterlyMap.set(q.quarterly_id, q);
     }
     let events = activityRows.map(row => {
@@ -155,7 +163,7 @@ async function getActivityFeedFromDailyTasks(
     const { departmentId, daysBack = 7, limit = 50 } = filters;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysBack);
-    let query = supabase.from('daily_tasks').select('daily_task_id, monthly_plan_id, user_id, description, spent_hours, task_date, created_at').gte('created_at', startDate.toISOString()).order('created_at', { ascending: false }).limit(limit * 4);
+    let query = defaultDb().from('daily_tasks').select('daily_task_id, monthly_plan_id, user_id, description, spent_hours, task_date, created_at').gte('created_at', startDate.toISOString()).order('created_at', { ascending: false }).limit(limit * 4);
     if (userRole === 'employee') query = query.eq('user_id', userId);
     const { data, error } = await query;
     if (error) { logger.warn('Error fetching activity feed from daily_tasks fallback:', error); return []; }
@@ -165,42 +173,42 @@ async function getActivityFeedFromDailyTasks(
     const monthlyPlanIds = Array.from(new Set(rows.map(r => r.monthly_plan_id).filter(Boolean)));
     const monthlyPlanMap = new Map<string, MonthlyPlanFeedRow>();
     if (monthlyPlanIds.length > 0) {
-        const { data: mRows } = await supabase.from('monthly_plans').select('monthly_plan_id, description, quarterly_id, procedure_id').in('monthly_plan_id', monthlyPlanIds);
+        const { data: mRows } = await defaultDb().from('monthly_plans').select('monthly_plan_id, description, quarterly_id, procedure_id').in('monthly_plan_id', monthlyPlanIds);
         for (const r of (mRows || []) as MonthlyPlanFeedRow[]) monthlyPlanMap.set(r.monthly_plan_id, r);
     }
 
     const userIds = Array.from(new Set(rows.map(r => r.user_id).filter(Boolean))) as string[];
     const profileMap = new Map<string, UserProfileFeedRow>();
     if (userIds.length > 0) {
-        const { data: pRows } = await supabase.from('v_user_details').select('user_id, email, full_name, photo_base64, role, department_id, department_name').in('user_id', userIds);
+        const { data: pRows } = await defaultDb().from('v_user_details').select('user_id, email, full_name, photo_base64, role, department_id, department_name').in('user_id', userIds);
         for (const r of (pRows || []) as UserProfileFeedRow[]) profileMap.set(r.user_id, r);
     }
 
     const procedureIds = Array.from(new Set(Array.from(monthlyPlanMap.values()).map(m => m.procedure_id).filter(Boolean))) as string[];
     const procedureMap = new Map<string, ProcedureFeedRow>();
     if (procedureIds.length > 0) {
-        const { data: prRows } = await supabase.from('procedures').select('procedure_id, process_id').in('procedure_id', procedureIds);
+        const { data: prRows } = await defaultDb().from('procedures').select('procedure_id, process_id').in('procedure_id', procedureIds);
         for (const r of (prRows || []) as ProcedureFeedRow[]) procedureMap.set(r.procedure_id, r);
     }
 
     const processIds = Array.from(new Set(Array.from(procedureMap.values()).map(m => m.process_id).filter(Boolean))) as string[];
     const processMap = new Map<string, ProcessFeedRow>();
     if (processIds.length > 0) {
-        const { data: psRows } = await supabase.from('processes').select('process_id, process_name').in('process_id', processIds);
+        const { data: psRows } = await defaultDb().from('processes').select('process_id, process_name').in('process_id', processIds);
         for (const r of (psRows || []) as ProcessFeedRow[]) processMap.set(r.process_id, r);
     }
 
     const quarterlyIds = Array.from(new Set(Array.from(monthlyPlanMap.values()).map(m => m.quarterly_id).filter(Boolean))) as string[];
     const quarterlyMap = new Map<string, QuarterlyFeedRow>();
     if (quarterlyIds.length > 0) {
-        const { data: qRows } = await supabase.from('quarterly_plans').select('quarterly_id, quarter, goal, department_id').in('quarterly_id', quarterlyIds);
+        const { data: qRows } = await defaultDb().from('quarterly_plans').select('quarterly_id, quarter, goal, department_id').in('quarterly_id', quarterlyIds);
         for (const r of (qRows || []) as QuarterlyFeedRow[]) quarterlyMap.set(r.quarterly_id, r);
     }
 
     const departmentIds = Array.from(new Set(Array.from(quarterlyMap.values()).map(q => q.department_id).filter(Boolean))) as string[];
     const departmentMap = new Map<string, DepartmentFeedRow>();
     if (departmentIds.length > 0) {
-        const { data: dRows } = await supabase.from('departments').select('department_id, department_name').in('department_id', departmentIds);
+        const { data: dRows } = await defaultDb().from('departments').select('department_id, department_name').in('department_id', departmentIds);
         for (const r of (dRows || []) as DepartmentFeedRow[]) departmentMap.set(r.department_id, r);
     }
 
