@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import type { DeleteCheckResult } from './types';
 
 export async function canDeleteAnnualPlan(annualId: string, userId: string, userRole?: string | null): Promise<DeleteCheckResult> {

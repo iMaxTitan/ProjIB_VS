@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import type { MonthlyPlan, MonthlyPlanAssignee, DailyTask } from '@/types/planning';
 
 // ── Types ───────────────────────────────────────────────────

@@ -3,7 +3,7 @@
  * Extracted from usePlans.ts to reduce hook size.
  */
 
-import { supabase } from '../../shared/supabase';
+import { supabase } from '../../shared/db-client';
 import { mapQuarterlyRows, type QuarterlyBaseRow } from './quarterly-mappers';
 import type { QuarterlyPlan } from '@/types/planning';
 

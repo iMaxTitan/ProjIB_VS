@@ -7,7 +7,7 @@ import {
   proceduresQueryOptions,
   type ProcedureKpiRow,
 } from '@/lib/ops/reference-queries';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import type { MonthlyPlan, PlanStatus } from '@/types/planning';
 import type { UserInfo } from '@/types/azure';
 import { countNaiveWorkingDays } from '@/lib/ops/working-days';
@@ -370,10 +370,10 @@ export function usePlansV2(user?: UserInfo) {
       if (annualIds.length === 0) return [];
       const { data, error } = await supabase
         .from('annual_plan_budget')
-        .select('annual_plan_id, amount, payment_date')
+        .select('annual_plan_id, amount, payment_date, budget_items(name)')
         .in('annual_plan_id', annualIds);
       if (error) throw error;
-      return (data || []) as { annual_plan_id: string; amount: number; payment_date: string | null }[];
+      return (data || []) as { annual_plan_id: string; amount: number; payment_date: string | null; budget_items: { name: string } | null }[];
     },
     enabled: annualIds.length > 0,
     staleTime: 2 * 60_000,
@@ -384,6 +384,18 @@ export function usePlansV2(user?: UserInfo) {
     const m = new Map<string, number>();
     for (const b of allAnnualBudgets) {
       m.set(b.annual_plan_id, (m.get(b.annual_plan_id) || 0) + Number(b.amount));
+    }
+    return m;
+  }, [allAnnualBudgets]);
+
+  // Budget item names per annual plan (for list view cards)
+  const annualBudgetNamesMap = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const b of allAnnualBudgets) {
+      if (!b.budget_items?.name) continue;
+      let list = m.get(b.annual_plan_id);
+      if (!list) { list = []; m.set(b.annual_plan_id, list); }
+      if (!list.includes(b.budget_items.name)) list.push(b.budget_items.name);
     }
     return m;
   }, [allAnnualBudgets]);
@@ -399,6 +411,24 @@ export function usePlansV2(user?: UserInfo) {
       const d = new Date(b.payment_date);
       if (d >= qStart && d <= qEnd) {
         m.set(b.annual_plan_id, (m.get(b.annual_plan_id) || 0) + Number(b.amount));
+      }
+    }
+    return m;
+  }, [allAnnualBudgets, quarter, year]);
+
+  // Budget items per annual plan filtered by quarter (with names)
+  const quarterlyBudgetItemsMap = useMemo(() => {
+    if (!quarter) return new Map<string, { name: string; amount: number }[]>();
+    const qStart = new Date(year, (quarter - 1) * 3, 1);
+    const qEnd = new Date(year, quarter * 3, 0);
+    const m = new Map<string, { name: string; amount: number }[]>();
+    for (const b of allAnnualBudgets) {
+      if (!b.payment_date) continue;
+      const d = new Date(b.payment_date);
+      if (d >= qStart && d <= qEnd) {
+        let list = m.get(b.annual_plan_id);
+        if (!list) { list = []; m.set(b.annual_plan_id, list); }
+        list.push({ name: b.budget_items?.name || 'Бюджет', amount: Number(b.amount) });
       }
     }
     return m;
@@ -613,6 +643,8 @@ export function usePlansV2(user?: UserInfo) {
     selectedQuarterlyPlan,
     annualBudgetItems,
     annualBudgetSumMap,
+    annualBudgetNamesMap,
+    quarterlyBudgetItemsMap,
     quarterlyBudgetSumMap,
     quarterlyInitiatives,
     quarterlyInitiativesMap,

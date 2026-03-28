@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { cn } from '@/lib/shared/utils';
-import { Target, Banknote, CalendarDays, FileCheck, FileText, Pencil, Check, X, Trash2, ShieldCheck, Plus, Copy } from 'lucide-react';
+import { Target, Banknote, CalendarDays, FileCheck, FileText, Pencil, Check, X, Trash2, ShieldCheck, Plus, Copy, Ban, Ellipsis, Loader, CheckCheck } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
 import type { ProcessNode, AnnualPlanRow, AnnualBudgetRow } from '@/hooks/usePlansV2';
 
@@ -14,14 +14,23 @@ export interface BudgetItemOption {
 
 // ── Shared helpers ──
 
+const STATUS_ICON_MAP: Record<string, { Icon: typeof Ban; cls: string; title: string }> = {
+  none: { Icon: Ban, cls: 'text-slate-300', title: 'Немає плану' },
+  pending: { Icon: Ellipsis, cls: 'text-amber-500', title: 'Не затверджено' },
+  active: { Icon: Loader, cls: 'text-indigo-500', title: 'В роботі' },
+  done: { Icon: CheckCheck, cls: 'text-emerald-500', title: 'Виконано' },
+};
+
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  none: { label: 'Немає плану', cls: 'bg-slate-100 text-slate-500' },
+  pending: { label: 'Не затверджено', cls: 'bg-amber-100 text-amber-700' },
+  active: { label: 'В роботі', cls: 'bg-indigo-100 text-indigo-700' },
+  done: { label: 'Виконано', cls: 'bg-emerald-100 text-emerald-700' },
+};
+
 function statusBadge(status: string) {
-  const map: Record<string, { label: string; cls: string }> = {
-    pending: { label: 'Не затверджено', cls: 'bg-amber-100 text-amber-700' },
-    active: { label: 'В роботі', cls: 'bg-indigo-100 text-indigo-700' },
-    done: { label: 'Виконано', cls: 'bg-emerald-100 text-emerald-700' },
-  };
-  const s = map[status] || map.pending;
-  return <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', s.cls)}>{s.label}</span>;
+  const s = STATUS_BADGE[status] || STATUS_BADGE.pending;
+  return <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full', s.cls)}>{s.label}</span>;
 }
 
 async function fetchApi(url: string, init?: RequestInit) {
@@ -40,13 +49,14 @@ interface AnnualListViewProps {
   processTree: ProcessNode[];
   year: number;
   annualBudgetSumMap?: Map<string, number>;
+  annualBudgetNamesMap?: Map<string, string[]>;
   canEdit?: boolean;
   isChief?: boolean;
   onSelectProcess: (id: string) => void;
   onRefresh?: () => void;
 }
 
-export function AnnualListView({ annualPlans, processTree, year, annualBudgetSumMap, canEdit, isChief, onSelectProcess, onRefresh }: AnnualListViewProps) {
+export function AnnualListView({ annualPlans, processTree, year, annualBudgetSumMap, annualBudgetNamesMap, canEdit, isChief, onSelectProcess, onRefresh }: AnnualListViewProps) {
   const items = processTree.map(proc => {
     const plan = annualPlans.find(a => a.process_id === proc.processId);
     return { proc, plan };
@@ -61,116 +71,97 @@ export function AnnualListView({ annualPlans, processTree, year, annualBudgetSum
         <div className="flex-1 min-w-0">
           <div className="text-xs font-semibold text-slate-700">Плани року · {year}</div>
         </div>
-        {totalBudget > 0 && (
-          <span className="text-[10px] font-bold text-amber-600">
-            {totalBudget.toLocaleString('uk-UA')} ₴
-          </span>
-        )}
       </div>
       <div className="hdr-sep" />
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
         {items.length === 0 ? (
           <EmptyState variant="centered" icon={<Target className="h-10 w-10" />} title="Немає процесів" description="Процеси не знайдено" />
         ) : (
-          items.map(({ proc, plan }) => (
-            <div
-              key={proc.processId}
-              onClick={() => onSelectProcess(proc.processId)}
-              className="w-full text-left border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors px-4 py-3 cursor-pointer"
-              role="button" tabIndex={0} aria-label={`Обрати ${proc.name}`}
-              onKeyDown={e => e.key === 'Enter' && onSelectProcess(proc.processId)}
-            >
-              <div className="flex items-start gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-slate-800 mb-1">{proc.name}</div>
-                  {proc.mission && (
-                    <div className="text-[11px] text-slate-500 line-clamp-1 mb-0.5">
-                      <span className="text-slate-400">Місія: </span>{proc.mission}
+          items.map(({ proc, plan }) => {
+            const status = plan?.status || 'none';
+            const st = STATUS_ICON_MAP[status] || STATUS_ICON_MAP.none;
+            return (
+              <div
+                key={proc.processId}
+                onClick={() => onSelectProcess(proc.processId)}
+                className={cn(
+                  'border border-slate-200/80 rounded-xl px-3.5 py-2.5 hover:bg-slate-50/50 transition-colors cursor-pointer',
+                  !plan && 'border-dashed',
+                )}
+                role="button" tabIndex={0} aria-label={`Обрати ${proc.name}`}
+                onKeyDown={e => e.key === 'Enter' && onSelectProcess(proc.processId)}
+              >
+                <div className="flex gap-3">
+                  {/* Left: content */}
+                  <div className="flex-1 min-w-0 flex gap-2">
+                    <span className="flex-shrink-0 mt-0.5" title={st.title}><st.Icon className={cn('w-3.5 h-3.5', st.cls)} /></span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold text-slate-800 line-clamp-2">{proc.name}</div>
+                      {proc.mission && (
+                        <div className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">
+                          <span className="text-slate-400">Місія: </span>{proc.mission}
+                        </div>
+                      )}
+                      {proc.expectedResult && (
+                        <div className="text-[11px] text-slate-600 line-clamp-2 mt-0.5">
+                          <span className="text-slate-400">Результат: </span>{proc.expectedResult}
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {proc.expectedResult && (
-                    <div className="text-[11px] text-slate-600 line-clamp-1">
-                      <span className="text-slate-400">Результат: </span>{proc.expectedResult}
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                  {plan ? statusBadge(plan.status) : (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-50 text-slate-400 border border-dashed border-slate-300">
-                      Немає плану
+                  </div>
+                  {/* Right: badge + buttons + hours + budget */}
+                  <div className="flex-shrink-0 w-[120px] flex flex-col items-end gap-1" onClick={e => e.stopPropagation()}>
+                    <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full', (STATUS_BADGE[status] || STATUS_BADGE.none).cls)}>
+                      {(STATUS_BADGE[status] || STATUS_BADGE.none).label}
                     </span>
-                  )}
-                  {plan && (annualBudgetSumMap?.get(plan.annual_id) || 0) > 0 && (
+                    {canEdit && (
+                      <div className="flex items-center gap-0.5">
+                        {!plan ? (
+                          <>
+                            <button className="cal-action-btn" style={{ color: '#10b981' }} title="Створити план" aria-label="Створити"
+                              onClick={async (e) => { e.stopPropagation(); await fetchApi('/api/plans/annual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ process_id: proc.processId, year }) }); onRefresh?.(); }}>
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                            <button className="cal-action-btn" style={{ color: '#6366f1' }} title="Копіювати з попереднього року" aria-label="Копіювати"
+                              onClick={async (e) => { e.stopPropagation(); await fetchApi('/api/plans/annual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ process_id: proc.processId, year, copy_from_year: year - 1 }) }); onRefresh?.(); }}>
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {plan.status !== 'done' && (
+                              <button className="cal-action-btn" style={{ color: '#10b981' }}
+                                title={plan.status === 'pending' ? 'Затвердити' : 'Прийняти'} aria-label="Затвердити"
+                                onClick={async (e) => { e.stopPropagation(); const next = plan.status === 'pending' ? 'active' : 'done'; await fetchApi('/api/plans/annual', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: plan.annual_id, status: next }) }); onRefresh?.(); }}>
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {isChief && (
+                              <button className="cal-action-btn" style={{ color: '#ef4444' }}
+                                title={plan.status === 'pending' ? 'Видалити план' : 'Повернути'} aria-label="Повернути"
+                                onClick={async (e) => { e.stopPropagation(); if (plan.status === 'pending') { await fetchApi(`/api/plans/annual?id=${plan.annual_id}`, { method: 'DELETE' }); } else { const prev = plan.status === 'active' ? 'pending' : plan.status === 'done' ? 'active' : null; if (prev) await fetchApi('/api/plans/annual', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: plan.annual_id, status: prev }) }); } onRefresh?.(); }}>
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {/* Budget row — full width */}
+                {plan && (annualBudgetSumMap?.get(plan.annual_id) || 0) > 0 && (
+                  <div className="flex items-center gap-2 mt-1 pl-5.5">
+                    <span className="text-[10px] text-amber-600 flex-1">Бюджет</span>
                     <span className="text-[10px] font-bold text-amber-600">
                       {(annualBudgetSumMap?.get(plan.annual_id) || 0).toLocaleString('uk-UA')} ₴
                     </span>
-                  )}
-                  {canEdit && (
-                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                      {!plan ? (
-                        <>
-                          <button className="cal-action-btn" style={{ color: '#10b981' }} title="Створити план" aria-label="Створити"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              await fetchApi('/api/plans/annual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ process_id: proc.processId, year }) });
-                              onRefresh?.();
-                            }}>
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                          <button className="cal-action-btn" style={{ color: '#6366f1' }} title="Копіювати з попереднього року" aria-label="Копіювати"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              await fetchApi('/api/plans/annual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ process_id: proc.processId, year, copy_from_year: year - 1 }) });
-                              onRefresh?.();
-                            }}>
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            className="cal-action-btn"
-                            style={{ color: plan.status !== 'done' ? '#10b981' : '#cbd5e1' }}
-                            title={plan.status === 'pending' ? 'Затвердити' : plan.status === 'active' ? 'Прийняти' : 'Виконано'}
-                            aria-label="Затвердити"
-                            disabled={plan.status === 'done'}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const next = plan.status === 'pending' ? 'active' : plan.status === 'active' ? 'done' : null;
-                              if (!next) return;
-                              await fetchApi('/api/plans/annual', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: plan.annual_id, status: next }) });
-                              onRefresh?.();
-                            }}>
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            className="cal-action-btn"
-                            style={{ color: isChief ? '#ef4444' : '#ef4444', opacity: isChief ? 1 : 0.4 }}
-                            title={plan.status === 'pending' ? 'Видалити план' : plan.status === 'active' ? 'Повернути на затвердження' : 'Повернути в роботу'}
-                            aria-label="Повернути"
-                            disabled={!isChief}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (!isChief) return;
-                              if (plan.status === 'pending') {
-                                await fetchApi(`/api/plans/annual?id=${plan.annual_id}`, { method: 'DELETE' });
-                              } else {
-                                const prev = plan.status === 'active' ? 'pending' : plan.status === 'done' ? 'active' : null;
-                                if (prev) await fetchApi('/api/plans/annual', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: plan.annual_id, status: prev }) });
-                              }
-                              onRefresh?.();
-                            }}>
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

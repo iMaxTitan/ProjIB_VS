@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { getSupabaseAccessToken } from '@/lib/shared/supabase';
+import { getSupabaseAccessToken } from '@/lib/shared/db-client';
 import { refreshAuthCookie } from '@/lib/shared/auth';
 import logger from '@/lib/shared/logger';
 

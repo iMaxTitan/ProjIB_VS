@@ -285,13 +285,22 @@ function splitIntoSections(text: string): Array<{ heading: string; content: stri
   const lines = text.split('\n');
   const sections: Array<{ heading: string; content: string }> = [];
 
-  // If document has markdown headings (mammoth DOCX output), use ONLY those as
-  // section breaks. Numbered points (3.1.1, 3.3.5) are body text, not headings —
-  // treating them as headings drops all single-line numbered points.
-  const hasMarkdownHeadings = lines.some(l => /^#{1,3}\s+\S/.test(l));
-  const isSectionBreak = hasMarkdownHeadings
+  // Detect document structure to choose section-break strategy:
+  // 1. Multiple markdown headings (DOCX via mammoth) → use ONLY # headings
+  // 2. Single # heading + numbered paragraphs (legal docs from law-fetcher) → use both
+  // 3. No markdown headings → use numbered headings
+  const mdHeadingLines = lines.filter(l => /^#{1,3}\s+\S/.test(l));
+  const hasMultipleMdHeadings = mdHeadingLines.length > 1;
+
+  // Legal doc pattern: single # title + paragraphs like "21. ", "26. ", "210. "
+  const legalParagraphRx = /^\d{1,3}\.\s+\S/;
+  const hasLegalParagraphs = !hasMultipleMdHeadings && lines.some(l => legalParagraphRx.test(l));
+
+  const isSectionBreak = hasMultipleMdHeadings
     ? (line: string) => /^#{1,3}\s+\S/.test(line)
-    : (line: string) => isHeadingLine(line);
+    : hasLegalParagraphs
+      ? (line: string) => /^#{1,3}\s+\S/.test(line) || legalParagraphRx.test(line)
+      : (line: string) => isHeadingLine(line);
 
   let currentHeading = '';
   let currentLines: string[] = [];

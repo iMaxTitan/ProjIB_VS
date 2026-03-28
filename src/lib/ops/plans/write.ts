@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import type { StatusChangeParams, AnnualPlanParams, QuarterlyPlanParams, MonthlyPlanParams, DailyTaskParams } from './types';
 
 export async function changePlanStatus(params: StatusChangeParams) {

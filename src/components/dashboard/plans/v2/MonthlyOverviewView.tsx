@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { cn } from '@/lib/shared/utils';
-import { Building2, Users, ChevronRight, Check, X, Plus, Copy, Ban, Hourglass, Zap, CheckCheck } from 'lucide-react';
+import { Building2, Users, ChevronRight, Check, X, Plus, Copy, Ban, Ellipsis, Loader, CheckCheck } from 'lucide-react';
 import Image from 'next/image';
 import type { ProcessNode } from '@/hooks/usePlansV2';
 import type { MonthlyPlan } from '@/types/planning';
@@ -182,7 +182,7 @@ export function MonthlyUsersView({ userProcHours, processTree, scopeLabel }: Mon
   React.useEffect(() => {
     const ids = users.map(u => u.userId);
     if (ids.length === 0) return;
-    import('@/lib/shared/supabase').then(({ supabase }) => {
+    import('@/lib/shared/db-client').then(({ supabase }) => {
       supabase
         .from('user_profiles')
         .select('user_id, full_name, photo_base64')
@@ -270,8 +270,8 @@ async function fetchApi(url: string, init?: RequestInit) {
 
 const STATUS_ICON_MAP = {
   none: { Icon: Ban, cls: 'text-slate-300', title: 'Немає плану' },
-  pending: { Icon: Hourglass, cls: 'text-amber-500', title: 'Не затверджено' },
-  active: { Icon: Zap, cls: 'text-indigo-500', title: 'В роботі' },
+  pending: { Icon: Ellipsis, cls: 'text-amber-500', title: 'Не затверджено' },
+  active: { Icon: Loader, cls: 'text-indigo-500', title: 'В роботі' },
   done: { Icon: CheckCheck, cls: 'text-emerald-500', title: 'Виконано' },
 } as const;
 
@@ -280,31 +280,61 @@ type PlanStatus = 'none' | 'pending' | 'active' | 'done';
 interface MonthlyPlansListViewProps {
   processTree: ProcessNode[];
   monthlyPlans: MonthlyPlan[];
+  companyHours?: CompanyHoursRow[];
   year: number;
   month: number;
   canEdit?: boolean;
   isChief?: boolean;
   scopeLabel: string;
   onRefresh?: () => void;
+  onSelectProcedure?: (processId: string, procedureId: string) => void;
 }
 
-export function MonthlyPlansListView({ processTree, monthlyPlans, year, month, canEdit, isChief, scopeLabel, onRefresh }: MonthlyPlansListViewProps) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const toggle = useCallback((id: string) => {
-    setExpanded(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  }, []);
+const STATUS_BADGE: Record<PlanStatus, { label: string; cls: string }> = {
+  none: { label: 'Немає плану', cls: 'bg-slate-100 text-slate-500' },
+  pending: { label: 'Не затверджено', cls: 'bg-amber-100 text-amber-700' },
+  active: { label: 'В роботі', cls: 'bg-indigo-100 text-indigo-700' },
+  done: { label: 'Виконано', cls: 'bg-emerald-100 text-emerald-700' },
+};
 
-  // Map: procedure_id → monthly plan
-  const planMap = React.useMemo(() => {
-    const m = new Map<string, MonthlyPlan>();
-    for (const p of monthlyPlans.filter(p => p.month === month)) {
-      if (p.procedure_id) m.set(p.procedure_id, p);
+export function MonthlyPlansListView({ processTree, monthlyPlans, companyHours, year, month, canEdit, isChief, scopeLabel, onRefresh, onSelectProcedure }: MonthlyPlansListViewProps) {
+  // procedure → companies map
+  const procCompanies = React.useMemo(() => {
+    const m = new Map<string, { name: string; hours: number }[]>();
+    if (!companyHours) return m;
+    for (const c of companyHours) {
+      for (const pr of c.procedures) {
+        let list = m.get(pr.procedureId);
+        if (!list) { list = []; m.set(pr.procedureId, list); }
+        list.push({ name: c.companyName, hours: pr.hours });
+      }
     }
     return m;
-  }, [monthlyPlans, month]);
+  }, [companyHours]);
 
-  const totalPlans = processTree.reduce((s, proc) => s + proc.procedures.filter(pr => planMap.has(pr.procedureId)).length, 0);
-  const totalProcs = processTree.reduce((s, proc) => s + proc.procedures.length, 0);
+  // Build flat list of procedure cards with their plans
+  const items = React.useMemo(() => {
+    const planMap = new Map<string, MonthlyPlan>();
+    for (const p of monthlyPlans.filter(p => p.month === month)) {
+      if (p.procedure_id) planMap.set(p.procedure_id, p);
+    }
+    const result: { proc: ProcessNode; pr: typeof processTree[0]['procedures'][0]; plan: MonthlyPlan | null; status: PlanStatus }[] = [];
+    for (const proc of processTree) {
+      for (const pr of proc.procedures) {
+        const plan = planMap.get(pr.procedureId) || null;
+        const status: PlanStatus = !plan ? 'none' : (plan.status as PlanStatus) || 'pending';
+        result.push({ proc, pr, plan, status });
+      }
+    }
+    // Plans first (by status: pending → active → done), then none
+    const order: Record<PlanStatus, number> = { pending: 0, active: 1, done: 2, none: 3 };
+    result.sort((a, b) => order[a.status] - order[b.status]);
+    return result;
+  }, [processTree, monthlyPlans, month]);
+
+  const totalPlans = items.filter(i => i.plan).length;
+  const totalHours = items.reduce((s, i) => s + (i.plan ? i.pr.plannedHours : 0), 0);
+  const totalSpent = items.reduce((s, i) => s + i.pr.spentHours, 0);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -316,99 +346,107 @@ export function MonthlyPlansListView({ processTree, monthlyPlans, year, month, c
       </div>
       <div className="hdr-sep" />
 
-      <div className="flex-1 overflow-y-auto">
-        {processTree.map(proc => {
-          const isExp = expanded.has(proc.processId);
-          const procPlansCount = proc.procedures.filter(pr => planMap.has(pr.procedureId)).length;
+      <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
+        {items.length === 0 ? (
+          <div className="flex items-center justify-center py-12 text-[11px] text-slate-400">
+            Немає процедур
+          </div>
+        ) : items.map(({ proc, pr, plan, status }) => {
+          const st = STATUS_ICON_MAP[status];
+          const badge = STATUS_BADGE[status];
+          const pct = pr.plannedHours > 0 ? Math.round((pr.spentHours / pr.plannedHours) * 100) : 0;
 
           return (
-            <div key={proc.processId} className="border-b border-slate-100 last:border-b-0">
-              <button type="button" onClick={() => toggle(proc.processId)}
-                className="w-full flex items-center gap-2 px-3 py-2 bg-slate-50/80 hover:bg-slate-100/80 transition-colors text-left">
-                <ChevronRight className={cn('w-3.5 h-3.5 text-slate-400 flex-shrink-0 transition-transform', isExp && 'rotate-90')} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-semibold text-slate-800 line-clamp-2">{proc.name}</div>
-                </div>
-                <span className="text-[10px] text-slate-400 flex-shrink-0">{procPlansCount}/{proc.procedures.length}</span>
-              </button>
-
-              {isExp && proc.procedures.map(pr => {
-                const plan = planMap.get(pr.procedureId);
-                const status: PlanStatus = !plan ? 'none' : (plan.status as PlanStatus) || 'pending';
-                const st = STATUS_ICON_MAP[status];
-
-                return (
-                  <div key={pr.procedureId} className="flex items-center gap-2 px-3 py-1.5 pl-8 border-t border-slate-100/80 hover:bg-slate-50/50 transition-colors">
-                    <span className="flex-shrink-0" title={st.title}><st.Icon className={cn('w-3.5 h-3.5', st.cls)} /></span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[11px] font-medium text-slate-700 truncate">{pr.name}</div>
-                    </div>
-                    {plan && (
-                      <span className="text-[10px] font-bold text-slate-500 flex-shrink-0">{pr.plannedHours} год</span>
-                    )}
-                    {canEdit && (
-                      <div className="flex items-center gap-0.5 flex-shrink-0">
-                        {!plan ? (
-                          <>
-                            <button className="cal-action-btn" style={{ color: '#10b981' }} title="Створити план" aria-label="Створити"
-                              onClick={async () => {
-                                await fetchApi('/api/plans/monthly', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ procedure_id: pr.procedureId, year, month }) });
-                                onRefresh?.();
-                              }}>
-                              <Plus className="w-3 h-3" />
-                            </button>
-                            <button className="cal-action-btn" style={{ color: '#6366f1' }} title={`Копіювати з ${MONTH_NAMES_UK[month - 2] || MONTH_NAMES_UK[11]}`} aria-label="Копіювати"
-                              onClick={async () => {
-                                const prevM = month > 1 ? month - 1 : 0;
-                                await fetchApi('/api/plans/monthly', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ procedure_id: pr.procedureId, year, month, copy_from_month: prevM }) });
-                                onRefresh?.();
-                              }}>
-                              <Copy className="w-3 h-3" />
-                            </button>
-                          </>
-                        ) : status !== 'done' ? (
-                          <button className="cal-action-btn" style={{ color: '#10b981' }}
-                            title={status === 'pending' ? 'Затвердити' : 'Прийняти'} aria-label="Затвердити"
-                            onClick={async () => {
-                              const next = status === 'pending' ? 'active' : 'done';
-                              await fetchApi('/api/plans/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ id: plan.monthly_plan_id, table: 'monthly_plans', status: next }) });
-                              onRefresh?.();
-                            }}>
-                            <Check className="w-3 h-3" />
-                          </button>
-                        ) : null}
-                        {isChief && plan && (
-                          <button className="cal-action-btn" style={{ color: '#ef4444' }}
-                            title={status === 'pending' ? 'Видалити' : 'Повернути'}  aria-label="Повернути"
-                            onClick={async () => {
-                              if (status === 'pending') {
-                                await fetchApi(`/api/plans/monthly?id=${plan.monthly_plan_id}`, { method: 'DELETE' });
-                              } else {
-                                const prev = status === 'active' ? 'pending' : status === 'done' ? 'active' : null;
-                                if (prev) await fetchApi('/api/plans/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ id: plan.monthly_plan_id, table: 'monthly_plans', status: prev }) });
-                              }
-                              onRefresh?.();
-                            }}>
-                            <X className="w-3 h-3" />
-                          </button>
+            <div
+              key={pr.procedureId}
+              onClick={() => onSelectProcedure?.(proc.processId, pr.procedureId)}
+              role="button" tabIndex={0} aria-label={`Обрати ${pr.name}`}
+              onKeyDown={e => e.key === 'Enter' && onSelectProcedure?.(proc.processId, pr.procedureId)}
+              className={cn(
+                'border border-slate-200/80 rounded-xl px-3.5 py-2.5 hover:bg-slate-50/50 transition-colors cursor-pointer',
+                status === 'none' && 'border-dashed',
+              )}
+            >
+              <div className="flex gap-3">
+                {/* Left: content */}
+                <div className="flex-1 min-w-0 flex gap-2">
+                  <span className="flex-shrink-0 mt-0.5" title={st.title}><st.Icon className={cn('w-3.5 h-3.5', st.cls)} /></span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-slate-800 line-clamp-2">{pr.name}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">{proc.name}</div>
+                    {(pr.description || plan?.description) && (
+                      <div className="mt-1 space-y-0.5">
+                        {pr.description && <div className="text-[11px] text-slate-600 line-clamp-2">{pr.description}</div>}
+                        {plan?.description && plan.description !== pr.description && (
+                          <div className="text-[10px] text-slate-400 line-clamp-2 italic">{plan.description}</div>
                         )}
                       </div>
                     )}
+                    {(() => {
+                      const companies = procCompanies.get(pr.procedureId);
+                      return companies && companies.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {companies.map(c => (
+                            <span key={c.name} className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100/60">
+                              {c.name} · {c.hours} год
+                            </span>
+                          ))}
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
-                );
-              })}
+                </div>
+                {/* Right: badge + buttons + hours */}
+                <div className="flex-shrink-0 w-[120px] flex flex-col items-end gap-1" onClick={e => e.stopPropagation()}>
+                  <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full', badge.cls)}>
+                    {badge.label}
+                  </span>
+                  {canEdit && (
+                    <div className="flex items-center gap-0.5">
+                      {!plan ? (
+                        <>
+                          <button className="cal-action-btn" style={{ color: '#10b981' }} title="Створити план" aria-label="Створити"
+                            onClick={async () => { await fetchApi('/api/plans/monthly', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ procedure_id: pr.procedureId, year, month }) }); onRefresh?.(); }}>
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                          <button className="cal-action-btn" style={{ color: '#6366f1' }} title={`Копіювати з ${MONTH_NAMES_UK[month - 2] || MONTH_NAMES_UK[11]}`} aria-label="Копіювати"
+                            onClick={async () => { const prevM = month > 1 ? month - 1 : 0; await fetchApi('/api/plans/monthly', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ procedure_id: pr.procedureId, year, month, copy_from_month: prevM }) }); onRefresh?.(); }}>
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      ) : status !== 'done' ? (
+                        <>
+                          <button className="cal-action-btn" style={{ color: '#10b981' }}
+                            title={status === 'pending' ? 'Затвердити' : 'Прийняти'} aria-label="Затвердити"
+                            onClick={async () => { const next = status === 'pending' ? 'active' : 'done'; await fetchApi('/api/plans/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: plan.monthly_plan_id, table: 'monthly_plans', status: next }) }); onRefresh?.(); }}>
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          {isChief && (
+                            <button className="cal-action-btn" style={{ color: '#ef4444' }} title="Повернути" aria-label="Повернути"
+                              onClick={async () => { const prev = status === 'active' ? 'pending' : null; if (prev) await fetchApi('/api/plans/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: plan.monthly_plan_id, table: 'monthly_plans', status: prev }) }); onRefresh?.(); }}>
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </>
+                      ) : isChief ? (
+                        <button className="cal-action-btn" style={{ color: '#ef4444' }} title="Повернути" aria-label="Повернути"
+                          onClick={async () => { await fetchApi('/api/plans/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: plan.monthly_plan_id, table: 'monthly_plans', status: 'active' }) }); onRefresh?.(); }}>
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           );
         })}
       </div>
 
-      <div className="flex-shrink-0 grid grid-cols-2 gap-1.5 p-2.5 bg-slate-50 border-t border-slate-200">
-        <FooterMetric label="Планів" value={`${totalPlans} / ${totalProcs}`} />
-        <FooterMetric label="Місяць" value={scopeLabel} />
+      <div className="flex-shrink-0 grid grid-cols-3 gap-1.5 p-2.5 bg-slate-50 border-t border-slate-200">
+        <FooterMetric label="Планів" value={`${totalPlans} / ${items.length}`} />
+        <FooterMetric label="План" value={`${totalHours} год`} />
+        <FooterMetric label="Факт" value={`${totalSpent} год`} colorClass="text-emerald-600" />
       </div>
     </div>
   );

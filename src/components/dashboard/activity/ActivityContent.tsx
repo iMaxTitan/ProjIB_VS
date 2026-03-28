@@ -29,7 +29,7 @@ import {
     getActivityFeed,
     getAIContext,
 } from '@/lib/ops';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import logger from '@/lib/shared/logger';
 import Skeleton from '@/components/ui/Skeleton';
 

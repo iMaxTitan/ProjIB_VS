@@ -3,7 +3,7 @@
  * Extracted from MonthlyPlanDetails.tsx.
  */
 
-import { supabase } from '../../shared/supabase';
+import { supabase } from '../../shared/db-client';
 
 export async function updateMonthlyPlanProjects(monthlyPlanId: string, projectIds: string[]): Promise<void> {
   await supabase

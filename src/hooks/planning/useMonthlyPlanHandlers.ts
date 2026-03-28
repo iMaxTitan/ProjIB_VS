@@ -5,7 +5,7 @@
 
 import { useCallback } from 'react';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import {
   manageMonthlyPlan,
   deleteMonthlyPlan,

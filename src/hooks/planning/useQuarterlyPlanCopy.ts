@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import { manageQuarterlyPlan } from '@/lib/ops/plans';
 import { getErrorMessage } from '@/lib/shared/utils/error-message';
 import type { AnnualPlan, QuarterlyPlan } from '@/types/planning';

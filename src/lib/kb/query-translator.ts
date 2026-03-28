@@ -40,6 +40,18 @@ const DOMAIN_SYNONYMS: Record<string, Partial<Record<KBDomain, string>>> = {
   'мобилизация': {
     legal: 'мобілізаційна підготовка, призов, відстрочка від мобілізації',
   },
+  'заброньован': {
+    legal: 'військовозобов\'язані які не підлягають призову на військову службу під час мобілізації, відстрочка від призову, бронювання',
+  },
+  'забронирован': {
+    legal: 'військовозобов\'язані які не підлягають призову на військову службу під час мобілізації, відстрочка від призову, бронювання',
+  },
+  'бронюванн': {
+    legal: 'військовозобов\'язані які не підлягають призову, відстрочка від мобілізації, бронювання працівників',
+  },
+  'бронирован': {
+    legal: 'військовозобов\'язані які не підлягають призову, відстрочка від мобілізації, бронювання працівників',
+  },
 };
 
 /** Build synonym hint block for the LLM prompt (only for terms found in query). */
@@ -60,6 +72,8 @@ function buildSynonymHint(query: string): string {
 
 // ── Multi-query generation ────────────────────────────────────────────────────
 
+export type QuerySpecificity = 'high' | 'medium' | 'low';
+
 export interface MultiQueryResult {
   /** 2-3 Ukrainian search queries from different angles. */
   queries: string[];
@@ -67,37 +81,39 @@ export interface MultiQueryResult {
   primaryQuery: string;
   /** Detected domain for category pre-filtering. */
   domain: KBDomain;
-  /** Short clarification question when domain is ambiguous. */
+  /** Query specificity — low means too broad/vague. */
+  specificity: QuerySpecificity;
+  /** Short clarification question when domain is ambiguous or query is too vague. */
   clarification?: string;
   /** Cost tracking for the multi-query LLM call. */
   mqCost?: { model: string; promptTokens: number; completionTokens: number; cost: number };
 }
 
 const MULTI_QUERY_PROMPT =
-  'Ти — пошуковий помічник корпоративної бази знань. Твоя задача — перетворити запит користувача на 2-3 оптимальних пошукових запити українською мовою.\n\n' +
-  'СТРАТЕГІЯ ГЕНЕРАЦІЇ ЗАПИТІВ:\n' +
-  '1. ПРЯМИЙ — переклад на українську, зберігай конкретні назви (ПЗ, сервіси, номери документів)\n' +
-  '2. НОРМАТИВНИЙ — переформулюй терміном, який вживається в документах бази знань\n' +
-  '   (флешка → знімні носії, модем → периферійне обладнання, звільнення → припинення трудових відносин)\n' +
-  '3. КОНТЕКСТНИЙ — ширша тема для захоплення контексту\n' +
-  '   (встановити Photoshop → порядок встановлення ПЗ на робочу станцію)\n' +
-  'Кожен запит має бути самодостатнім — зрозумілим без оригіналу.\n\n' +
-  'ДОМЕН — визнач категорію запиту:\n' +
-  '• "ib" — інформаційна безпека, паролі, ПЗ, обладнання, мережа, антивірус, захист інформації\n' +
-  '• "hr" — кадри, відпустка, звільнення, прийом на роботу, кадровий резерв, трудові відносини\n' +
-  '• "it" — ІТ-інфраструктура, сервери, налаштування, адміністрування\n' +
-  '• "legal" — закони, постанови КМУ, мобілізація, бронювання, військовий облік, юридичні норми, права споживачів\n' +
-  '• "general" — не вдається визначити або запит широкий\n' +
-  '• "ambiguous" — запит ЯВНО неоднозначний (слово має РІЗНІ значення в різних категоріях).\n' +
-  '  Для ambiguous додай поле "clarification" — коротке уточнююче питання (1 речення, 2-3 варіанти).\n\n' +
-  'Приклади:\n' +
-  '• «установить Teams» → {"domain":"ib","queries":["встановити Microsoft Teams на робочу станцію","порядок встановлення програмного забезпечення","базовий набір ПЗ робочого місця"]}\n' +
-  '• «як звільнитися» → {"domain":"hr","queries":["процедура звільнення за власним бажанням","припинення трудових відносин порядок дій"]}\n' +
-  '• «бронювання співробітників» → {"domain":"legal","queries":["бронювання військовозобов\'язаних на період мобілізації","порядок бронювання працівників підприємства КМУ 76","відстрочка від призову на військову службу"]}\n' +
-  '• «гарантія на товар» → {"domain":"legal","queries":["гарантійний ремонт або заміна товару","гарантійні зобов\'язання продавця Закон 1023","права споживачів на повернення"]}\n' +
-  '• «чи можна флешку» → {"domain":"ib","queries":["використання USB-накопичувача на робочому місці","знімні носії інформації правила та обмеження"]}\n' +
-  '• «резерв» → {"domain":"ambiguous","queries":[],"clarification":"Ви маєте на увазі кадровий резерв чи резервістів (військовий облік)?"}\n\n' +
-  'Поверни JSON: {"domain":"...","queries":["...","..."]} або {"domain":"ambiguous","queries":[],"clarification":"..."}. Без пояснень.';
+  'You are a search query generator for a Ukrainian corporate knowledge base (АТБ-Маркет retail company).\n' +
+  'Transform the user query into 2-3 optimal search queries in UKRAINIAN.\n\n' +
+  'STRATEGY:\n' +
+  '1. DIRECT — translate to Ukrainian, preserve specific names (software, services, document numbers)\n' +
+  '2. NORMATIVE — rephrase using formal document terminology\n' +
+  '   (флешка → знімні носії, звільнення → припинення трудових відносин, заброньований → військовозобов\'язаний який не підлягає призову)\n' +
+  '3. CONTEXTUAL — broader topic to capture context\n\n' +
+  'CRITICAL: If the query mentions a specific SUBJECT (заброньований, моряк, водій), EVERY sub-query MUST include that subject. Do NOT generalize "заброньований" to just "військовозобов\'язаний".\n\n' +
+  'DOMAIN — classify the query:\n' +
+  '• "ib" — information security, passwords, software, hardware, network, antivirus\n' +
+  '• "hr" — HR, leave, dismissal, hiring, labor relations\n' +
+  '• "it" — IT infrastructure, servers, configuration\n' +
+  '• "legal" — laws, КМУ resolutions, mobilization, reserving (бронювання), military accounting, consumer rights\n' +
+  '• "general" — cannot determine or broad query\n' +
+  '• "ambiguous" — word has DIFFERENT meanings across categories. Add "clarification" field.\n\n' +
+  'SPECIFICITY:\n' +
+  '• "high" — specific question with details\n' +
+  '• "medium" — clear topic but no specifics\n' +
+  '• "low" — too broad (1-2 generic words). Add "clarification" with 2-4 options.\n\n' +
+  'Examples:\n' +
+  '• «установить Teams» → {"domain":"ib","queries":["встановити Microsoft Teams на робочу станцію","порядок встановлення програмного забезпечення","базовий набір ПЗ робочого місця"],"specificity":"high"}\n' +
+  '• «заброньований виїзд за кордон» → {"domain":"legal","queries":["право заброньованого на перетинання державного кордону","заброньований військовозобов\'язаний виїзд за кордон документи","заброньована особа перетин кордону під час воєнного стану"],"specificity":"high"}\n' +
+  '• «резерв» → {"domain":"ambiguous","queries":[],"specificity":"low","clarification":"Ви маєте на увазі кадровий резерв чи резервістів (військовий облік)?"}\n\n' +
+  'Return ONLY JSON: {"domain":"...","queries":[...],"specificity":"..."}. No explanations.';
 
 const VALID_DOMAINS: KBDomain[] = ['ib', 'hr', 'it', 'legal', 'general', 'ambiguous'];
 
@@ -106,51 +122,44 @@ const VALID_DOMAINS: KBDomain[] = ['ib', 'hr', 'it', 'legal', 'general', 'ambigu
  * Falls back to single translateAndExpand() on error.
  */
 export async function generateMultiQueries(text: string): Promise<MultiQueryResult> {
-  const apiKey = config.openai.apiKey;
-  if (!apiKey) return { queries: [text], primaryQuery: text, domain: 'general' };
+  const apiKey = config.anthropic.apiKey;
+  if (!apiKey) return { queries: [text], primaryQuery: text, domain: 'general', specificity: 'medium' };
   try {
     const synonymHint = buildSynonymHint(text);
     const systemContent = MULTI_QUERY_PROMPT + synonymHint;
 
-    const controller = new AbortController();
-    setTimeout(() => controller.abort(), 6_000);
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemContent },
-          { role: 'user', content: text },
-        ],
-        max_tokens: 300,
-        temperature: 0,
-        response_format: { type: 'json_object' },
-      }),
+    const { generateAITextWithUsage } = await import('@/lib/shared/ai/client');
+    const res = await generateAITextWithUsage({
+      messages: [{ role: 'user', content: text }],
+      systemPrompt: systemContent + '\n\nReturn ONLY valid JSON, no markdown fences.',
+      providerOverride: 'anthropic',
+      anthropicModel: 'claude-haiku-4-5-20251001',
+      apiKeyOverride: apiKey,
+      maxTokens: 300,
+      temperature: 0,
+      timeoutMs: 6_000,
     });
-    if (!res.ok) return fallbackSingle(text);
-    const data = await res.json() as {
-      choices: Array<{ message: { content: string } }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number };
-    };
-    const content = data.choices?.[0]?.message?.content?.trim();
+    const content = res.text?.trim();
     if (!content) return fallbackSingle(text);
 
-    // Track cost: GPT-4o-mini $0.15/1M input, $0.60/1M output
-    const pTok = data.usage?.prompt_tokens || 0;
-    const cTok = data.usage?.completion_tokens || 0;
-    const mqCost = { model: 'gpt-4o-mini', promptTokens: pTok, completionTokens: cTok,
-      cost: (pTok * 0.15 + cTok * 0.60) / 1_000_000 };
+    // Track cost: Haiku 4.5 $1.00/1M input, $5.00/1M output
+    const pTok = res.usage?.prompt_tokens || 0;
+    const cTok = res.usage?.completion_tokens || 0;
+    const mqCost = { model: 'claude-haiku-4.5', promptTokens: pTok, completionTokens: cTok,
+      cost: (pTok * 1.00 + cTok * 5.00) / 1_000_000 };
 
-    const parsed = JSON.parse(content) as { queries?: string[]; domain?: string; clarification?: string };
+    const cleanJson = content.replace(/```json\n?|\n?```/g, '').trim();
+    const parsed = JSON.parse(cleanJson) as { queries?: string[]; domain?: string; clarification?: string; specificity?: string };
     const domain: KBDomain = VALID_DOMAINS.includes(parsed.domain as KBDomain)
       ? (parsed.domain as KBDomain)
       : 'general';
+    const specificity: QuerySpecificity =
+      parsed.specificity === 'high' ? 'high' :
+      parsed.specificity === 'low' ? 'low' : 'medium';
 
-    // Ambiguous — return clarification question, no queries needed
-    if (domain === 'ambiguous' && parsed.clarification) {
-      return { queries: [], primaryQuery: text, domain, clarification: parsed.clarification, mqCost };
+    // Ambiguous or too vague — return clarification question
+    if ((domain === 'ambiguous' || specificity === 'low') && parsed.clarification) {
+      return { queries: [], primaryQuery: text, domain, specificity, clarification: parsed.clarification, mqCost };
     }
 
     const queries = Array.isArray(parsed) ? parsed as string[] : parsed.queries;
@@ -159,7 +168,7 @@ export async function generateMultiQueries(text: string): Promise<MultiQueryResu
     }
 
     const trimmed = queries.slice(0, 3).map(q => q.trim()).filter(Boolean);
-    return { queries: trimmed, primaryQuery: trimmed[0], domain, mqCost };
+    return { queries: trimmed, primaryQuery: trimmed[0], domain, specificity, mqCost };
   } catch {
     return fallbackSingle(text);
   }
@@ -167,7 +176,7 @@ export async function generateMultiQueries(text: string): Promise<MultiQueryResu
 
 async function fallbackSingle(text: string): Promise<MultiQueryResult> {
   const single = await translateAndExpand(text);
-  return { queries: [single], primaryQuery: single, domain: 'general' };
+  return { queries: [single], primaryQuery: single, domain: 'general', specificity: 'medium' };
 }
 
 // ── Legacy single-query translation (fallback) ───────────────────────────────

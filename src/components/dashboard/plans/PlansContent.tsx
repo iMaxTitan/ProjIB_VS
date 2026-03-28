@@ -8,7 +8,7 @@ import { usePlanNavigation } from '@/hooks/planning/usePlanNavigation';
 import { usePlanFilters } from '@/hooks/planning/usePlanFilters';
 import { FileText } from 'lucide-react';
 import { useIsMobile } from '@/hooks/useMediaQuery';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import { TwoPanelLayout } from '@/components/dashboard/shared';
 import PlanTreeHeader from './tree/PlanTreeHeader';
 import AddTaskModal from '@/components/dashboard/plans/Tasks/AddTaskModal';

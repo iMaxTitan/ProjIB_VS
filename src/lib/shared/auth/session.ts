@@ -1,7 +1,7 @@
 "use client";
 
 import Cookies from 'js-cookie';
-import { supabase, setSupabaseSession, clearSupabaseSession } from '@/lib/shared/supabase';
+import { supabase, setSupabaseSession, clearSupabaseSession } from '@/lib/shared/db-client';
 import { UserInfo, roleLabels } from '@/types/azure';
 import { UserRole } from '@/types/supabase';
 import { logger } from '@/lib/shared/logger';

@@ -3,7 +3,7 @@
  * Extracted from employee-report.service.ts.
  */
 
-import { supabase } from '../../shared/supabase';
+import { supabase } from '../../shared/db-client';
 import logger from '@/lib/shared/logger';
 import { type MonthlyReportListItem } from './types';
 

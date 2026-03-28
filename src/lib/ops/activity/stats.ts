@@ -2,7 +2,7 @@
  * Activity service — statistics and AI context functions.
  */
 import type { SupabaseClient } from '@/lib/shared/postgrest-client';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import { getServerDb } from '@/lib/shared/db-server';
 import logger from '@/lib/shared/logger';
 import { ActivityStats, ActivityStatsRow, ActivityContextRow } from './types';

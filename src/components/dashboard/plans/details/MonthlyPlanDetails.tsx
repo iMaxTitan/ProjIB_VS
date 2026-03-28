@@ -5,7 +5,7 @@ import AddTaskModal from '@/components/dashboard/plans/Tasks/AddTaskModal';
 import { cn } from '@/lib/shared/utils';
 import { MonthlyPlan, QuarterlyPlan, PlanStatus, getMonthName, MONTH_NAMES_RU } from '@/types/planning';
 import { UserInfo } from '@/types/azure';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import { DetailSection, GradientDetailCard } from '@/components/dashboard/shared';
 import PlanStatusDropdown from './components/PlanStatusDropdown';
 import { useAvailableStatuses } from '@/hooks/useAvailableStatuses';

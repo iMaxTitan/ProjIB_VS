@@ -2,7 +2,7 @@
  * Shared types, client factory and helpers for monthly report services.
  */
 
-import { supabase } from '../../shared/supabase';
+import { supabase } from '../../shared/db-client';
 import { createClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 import { config } from '@/lib/shared/config';

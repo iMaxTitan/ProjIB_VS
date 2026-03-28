@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import { MonthlyPlan, getMonthName } from '@/types/planning';
 import { Modal } from '@/components/ui/Modal';
 import TaskFileUpload from './TaskFileUpload';

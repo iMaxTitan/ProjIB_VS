@@ -5,7 +5,7 @@ import { Folder } from 'lucide-react';
 import { UserInfo } from '@/types/azure';
 import { cn } from '@/lib/shared/utils';
 import { useIsMobile } from '@/hooks/useMediaQuery';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import { useProjects } from '@/hooks/useProjects';
 import { ProjectWithDepartments } from '@/types/projects';
 import { TwoPanelLayout, GradientDetailCard, GroupHeader, DetailSection, ReferenceListItem } from '../shared';

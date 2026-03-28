@@ -3,7 +3,7 @@ import logger from '@/lib/shared/logger';
 import { isRequestAuthorized, getRequesterKey, checkRateLimit } from '@/lib/shared/api/request-guards';
 import { getRelatedLaws } from '@/lib/ops/laws/fetcher-client';
 
-const RATE_LIMIT = 10;
+const RATE_LIMIT = 30;
 const RATE_WINDOW_MS = 60_000;
 
 export async function POST(req: NextRequest) {

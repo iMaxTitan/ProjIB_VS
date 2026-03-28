@@ -59,13 +59,12 @@ export async function POST(req: NextRequest) {
     let qId = quarterly_id || null;
     if (!qId) {
       const q = Math.ceil(month / 3);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: qp } = await db.from('quarterly_plans')
         .select('quarterly_id')
         .eq('year', year).eq('quarter', q)
         .limit(1)
         .maybeSingle();
-      qId = (qp as any)?.quarterly_id || null;
+      qId = (qp as Record<string, string>)?.quarterly_id || null;
     }
 
     // Base plan data
@@ -83,7 +82,6 @@ export async function POST(req: NextRequest) {
       const srcYear = srcMonth === 0 ? year - 1 : year;
       const actualSrcMonth = srcMonth === 0 ? 12 : srcMonth;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: prev } = await db.from('monthly_plans')
         .select('monthly_plan_id, planned_hours, description, distribution_type')
         .eq('procedure_id', procedure_id).eq('year', srcYear).eq('month', actualSrcMonth)

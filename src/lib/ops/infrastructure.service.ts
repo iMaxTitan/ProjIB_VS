@@ -1,4 +1,4 @@
-import { supabase } from '../shared/supabase';
+import { supabase } from '../shared/db-client';
 import type {
   Company,
   CompanyInfrastructure,

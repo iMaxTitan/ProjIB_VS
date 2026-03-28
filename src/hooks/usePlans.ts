@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import { AnnualPlan, QuarterlyPlan, MonthlyPlan, PlanStatus } from '@/types/planning';
 import { getErrorMessage } from '@/lib/shared/utils/error-message';
 import logger from '@/lib/shared/logger';

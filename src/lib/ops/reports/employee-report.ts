@@ -4,7 +4,7 @@
  * getAvailableEmployeeReports + getAvailablePeriods → employee-report-list.service.ts
  */
 
-import { supabase } from '../../shared/supabase';
+import { supabase } from '../../shared/db-client';
 import logger from '@/lib/shared/logger';
 import { getInfrastructureForPeriod } from '../infrastructure.service';
 import { getCompanyShare } from '@/lib/ops/reports/hour-distribution';

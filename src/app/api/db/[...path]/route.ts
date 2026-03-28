@@ -40,12 +40,6 @@ function getServiceKey(): string {
   return config.db.serviceRoleKey;
 }
 
-function buildTargetUrl(path: string, searchParams: URLSearchParams): string {
-  const base = getPostgrestUrl().replace(/\/$/, '');
-  const qs = searchParams.toString();
-  return qs ? `${base}/rest/v1/${path}?${qs}` : `${base}/rest/v1/${path}`;
-}
-
 function buildHeaders(request: NextRequest): Record<string, string> {
   const key = getServiceKey();
   const headers: Record<string, string> = {

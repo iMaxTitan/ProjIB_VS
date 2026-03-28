@@ -5,7 +5,7 @@ import { cn } from '@/lib/shared/utils';
 import {
   Target, FileText, FileCheck, Banknote, Lightbulb, CalendarDays,
   ChevronRight, X, Pencil, Check, Trash2, Plus,
-  Ban, Hourglass, Zap, CheckCheck,
+  Ban, Ellipsis, Loader, CheckCheck,
 } from 'lucide-react';
 import type { ProcessNode } from '@/hooks/usePlansV2';
 import type { AnnualPlanRow, AnnualBudgetRow, QuarterlyPlanRow, QuarterlyInitiativeRow, ViewLevel } from '@/hooks/usePlansV2';
@@ -567,7 +567,7 @@ export default function ProcessDetailView({
       {/* Approve/Reject bar */}
       {canEdit && isPending && scopePlanStatus && (
         <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-amber-50/50 border-t border-amber-200/60">
-          <Hourglass className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+          <Ellipsis className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
           <span className="text-[11px] font-medium text-amber-700 flex-1">Очікує затвердження</span>
           <button onClick={approvePlan} disabled={saving}
             className="flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold transition-colors"

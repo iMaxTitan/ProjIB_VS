@@ -11,7 +11,7 @@ import { getServerDb } from '@/lib/shared/db-server';
 import { processDocument } from '@/lib/kb';
 import { fetchLaw } from '@/lib/ops/laws/fetcher-client';
 
-const RATE_LIMIT = 5;
+const RATE_LIMIT = 15;
 const RATE_WINDOW_MS = 60_000;
 
 interface ImportBody {

@@ -1,6 +1,6 @@
 // Compatibility shim — wraps planner/task-service with client-side supabase
 // TODO: Remove this shim in Phase 7 cleanup
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import {
   getTasksByMonthlyPlanId as _getTasksByMonthlyPlanId,
   getWeeklyTasksSpentHours as _getWeeklyTasksSpentHours,

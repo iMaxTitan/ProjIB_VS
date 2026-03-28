@@ -42,7 +42,7 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
     detailPlans, scopeMonths,
     viewLevel, annualPlans, quarterlyPlans,
     selectedAnnualPlan, selectedQuarterlyPlan,
-    annualBudgetItems, annualBudgetSumMap, quarterlyBudgetSumMap, quarterlyInitiatives, quarterlyInitiativesMap,
+    annualBudgetItems, annualBudgetSumMap, annualBudgetNamesMap, quarterlyBudgetSumMap, quarterlyBudgetItemsMap, quarterlyInitiatives, quarterlyInitiativesMap,
     monthlyPlans, monthlyCompanyHours, monthlyUserProcHours,
     availableBudgetItems,
   } = data;
@@ -167,6 +167,8 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
                   annualPlans={annualPlans}
                   quarterlyPlans={quarterlyPlans}
                   quarter={quarter}
+                  canEdit={canEdit}
+                  onRefresh={refreshData}
                 />
               </div>
             </div>
@@ -186,7 +188,7 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
             <div className="glass-panel rounded-xl flex-1 min-h-0 flex flex-col overflow-hidden p-2">
               <div className="element-card flex-1 min-h-0 flex flex-col overflow-hidden" style={{ borderRadius: 12 }}>
                 {viewLevel === 'year' && !selectedProcess && (
-                  <AnnualListView annualPlans={annualPlans} processTree={processTree} year={year} annualBudgetSumMap={annualBudgetSumMap} canEdit={canEdit} isChief={isChief} onSelectProcess={selectProcess} onRefresh={refreshData} />
+                  <AnnualListView annualPlans={annualPlans} processTree={processTree} year={year} annualBudgetSumMap={annualBudgetSumMap} annualBudgetNamesMap={annualBudgetNamesMap} canEdit={canEdit} isChief={isChief} onSelectProcess={selectProcess} onRefresh={refreshData} />
                 )}
                 {/* Process selected (no procedure) → unified ProcessDetailView */}
                 {selectedProcess && !selectedProcedure && (
@@ -209,10 +211,10 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
                   />
                 )}
                 {viewLevel === 'quarter' && !selectedProcess && quarter && (
-                  <QuarterlyListView quarterlyPlans={quarterlyPlans} processTree={processTree} annualPlans={annualPlans} quarterlyBudgetSumMap={quarterlyBudgetSumMap} quarterlyInitiativesMap={quarterlyInitiativesMap} quarter={quarter} year={year} canEdit={canEdit} isChief={isChief} onSelectProcess={selectProcess} onRefresh={refreshData} />
+                  <QuarterlyListView quarterlyPlans={quarterlyPlans} processTree={processTree} annualPlans={annualPlans} quarterlyBudgetSumMap={quarterlyBudgetSumMap} quarterlyBudgetItemsMap={quarterlyBudgetItemsMap} quarterlyInitiativesMap={quarterlyInitiativesMap} quarter={quarter} year={year} canEdit={canEdit} isChief={isChief} onSelectProcess={selectProcess} onRefresh={refreshData} />
                 )}
                 {viewLevel === 'month' && !selectedProcess && month && (
-                  <MonthlyPlansListView processTree={processTree} monthlyPlans={monthlyPlans} year={year} month={month} canEdit={canEdit} isChief={isChief} scopeLabel={scopeLabel} onRefresh={refreshData} />
+                  <MonthlyPlansListView processTree={processTree} monthlyPlans={monthlyPlans} companyHours={monthlyCompanyHours} year={year} month={month} canEdit={canEdit} isChief={isChief} scopeLabel={scopeLabel} onRefresh={refreshData} onSelectProcedure={selectProcedure} />
                 )}
                 {selectedProcedure && (
                   <ProcedureDetailPanel

@@ -6,17 +6,27 @@
  * Uses Claude Haiku 4.5 via shared AI client.
  */
 import { generateAIText } from '@/lib/shared/ai/client';
+import { config } from '@/lib/shared/config';
 import logger from '@/lib/shared/logger';
 
 const CONTEXT_PROMPT =
-  'Ти отримуєш фрагмент корпоративного документа та загальний опис документа.\n' +
-  'Напиши короткий контекст (2-3 речення, максимум 80 слів) для цього фрагменту:\n' +
-  '- Про що цей фрагмент і до якої теми він відноситься\n' +
-  '- Яке правило/процедуру/заборону він описує (якщо є)\n' +
-  '- До якої КАТЕГОРІЇ предметів/пристроїв/процесів відноситься\n\n' +
-  'ТІЛЬКИ факти з тексту. Без «цей фрагмент описує...» — пиши як довідку.\n' +
-  'Мова: українська.\n' +
-  'Відповідай ТІЛЬКИ контекстом, без пояснень.';
+  'You receive a fragment of a Ukrainian corporate/legal document and a document summary.\n' +
+  'Generate a structured search index entry. Output in UKRAINIAN, instructions in English.\n\n' +
+  'FORMAT (every line mandatory):\n' +
+  '[Пошук: comma-separated list of 5-10 COLLOQUIAL Ukrainian search terms users would type to find this fragment]\n' +
+  '[Тип: загальне правило | виняток | процедура | визначення | перелік | заборона | відповідальність]\n' +
+  '[Стосується: WHO or WHAT is the subject — specific category of persons, objects, situations]\n' +
+  '1-2 sentences of context (max 50 words) — what rule/procedure this fragment describes.\n\n' +
+  'CRITICAL RULES for [Пошук:]:\n' +
+  '- Add COLLOQUIAL synonyms for legal terms. Examples:\n' +
+  '  "військовозобов\'язані які не підлягають призову" → add "заброньовані, бронювання"\n' +
+  '  "припинення трудових відносин" → add "звільнення, як звільнитися"\n' +
+  '  "знімні носії інформації" → add "флешка, USB"\n' +
+  '  "програмне забезпечення" → add "ПЗ, софт, програми"\n' +
+  '- Add abbreviations: ТЦК, ВЛК, ВОД, АРМ, КМУ, etc.\n' +
+  '- Think: "what would a retail company employee type in chat to find this?"\n' +
+  '- Do NOT repeat words from the document title\n\n' +
+  'Output ONLY the structured entry, no explanations.';
 
 const MAX_DOC_SUMMARY_CHARS = 6000;
 const MAX_RETRIES = 3;
@@ -44,9 +54,10 @@ export async function generateContextualPrefix(
       const text = await generateAIText({
         messages: [{ role: 'user', content: userMessage }],
         systemPrompt: CONTEXT_PROMPT,
-        providerOverride: 'openai',
-        openAIModel: 'gpt-4.1-mini',
-        maxTokens: 200,
+        providerOverride: 'anthropic',
+        anthropicModel: 'claude-haiku-4-5-20251001',
+        apiKeyOverride: config.anthropic.apiKey!,
+        maxTokens: 300,
         temperature: 0,
         timeoutMs: 30_000,
       });
@@ -71,9 +82,11 @@ export async function generateContextualPrefix(
   return '';
 }
 
+const CONCURRENCY = 30;
+
 /**
  * Generate contextual prefixes for all chunks of a document.
- * Sequential calls with small delay to avoid rate limits.
+ * Parallel batches of CONCURRENCY calls for speed.
  * Returns array of prefix strings (empty string for failed chunks).
  */
 export async function generateContextualPrefixes(
@@ -81,18 +94,16 @@ export async function generateContextualPrefixes(
   fullDocumentText: string,
   chunks: Array<{ heading: string; content: string }>,
 ): Promise<string[]> {
-  const prefixes: string[] = [];
   const docSummary = fullDocumentText.slice(0, MAX_DOC_SUMMARY_CHARS);
+  const prefixes: string[] = new Array(chunks.length).fill('');
 
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
-    const prefix = await generateContextualPrefix(
-      documentTitle, docSummary, chunk.heading, chunk.content,
+  for (let batch = 0; batch < chunks.length; batch += CONCURRENCY) {
+    const slice = chunks.slice(batch, batch + CONCURRENCY);
+    const results = await Promise.all(
+      slice.map(chunk => generateContextualPrefix(documentTitle, docSummary, chunk.heading, chunk.content)),
     );
-    prefixes.push(prefix);
-
-    if (i < chunks.length - 1) {
-      await new Promise(r => setTimeout(r, 500));
+    for (let j = 0; j < results.length; j++) {
+      prefixes[batch + j] = results[j];
     }
   }
 

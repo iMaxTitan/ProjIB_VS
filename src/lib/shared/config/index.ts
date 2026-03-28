@@ -3,7 +3,7 @@
  * ЕДИНСТВЕННЫЙ файл в проекте где разрешён process.env (server-side).
  *
  * Исключения (Next.js constraint — NEXT_PUBLIC_* должны быть inline):
- *   - src/lib/shared/supabase.ts — uses /api/db proxy (no env vars needed)
+ *   - src/lib/shared/db-client.ts — uses /api/db proxy (no env vars needed)
  *   - src/lib/shared/auth/config.ts — NEXT_PUBLIC_AZURE_* (client-side MSAL)
  *   - src/lib/shared/logger.ts  — NODE_ENV (нужен до инициализации config)
  */

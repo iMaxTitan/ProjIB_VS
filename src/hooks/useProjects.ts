@@ -3,7 +3,7 @@
 import { useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { projectsQueryOptions } from '@/lib/ops/reference-queries';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import {
   Project,
   ProjectWithDepartments,

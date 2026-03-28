@@ -10,7 +10,13 @@ import { fetchWithTimeout } from '@/lib/shared/utils/fetch-with-timeout';
 
 const RERANK_MODEL = 'rerank-2.5';
 const RERANK_ENDPOINT = 'https://api.voyageai.com/v1/rerank';
-const RERANK_INSTRUCTION = 'Prioritize normative corporate documents that directly answer the query. Rank procedural and regulatory content higher than tangentially related fragments.';
+const RERANK_INSTRUCTIONS: Record<string, string> = {
+  legal: 'Users are employees of a retail company. Rank general norms higher than profession-specific procedures (cultural workers, sailors, athletes). Prioritize fragments with article/clause references.',
+  ib: 'Prioritize procedural and regulatory instructions for information security. Rank step-by-step requirements and standards higher than definitions or policy overviews.',
+  hr: 'Prioritize HR procedures, deadlines, and responsible parties. Rank specific employment rules higher than general corporate policy statements.',
+  it: 'Prioritize technical instructions and configuration procedures. Rank actionable steps higher than architectural overviews.',
+  default: 'Prioritize normative corporate documents that directly answer the query. Rank procedural and regulatory content higher than tangentially related fragments.',
+};
 
 /** Minimum reranker relevance score to keep a chunk (below = noise). */
 export const RERANK_NOISE_THRESHOLD = 0.15;
@@ -30,6 +36,7 @@ export async function rerankChunks<T extends Rerankable>(
   query: string,
   items: T[],
   topK = 4,
+  domain?: string,
 ): Promise<T[]> {
   if (!items.length) return items;
 
@@ -48,7 +55,7 @@ export async function rerankChunks<T extends Rerankable>(
       },
       body: JSON.stringify({
         model: RERANK_MODEL,
-        query: RERANK_INSTRUCTION + '\n\nQuery: ' + query,
+        query: (RERANK_INSTRUCTIONS[domain ?? ''] ?? RERANK_INSTRUCTIONS.default) + '\n\nQuery: ' + query,
         documents: items.map(item => {
           const parts: string[] = [];
           if ('contextual_prefix' in item && item.contextual_prefix) {

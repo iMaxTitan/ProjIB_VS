@@ -113,26 +113,41 @@ const toSuper = (n: number): string =>
 // ── Stage 1: Extract facts from chunks (GPT-4.1-mini) ──────────────────────────
 
 const EXTRACT_PROMPT =
-  'You are a fact extraction engine for Ukrainian corporate documents.\n\n' +
+  'You are a fact extraction engine for the corporate knowledge base of АТБ-Маркет (retail company). Users are employees of this company.\n\n' +
   'INPUT: user query + numbered document fragments.\n' +
   'OUTPUT: strictly valid JSON, no markdown fences, no commentary.\n\n' +
   'Schema:\n' +
   '{"level":"direct|partial|adjacent|none","facts":[{"text":"...","fragment":N,"ref":"п.3"}],"missing":"..."}\n\n' +
-  'RULES:\n' +
-  '1. Extract EVERY fact relevant to the query: procedures, responsibilities, prohibitions, conditions, deadlines, who performs, who approves, consequences.\n' +
+  'STEP 1 — UNDERSTAND THE QUERY:\n' +
+  'Before extracting, identify:\n' +
+  '- SUBJECT: who is the question about? (працівник як суб\'єкт даних? як обробник? військовозобов\'язаний? заброньований? підприємство?)\n' +
+  '- ACTION: what specifically is asked? (право, обов\'язок, заборона, процедура, строк?)\n' +
+  '- SITUATION: what specific scenario? (передача даних ТЦК, виїзд за кордон, встановлення ПЗ?)\n\n' +
+  'STEP 2 — EXTRACT FACTS:\n' +
+  '1. Extract facts that answer the SPECIFIC question for the SPECIFIC subject in the SPECIFIC situation.\n' +
   '2. DEDUCTION (apply ALL of these):\n' +
   '   - Category → item: rule for "ПЗ" applies to "Photoshop", rule for "знімні носії" applies to "флешка".\n' +
   '   - Base set comparison: if fragments list approved software (e.g. PeaZip as archiver) and user asks about a DIFFERENT product in same category (e.g. WinRAR) → state that the asked product is NOT in the base set and may require a license.\n' +
   '   - Licensing: if a table marks a category as "потрібне придбання ліцензії" → apply to the queried product.\n' +
+  '   - Legal YES/NO: if the query asks "чи може?/чи має право?/чи треба?" — the answer MUST start with a clear YES/NO fact, then supporting details.\n' +
+  '   - General vs specific norms: if fragments contain BOTH a general rule (e.g. "всі заброньовані мають право") AND specific procedures for subcategories (e.g. "працівники культури", "моряки", "спортсмени") — extract the GENERAL rule first. Only include specific-category facts if the query ASKS about that category.\n' +
+  '   - Wrong subcategory: if a fragment describes procedures for a specific profession/category NOT mentioned in the query — SKIP it. E.g. query about "заброньовані" in general → skip facts about "лист Мінкультури" or "лист Держкомтелерадіо" (these are for specific subcategories).\n' +
   '3. Each fact = one clean sentence in Ukrainian. Put clause/article refs in "ref" field (e.g. "п.3.2", "ст.25"), NOT in "text".\n' +
   '4. One fact per logical statement. Do not merge unrelated statements.\n' +
-  '5. "fragment" = 1-based index. "ref" = article/clause reference if present (optional).\n' +
-  '6. level: "direct" = query answered fully, "partial" = key parts answered, "adjacent" = related info only, "none" = nothing relevant.\n' +
-  '7. "missing" = what information the fragments lack to fully answer the query. Empty string if nothing is missing.\n' +
-  '8. When in doubt whether a fact is relevant — INCLUDE it. Err on the side of over-extraction.';
+  '5. "fragment" = 1-based index. "ref" = article/clause reference if present (optional).\n\n' +
+  'STEP 3 — CLASSIFY LEVEL (be strict):\n' +
+  '- "direct" = the fragments contain a norm that DIRECTLY answers the specific question for the specific subject.\n' +
+  '- "partial" = key parts answered but some aspects missing (state what\'s missing in "missing").\n' +
+  '- "adjacent" = fragments discuss the SAME TOPIC but do NOT answer the specific question. Examples:\n' +
+  '    • Query about person\'s OWN data rights → fragments about processing OTHER people\'s data = adjacent.\n' +
+  '    • Query about заброньовані specifically → fragments about загальний порядок for all ВЗ = adjacent.\n' +
+  '    • Query about "чи треба X" → fragments describing procedure of X but not stating if it\'s required = adjacent.\n' +
+  '- "none" = nothing relevant to the topic at all.\n' +
+  '- "missing" = what specific information the fragments lack. Be precise: "Немає норми про обов\'язковість ВЛК саме для заброньованих осіб".\n\n' +
+  'IMPORTANT: Do NOT guess or extrapolate when the specific norm is absent. If fragments say "ВЗ проходять ВЛК" but don\'t specify whether заброньовані MUST pass it — that\'s "adjacent", not "partial".';
 
 function buildFragmentsBlock(chunks: KBChunk[]): string {
-  return chunks.slice(0, 8).map((c, i) => {
+  return chunks.slice(0, 4).map((c, i) => {
     const ctx = c.contextual_prefix ? `[Контекст: ${c.contextual_prefix}]\n` : '';
     return `[Фрагмент ${i + 1}] ${c.document_title}` +
       (c.heading ? ` > ${c.heading}` : '') +
@@ -179,9 +194,10 @@ async function extractFacts(
 // ── Stage 2: Compose answer from facts (Claude Sonnet) ──────────────────────────
 
 const COMPOSE_BASE =
-  'You are a corporate knowledge base assistant. Output language: Ukrainian.\n\n' +
+  'You are a corporate knowledge base assistant for АТБ-Маркет (retail company). ' +
+  'Users are employees of this company. Output language: Ukrainian.\n\n' +
   'INPUT: extracted facts with source references (ref) [N].\n' +
-  'TASK: compose a coherent answer using ONLY these facts.\n\n' +
+  'TASK: compose a coherent answer using ONLY these facts. Apply facts to the context of a retail company employee.\n\n' +
   'RULES:\n' +
   '- Use wording as close to original facts as possible. Do not rephrase unnecessarily.\n' +
   '- Do NOT invent facts, terms, or advice ("зверніться", "рекомендую") not present in input.\n' +
@@ -191,6 +207,11 @@ const COMPOSE_BASE =
   '- <b>Section title</b>, bullets «•» on new lines, NO blank lines between bullets.\n' +
   '- Blank line ONLY between different sections.\n' +
   '- Max 7-8 bullets per section.';
+
+const CAVEAT_SUFFIX =
+  '\n\nIMPORTANT: The facts below are only TANGENTIALLY related to the query. ' +
+  'Start your answer with: "⚠️ В базі знань немає прямої відповіді на це запитання. Ось дотична інформація, яка може бути корисною:"\n' +
+  'Be honest about what the KB does NOT contain. Do NOT present tangential facts as a direct answer.';
 
 const COMPOSE_DOMAIN: Record<string, string> = {
   ib:
@@ -208,6 +229,9 @@ const COMPOSE_DOMAIN: Record<string, string> = {
   legal:
     '\nRole: Legal consultant. Tone: precise, clear. Quote key legal formulations verbatim.\n' +
     'One continuous text, do NOT split into sections.\n' +
+    'CRITICAL: If some facts are about a DIFFERENT subject than the query asks about — IGNORE those facts. ' +
+    'Example: query about "заброньовані" → ignore facts about "культурні діячі" or "моряки". ' +
+    'Only use facts that apply to the SPECIFIC subject of the query.\n' +
     'End with: "⚠️ Перевірте актуальність на zakon.rada.gov.ua — законодавство може змінюватись."',
 };
 
@@ -255,7 +279,12 @@ async function composeAnswer(
   domain: string,
   history?: ConversationTurn[],
 ): Promise<AIResult> {
-  const systemPrompt = COMPOSE_BASE + (COMPOSE_DOMAIN[domain] ?? '');
+  // For caveat domains (e.g. 'legal_caveat'), apply base domain prompt + caveat suffix
+  const baseDomain = domain.replace('_caveat', '');
+  const isCaveat = domain.endsWith('_caveat');
+  const domainPrompt = COMPOSE_DOMAIN[baseDomain] ?? '';
+  const caveatPrompt = isCaveat ? CAVEAT_SUFFIX : '';
+  const systemPrompt = COMPOSE_BASE + domainPrompt + caveatPrompt;
 
   return generateAITextWithUsage({
     messages: [
@@ -357,14 +386,24 @@ export async function synthesizeAnswer(
       return { text: noInfoText, cost: extUsage.cost, promptTokens: extUsage.p, completionTokens: extUsage.c, model: 'claude-haiku-4.5-extract', stages };
     }
 
+    // Adjacent — answer with explicit caveat about tangential info
+    if (extraction.level === 'adjacent') {
+      logger.prod('[kb/synth] adjacent extraction — adding caveat');
+    }
+
     // Build facts block with source mapping
     const { text: factsText, sourceMap } = buildFactsBlock(extraction.facts, chunks, docInfoMap);
     logger.prod('[kb/synth] sample fact:', extraction.facts[0]?.text?.slice(0, 60), 'ref:', extraction.facts[0]?.ref,
       'frag:', extraction.facts[0]?.fragment);
     logger.prod('[kb/synth] factsText preview:', factsText.slice(0, 200));
 
-    // Stage 2: Compose answer (Claude Sonnet 4.6)
-    const compRes = await composeAnswer(query, factsText, domain, history);
+    // Stage 2: Compose answer
+    // For adjacent/partial extraction with medium confidence — add caveat instruction
+    let composeDomain = domain;
+    if (extraction.level === 'adjacent') {
+      composeDomain = domain + '_caveat';
+    }
+    const compRes = await composeAnswer(query, factsText, composeDomain, history);
     const cp = compRes.usage?.prompt_tokens || 0;
     const cc = compRes.usage?.completion_tokens || 0;
     // Haiku 4.5: $1.00/1M input, $5.00/1M output

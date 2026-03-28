@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import { getCompanies } from '@/lib/ops';
 import type { Process, AnnualPlan } from '@/types/planning';
 import type { SupabaseUserInfo } from '@/types/supabase';

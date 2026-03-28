@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import type { DailyTask, Procedure, MonthlyPlan } from '@/types/planning';
 import {
   type MonthlyPlansFilter,

@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import { getProcedures, canDeleteMonthlyPlan } from '@/lib/ops/plans';
 import { getTasksByMonthlyPlanId, type DailyTaskRow } from '@/lib/ops/tasks/task-service';
 import logger from '@/lib/shared/logger';

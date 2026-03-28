@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { manageMonthlyPlan, type MonthlyPlanParams } from '@/lib/ops/plans';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 
 async function setMonthlyPlanCompanies(planId: string, companyIds: string[]) {
   await supabase.from('monthly_plan_companies').delete().eq('monthly_plan_id', planId);

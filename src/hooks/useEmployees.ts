@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { employeesQueryOptions } from '@/lib/ops/reference-queries';
-import { supabase } from '@/lib/shared/supabase';
+import { supabase } from '@/lib/shared/db-client';
 import { SupabaseUserInfo } from '@/types/supabase';
 
 // ─── useDepartments ───────────────────────────────────────────────────────────

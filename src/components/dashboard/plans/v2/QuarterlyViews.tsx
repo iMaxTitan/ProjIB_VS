@@ -2,26 +2,35 @@
 
 import React, { useState } from 'react';
 import { cn } from '@/lib/shared/utils';
-import { Target, Lightbulb, FileCheck, FileText, Pencil, Check, X, Trash2, ShieldCheck, Plus, Copy, Banknote, CalendarDays } from 'lucide-react';
+import { Target, Lightbulb, FileCheck, FileText, Pencil, Check, X, Trash2, ShieldCheck, Plus, Copy, Banknote, CalendarDays, Ban, Ellipsis, Loader, CheckCheck } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
 import type { ProcessNode, QuarterlyPlanRow, QuarterlyInitiativeRow, AnnualPlanRow, AnnualBudgetRow } from '@/hooks/usePlansV2';
 
 const INIT_STATUS_ICON: Record<string, { cls: string; label: string }> = {
-  planned: { cls: 'bg-blue-400', label: 'Заплановано' },
-  in_progress: { cls: 'bg-amber-400', label: 'В роботі' },
+  planned: { cls: 'bg-indigo-400', label: 'Заплановано' },
+  in_progress: { cls: 'bg-indigo-600', label: 'В роботі' },
   completed: { cls: 'bg-emerald-400', label: 'Завершено' },
 };
 
+const STATUS_ICON_MAP: Record<string, { Icon: typeof Ban; cls: string; title: string }> = {
+  none: { Icon: Ban, cls: 'text-slate-300', title: 'Немає плану' },
+  pending: { Icon: Ellipsis, cls: 'text-amber-500', title: 'Не затверджено' },
+  active: { Icon: Loader, cls: 'text-indigo-500', title: 'В роботі' },
+  done: { Icon: CheckCheck, cls: 'text-emerald-500', title: 'Виконано' },
+};
+
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  none: { label: 'Немає плану', cls: 'bg-slate-100 text-slate-500' },
+  pending: { label: 'Не затверджено', cls: 'bg-amber-100 text-amber-700' },
+  active: { label: 'В роботі', cls: 'bg-indigo-100 text-indigo-700' },
+  done: { label: 'Виконано', cls: 'bg-emerald-100 text-emerald-700' },
+  planned: { label: 'Заплановано', cls: 'bg-blue-100 text-blue-700' },
+  in_progress: { label: 'В роботі', cls: 'bg-amber-100 text-amber-700' },
+};
+
 function statusBadge(status: string) {
-  const map: Record<string, { label: string; cls: string }> = {
-    pending: { label: 'Не затверджено', cls: 'bg-amber-100 text-amber-700' },
-    active: { label: 'В роботі', cls: 'bg-indigo-100 text-indigo-700' },
-    done: { label: 'Виконано', cls: 'bg-emerald-100 text-emerald-700' },
-    planned: { label: 'Заплановано', cls: 'bg-blue-100 text-blue-700' },
-    in_progress: { label: 'В роботі', cls: 'bg-amber-100 text-amber-700' },
-  };
-  const s = map[status] || map.pending;
-  return <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', s.cls)}>{s.label}</span>;
+  const s = STATUS_BADGE[status] || STATUS_BADGE.pending;
+  return <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full', s.cls)}>{s.label}</span>;
 }
 
 async function fetchApi(url: string, init?: RequestInit) {
@@ -42,6 +51,7 @@ interface QuarterlyListViewProps {
   processTree: ProcessNode[];
   annualPlans?: AnnualPlanRow[];
   quarterlyBudgetSumMap?: Map<string, number>;
+  quarterlyBudgetItemsMap?: Map<string, { name: string; amount: number }[]>;
   quarterlyInitiativesMap?: Map<string, QuarterlyInitiativeRow[]>;
   quarter: number;
   year: number;
@@ -51,14 +61,14 @@ interface QuarterlyListViewProps {
   onRefresh?: () => void;
 }
 
-export function QuarterlyListView({ quarterlyPlans, processTree, annualPlans = [], quarterlyBudgetSumMap, quarterlyInitiativesMap, quarter, year, canEdit, isChief, onSelectProcess, onRefresh }: QuarterlyListViewProps) {
+export function QuarterlyListView({ quarterlyPlans, processTree, annualPlans = [], quarterlyBudgetSumMap, quarterlyBudgetItemsMap, quarterlyInitiativesMap, quarter, year, canEdit, isChief, onSelectProcess, onRefresh }: QuarterlyListViewProps) {
   const qPlans = quarterlyPlans.filter(q => q.quarter === quarter);
   const items = processTree.map(proc => {
     const plan = qPlans.find(q => q.process_id === proc.processId);
     const annualPlan = annualPlans.find(a => a.process_id === proc.processId);
     const budget = annualPlan ? (quarterlyBudgetSumMap?.get(annualPlan.annual_id) || 0) : 0;
     const initiatives = plan ? (quarterlyInitiativesMap?.get(plan.quarterly_id) || []) : [];
-    return { proc, plan, budget, initiatives };
+    return { proc, plan, annualPlan, budget, initiatives };
   });
   const totalBudget = items.reduce((s, i) => s + i.budget, 0);
 
@@ -69,121 +79,108 @@ export function QuarterlyListView({ quarterlyPlans, processTree, annualPlans = [
         <div className="flex-1 min-w-0">
           <div className="text-xs font-semibold text-slate-700">Плани кварталу · Q{quarter} {year}</div>
         </div>
-        {totalBudget > 0 && (
-          <span className="text-[10px] font-bold text-amber-600">
-            {totalBudget.toLocaleString('uk-UA')} ₴
-          </span>
-        )}
       </div>
       <div className="hdr-sep" />
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
         {items.length === 0 ? (
           <EmptyState variant="centered" icon={<Target className="h-10 w-10" />} title="Немає процесів" description="Процеси не знайдено" />
         ) : (
-          items.map(({ proc, plan, budget, initiatives }) => (
-            <div key={proc.processId} onClick={() => onSelectProcess(proc.processId)}
-              className="w-full text-left border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors px-4 py-3 cursor-pointer"
-              role="button" tabIndex={0} aria-label={`Обрати ${proc.name}`}
-              onKeyDown={e => e.key === 'Enter' && onSelectProcess(proc.processId)}>
-              <div className="flex items-start gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-slate-800 mb-1">{proc.name}</div>
-                  {proc.mission && (
-                    <div className="text-[11px] text-slate-500 line-clamp-1 mb-0.5">
-                      <span className="text-slate-400">Місія: </span>{proc.mission}
-                    </div>
-                  )}
-                  {initiatives.length > 0 && (
-                    <div className="flex flex-col gap-0.5 mt-1">
-                      {initiatives.map(init => {
-                        const st = INIT_STATUS_ICON[init.status] || INIT_STATUS_ICON.planned;
-                        return (
-                          <div key={init.id} className="flex items-center gap-1.5">
-                            <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', st.cls)} title={st.label} />
-                            <span className="text-[10px] text-slate-600 truncate">{init.title}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                  {plan ? statusBadge(plan.status) : (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-50 text-slate-400 border border-dashed border-slate-300">Немає плану</span>
-                  )}
-                  {budget > 0 && (
-                    <span className="text-[10px] font-bold text-amber-600">
-                      {budget.toLocaleString('uk-UA')} ₴
-                    </span>
-                  )}
-                  {canEdit && (
-                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                      {!plan ? (
-                        <>
-                          <button className="cal-action-btn" style={{ color: '#10b981' }} title="Створити план" aria-label="Створити"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              await fetchApi('/api/plans/quarterly', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ process_id: proc.processId, year, quarter }) });
-                              onRefresh?.();
-                            }}>
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                          <button className="cal-action-btn" style={{ color: '#6366f1' }} title="Копіювати з попереднього кварталу" aria-label="Копіювати"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const prevQ = quarter > 1 ? quarter - 1 : 4;
-                              const prevY = quarter > 1 ? year : year - 1;
-                              await fetchApi('/api/plans/quarterly', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ process_id: proc.processId, year, quarter, copy_from_year: prevY, copy_from_quarter: prevQ }) });
-                              onRefresh?.();
-                            }}>
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            className="cal-action-btn"
-                            style={{ color: plan.status !== 'done' ? '#10b981' : '#cbd5e1' }}
-                            title={plan.status === 'pending' ? 'Затвердити' : plan.status === 'active' ? 'Прийняти' : 'Виконано'}
-                            aria-label="Затвердити"
-                            disabled={plan.status === 'done'}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const next = plan.status === 'pending' ? 'active' : plan.status === 'active' ? 'done' : null;
-                              if (!next) return;
-                              await fetchApi('/api/plans/quarterly', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: plan.quarterly_id, status: next }) });
-                              onRefresh?.();
-                            }}>
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            className="cal-action-btn"
-                            style={{ color: '#ef4444', opacity: isChief ? 1 : 0.4 }}
-                            title={plan.status === 'pending' ? 'Видалити план' : plan.status === 'active' ? 'Повернути на затвердження' : 'Повернути в роботу'}
-                            aria-label="Повернути"
-                            disabled={!isChief}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (!isChief) return;
-                              if (plan.status === 'pending') {
-                                await fetchApi(`/api/plans/quarterly?id=${plan.quarterly_id}`, { method: 'DELETE' });
-                              } else {
-                                const prev = plan.status === 'active' ? 'pending' : plan.status === 'done' ? 'active' : null;
-                                if (prev) await fetchApi('/api/plans/quarterly', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: plan.quarterly_id, status: prev }) });
-                              }
-                              onRefresh?.();
-                            }}>
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </>
+          items.map(({ proc, plan, annualPlan, budget, initiatives }) => {
+            const status = plan?.status || 'none';
+            const st = STATUS_ICON_MAP[status] || STATUS_ICON_MAP.none;
+            const badge = STATUS_BADGE[status] || STATUS_BADGE.none;
+            return (
+              <div key={proc.processId} onClick={() => onSelectProcess(proc.processId)}
+                className={cn(
+                  'border border-slate-200/80 rounded-xl px-3.5 py-2.5 hover:bg-slate-50/50 transition-colors cursor-pointer',
+                  !plan && 'border-dashed',
+                )}
+                role="button" tabIndex={0} aria-label={`Обрати ${proc.name}`}
+                onKeyDown={e => e.key === 'Enter' && onSelectProcess(proc.processId)}>
+                <div className="flex gap-3">
+                  {/* Left: content */}
+                  <div className="flex-1 min-w-0 flex gap-2">
+                    <span className="flex-shrink-0 mt-0.5" title={st.title}><st.Icon className={cn('w-3.5 h-3.5', st.cls)} /></span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold text-slate-800 line-clamp-2">{proc.name}</div>
+                      {proc.mission && (
+                        <div className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">
+                          <span className="text-slate-400">Місія: </span>{proc.mission}
+                        </div>
+                      )}
+                      {initiatives.length > 0 && (
+                        <div className="flex flex-col gap-0.5 mt-1">
+                          {initiatives.map(init => {
+                            const initSt = INIT_STATUS_ICON[init.status] || INIT_STATUS_ICON.planned;
+                            return (
+                              <div key={init.id} className="flex items-center gap-1.5">
+                                <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', initSt.cls)} title={initSt.label} />
+                                <span className="text-[10px] text-slate-600 line-clamp-2">{init.title}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
-                  )}
+                  </div>
+                  {/* Right: badge + buttons + hours + budget */}
+                  <div className="flex-shrink-0 w-[120px] flex flex-col items-end gap-1" onClick={e => e.stopPropagation()}>
+                    <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full', badge.cls)}>
+                      {badge.label}
+                    </span>
+                    {canEdit && (
+                      <div className="flex items-center gap-0.5">
+                        {!plan ? (
+                          <>
+                            <button className="cal-action-btn" style={{ color: '#10b981' }} title="Створити план" aria-label="Створити"
+                              onClick={async (e) => { e.stopPropagation(); await fetchApi('/api/plans/quarterly', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ process_id: proc.processId, year, quarter }) }); onRefresh?.(); }}>
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                            <button className="cal-action-btn" style={{ color: '#6366f1' }} title="Копіювати з попереднього кварталу" aria-label="Копіювати"
+                              onClick={async (e) => { e.stopPropagation(); const prevQ = quarter > 1 ? quarter - 1 : 4; const prevY = quarter > 1 ? year : year - 1; await fetchApi('/api/plans/quarterly', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ process_id: proc.processId, year, quarter, copy_from_year: prevY, copy_from_quarter: prevQ }) }); onRefresh?.(); }}>
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {plan.status !== 'done' && (
+                              <button className="cal-action-btn" style={{ color: '#10b981' }}
+                                title={plan.status === 'pending' ? 'Затвердити' : 'Прийняти'} aria-label="Затвердити"
+                                onClick={async (e) => { e.stopPropagation(); const next = plan.status === 'pending' ? 'active' : 'done'; await fetchApi('/api/plans/quarterly', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: plan.quarterly_id, status: next }) }); onRefresh?.(); }}>
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {isChief && (
+                              <button className="cal-action-btn" style={{ color: '#ef4444' }}
+                                title={plan.status === 'pending' ? 'Видалити план' : 'Повернути'} aria-label="Повернути"
+                                onClick={async (e) => { e.stopPropagation(); if (plan.status === 'pending') { await fetchApi(`/api/plans/quarterly?id=${plan.quarterly_id}`, { method: 'DELETE' }); } else { const prev = plan.status === 'active' ? 'pending' : plan.status === 'done' ? 'active' : null; if (prev) await fetchApi('/api/plans/quarterly', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: plan.quarterly_id, status: prev }) }); } onRefresh?.(); }}>
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
+                {/* Budget items — full width rows */}
+                {annualPlan && (() => {
+                  const items = quarterlyBudgetItemsMap?.get(annualPlan.annual_id);
+                  return items && items.length > 0 ? (
+                    <div className="flex flex-col gap-0.5 mt-1 pl-5.5">
+                      {items.map((bi, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-[10px] text-amber-600 flex-1 line-clamp-1">{bi.name}</span>
+                          <span className="text-[10px] font-bold text-amber-600 flex-shrink-0">{bi.amount.toLocaleString('uk-UA')} ₴</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null;
+                })()}
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

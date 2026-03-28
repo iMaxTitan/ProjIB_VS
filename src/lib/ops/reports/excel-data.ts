@@ -3,7 +3,7 @@
  * Extracted from excel.ts to keep the orchestrator under the 300-line limit.
  */
 
-import { supabase } from '../../shared/supabase';
+import { supabase } from '../../shared/db-client';
 import logger from '@/lib/shared/logger';
 
 export interface MonthlyReportData {
