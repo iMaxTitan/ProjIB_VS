@@ -11,7 +11,7 @@ import type { PrefixJson } from './prefix-validator';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const L1_MODEL = 'google/gemini-3.1-flash-lite-preview';
-const TIMEOUT_MS = 20_000;
+const TIMEOUT_MS = 30_000;
 
 const SYSTEM_PROMPT =
   'You are a search index generator for a Ukrainian retail company knowledge base.\n' +

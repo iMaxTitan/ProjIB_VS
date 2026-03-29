@@ -68,3 +68,4 @@ tsconfig.tsbuildinfo
 
 # Temp файлы
 temp_openapi.json
+CRITIC_RESPONSE.md

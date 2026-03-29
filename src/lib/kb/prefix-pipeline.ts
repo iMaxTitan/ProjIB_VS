@@ -106,7 +106,7 @@ function buildFallback(
 
 // ── Single chunk pipeline ────────────────────────────────────────────────────
 
-const CONCURRENCY = 12;
+const CONCURRENCY = 8;
 
 /**
  * Generate prefix for a single chunk through the full pipeline.
@@ -222,9 +222,17 @@ export async function generateChunkPrefix(
     }
   }
 
-  // 6. Fallback
-  logger.warn('[kb/prefix-pipeline] all models failed for chunk:', heading?.slice(0, 40) || chunkText.slice(0, 40));
-  return buildFallback(chunkText, heading, dictSynonyms, ruleScope);
+  // 6. Fallback — use needs_review with deterministic scope if available
+  const fb = buildFallback(chunkText, heading, dictSynonyms, ruleScope);
+  // If we have rule-based scope, use needs_review (recoverable) instead of fallback (lost)
+  if (ruleScope) {
+    fb.status = 'needs_review';
+    fb.scope = ruleScope;
+    logger.warn('[kb/prefix-pipeline] needs_review (rule-scope):', ruleScope.slice(0, 30), heading?.slice(0, 30));
+  } else {
+    logger.warn('[kb/prefix-pipeline] fallback:', heading?.slice(0, 40) || chunkText.slice(0, 40));
+  }
+  return fb;
 }
 
 // ── Batch generation for a document ──────────────────────────────────────────

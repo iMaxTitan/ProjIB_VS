@@ -91,31 +91,60 @@ export async function generateL2Prefix(
     userMsg += `\n\nL1 модель допустила помилки: ${validationErrors.join('; ')}. Виправ їх.`;
   }
 
-  try {
-    const text = await generateAIText({
-      messages: [{ role: 'user', content: userMsg }],
-      systemPrompt: SYSTEM_PROMPT,
-      providerOverride: 'anthropic',
-      anthropicModel: 'claude-haiku-4-5-20251001',
-      apiKeyOverride: apiKey,
-      maxTokens: 800,
-      temperature: 0,
-      timeoutMs: 30_000,
-    });
+  // Clean JSON from AI response — strip fences, find { }
+  const cleanJson = (raw: string): string => {
+    let s = raw.replace(/```json\n?|\n?```/g, '').trim();
+    const start = s.indexOf('{');
+    const end = s.lastIndexOf('}');
+    if (start >= 0 && end > start) s = s.slice(start, end + 1);
+    return s;
+  };
 
-    // Track quota
-    _quotaUsed.set(domain, (_quotaUsed.get(domain) || 0) + 1);
+  // Try up to 2 times (initial + retry with prefill on parse fail)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { generateAITextWithUsage } = await import('@/lib/shared/ai/client');
+      const messages = attempt === 0
+        ? [{ role: 'user' as const, content: userMsg }]
+        : [{ role: 'user' as const, content: userMsg }, { role: 'assistant' as const, content: '{' }];
 
-    const raw = text.trim();
-    const clean = raw.replace(/```json\n?|\n?```/g, '').trim();
-    const parsed = JSON.parse(clean) as PrefixJson;
-    return { json: parsed, raw };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    logger.error('[kb/prefix-l2] error:', msg);
-    _quotaUsed.set(domain, (_quotaUsed.get(domain) || 0) + 1);
-    return { json: null, raw: '' };
+      const res = await generateAITextWithUsage({
+        messages,
+        systemPrompt: SYSTEM_PROMPT + (attempt > 0 ? '\n\nReturn ONLY raw JSON starting with {. No markdown.' : ''),
+        providerOverride: 'anthropic',
+        anthropicModel: 'claude-haiku-4-5-20251001',
+        apiKeyOverride: apiKey,
+        maxTokens: attempt === 0 ? 1000 : 1200, // increase on retry
+        temperature: 0,
+        timeoutMs: 30_000,
+      });
+
+      const rawText = attempt > 0 ? '{' + res.text : res.text.trim();
+
+      // Check if truncated (max_tokens hit)
+      if (res.stopReason === 'max_tokens' && attempt === 0) {
+        logger.warn('[kb/prefix-l2] max_tokens hit, retrying with larger limit');
+        continue;
+      }
+
+      const json = cleanJson(rawText);
+      const parsed = JSON.parse(json) as PrefixJson;
+
+      // Only count successful calls against quota
+      _quotaUsed.set(domain, (_quotaUsed.get(domain) || 0) + 1);
+      return { json: parsed, raw: rawText };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (attempt === 0) {
+        logger.warn('[kb/prefix-l2] attempt 1 failed:', msg.slice(0, 60), '— retrying');
+        continue;
+      }
+      // Don't count parse failures against quota — they waste money but shouldn't block others
+      logger.error('[kb/prefix-l2] failed after retry:', msg.slice(0, 60));
+      return { json: null, raw: '' };
+    }
   }
+  return { json: null, raw: '' };
 }
 
 /** Reset quota caches. */
