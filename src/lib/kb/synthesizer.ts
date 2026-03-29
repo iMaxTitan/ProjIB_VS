@@ -263,13 +263,12 @@ const COMPOSE_BASE =
   'You are a corporate knowledge base assistant for АТБ-Маркет — найбільша національна роздрібна мережа України. ' +
   'Users are company employees at all levels: від касирів і комірників до логістів, маркетологів, IT, HR та керівництва. Output language: Ukrainian.\n' +
   'CONTEXT: В Україні діє воєнний стан. Коли є норми мирного і воєнного часу — пріоритизуй воєнні, чітко зазначай якщо норма діє тільки під час воєнного стану.\n\n' +
-  'INPUT: extracted facts with source references (ref) [N].\n' +
+  'INPUT: extracted facts with article references (ст. X, п. Y).\n' +
   'TASK: compose a coherent answer using ONLY these facts. Apply facts to the context of a retail company employee.\n\n' +
   'RULES:\n' +
   '- Use wording as close to original facts as possible. Do not rephrase unnecessarily.\n' +
   '- Do NOT invent facts, terms, or advice ("зверніться", "рекомендую") not present in input.\n' +
-  '- Preserve (ref) [N] markers from facts. Place at end of paragraph, not after every bullet.\n' +
-  '- If all bullets in a section come from one source, put [N] once at the end of the section.\n\n' +
+  '- Keep article references (ст. X, п. Y) from facts inline in each bullet. Do NOT add [N] footnote markers.\n\n' +
   'FORMAT (HTML for messenger):\n' +
   '- <b>Section title</b>, bullets «•» on new lines, NO blank lines between bullets.\n' +
   '- Blank line ONLY between different sections.\n' +
@@ -298,7 +297,11 @@ const COMPOSE_DOMAIN: Record<string, string> = {
     'AUDIENCE: employee or HR manager of a private retail company — answer from the employer/employee perspective, not abstract legal theory.\n' +
     'Prioritize facts relevant to the company and its employees. Ignore facts about categories not asked about.\n' +
     'If facts mention exceptions for sectors other than private retail (державні органи, військові частини, дипломатична служба, заклади культури) — OMIT them from the answer entirely unless the query asks about that sector.\n' +
-    'One continuous text, do NOT split into sections. Quote key legal formulations verbatim.\n' +
+    'Sections:\n' +
+    '1) <b>Коротка відповідь</b> — 1-2 sentences max. Include key NUMBERS (amounts, terms, deadlines) from facts. Convert НМДГ to real amounts in UAH when possible. For yes/no: start with Так/Ні + condition. Max 300 chars.\n' +
+    '2) <b>Що це означає</b> — key provisions as bullets. Each bullet = 1 rule + specific article reference in legal format (ч. 1 ст. 185 КК). Convert abstract values (НМДГ) to real UAH amounts.\n' +
+    '3) <b>Важливо!</b> — 1-2 most critical restrictions, deadlines or penalties. Skip if nothing critical.\n' +
+    'Skip empty sections. Quote key legal formulations verbatim.\n' +
     'End with: "⚠️ Перевірте актуальність на zakon.rada.gov.ua — законодавство може змінюватись."',
 };
 
@@ -376,21 +379,20 @@ function renderWithFootnotes(
 ): string {
   let body = stripHallucinations(sanitizeHtml(text));
 
-  // Convert (ref) [N] → (ref)¹  and  [N] → ¹
-  body = body.replace(/(\([^)]+\))\s*\[(\d+)\]/g, (_, ref, num) => `${ref}${toSuper(parseInt(num, 10))}`);
-  body = body.replace(/\[(\d+)(?:,\s*[^\]]+)?\]/g, (_, num) => toSuper(parseInt(num, 10)));
-  // Strip leftover refs: [п.1], [ст.25], literal (ref) etc.
+  // Strip [N] references and superscripts — articles are already inline in bullets
+  body = body.replace(/(\([^)]+\))\s*\[(\d+)\]/g, '$1');
+  body = body.replace(/\[(\d+)(?:,\s*[^\]]+)?\]/g, '');
   body = body.replace(/\s*\[(?:п|ст|р)\.?\s*\d+(?:\(\d+\))?\]/g, '');
   body = body.replace(/\s*\(ref\)/gi, '');
 
-  // Build footnote block — always show all source documents
+  // Build source links — deduplicated list of source documents
   if (sourceMap.size > 0) {
-    const lines = [...sourceMap.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([num, info]) =>
+    const lines = [...sourceMap.values()]
+      .filter((v, i, arr) => arr.findIndex(x => x.shortName === v.shortName) === i)
+      .map(info =>
         info.url
-          ? `${toSuper(num)} <a href="${info.url}">${info.shortName}</a>`
-          : `${toSuper(num)} ${info.shortName}`,
+          ? `📄 <a href="${info.url}">${info.shortName}</a>`
+          : `📄 ${info.shortName}`,
       );
     body += '\n\n---\n\n' + lines.join('\n');
   }

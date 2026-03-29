@@ -2,7 +2,7 @@
   {
     "id": "booking-docs",
     "query": "які документи потрібні для бронювання працівника",
-    "gold_chunk_ids": ["3b6e6ba4-cc63-4891-bf6a-cdcc3acf85eb", "e45d38b0-ad79-4b4f-8c84-29c5f221619c"],
+    "gold_chunk_ids": ["60c04ae0-9b3a-452c-863e-a503f758d269", "98436768-1f72-494e-abb7-b38d64d18c73"],
     "expected_keywords": ["список", "ЄДРПОУ", "Портал Дія", "бронювання"],
     "negative_keywords": ["священнослужител"],
     "wrong_scope_markers": ["священнослужител", "моряк", "спортсмен", "культурн"],
@@ -11,7 +11,7 @@
   {
     "id": "booking-docs-ru",
     "query": "бронирование сотрудников",
-    "gold_chunk_ids": ["3b6e6ba4-cc63-4891-bf6a-cdcc3acf85eb"],
+    "gold_chunk_ids": ["60c04ae0-9b3a-452c-863e-a503f758d269"],
     "expected_keywords": ["бронювання", "працівник"],
     "negative_keywords": ["священнослужител"],
     "wrong_scope_markers": ["священнослужител"],
@@ -20,7 +20,7 @@
   {
     "id": "border-reserved",
     "query": "виїзд за кордон заброньованого",
-    "gold_chunk_ids": ["c4e0d84a-841a-44ba-b4a8-eaa5e6b06892", "1b36c81e-8e09-4417-90e9-73fc1666bc11"],
+    "gold_chunk_ids": ["dccdeb45-19ea-469c-b294-1e88c98d1943"],
     "expected_keywords": ["кордон", "реєстр", "право"],
     "negative_keywords": ["священнослужител"],
     "wrong_scope_markers": ["священнослужител", "одинок", "держав"],
@@ -29,7 +29,7 @@
   {
     "id": "border-reserved-right",
     "query": "чи має право заброньована особи виїзджати за кордон",
-    "gold_chunk_ids": ["c4e0d84a-841a-44ba-b4a8-eaa5e6b06892"],
+    "gold_chunk_ids": ["dccdeb45-19ea-469c-b294-1e88c98d1943"],
     "expected_keywords": ["кордон", "право"],
     "negative_keywords": [],
     "wrong_scope_markers": ["священнослужител"],
@@ -38,7 +38,7 @@
   {
     "id": "border-reserved-ru",
     "query": "какие документы нужны забронированому на пересечение границы",
-    "gold_chunk_ids": ["c4e0d84a-841a-44ba-b4a8-eaa5e6b06892"],
+    "gold_chunk_ids": ["dccdeb45-19ea-469c-b294-1e88c98d1943"],
     "expected_keywords": ["кордон"],
     "negative_keywords": ["священнослужител"],
     "wrong_scope_markers": ["священнослужител"],
@@ -47,7 +47,7 @@
   {
     "id": "booking-priests",
     "query": "бронювання священнослужителів",
-    "gold_chunk_ids": ["47fc0bbb-de29-415f-acf1-5f556532d04c", "fedb4d6e-02ca-4afe-8306-4722808b0e8f"],
+    "gold_chunk_ids": ["1cc79d4f-382f-43df-89d9-8e6139086487", "1c0ad756-2356-47e5-908b-238cd3bff160"],
     "expected_keywords": ["священнослужител", "релігійн"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
@@ -65,7 +65,7 @@
   {
     "id": "who-can-leave",
     "query": "хто має право виїхати за кордон під час воєнного стану",
-    "gold_chunk_ids": ["c4e0d84a-841a-44ba-b4a8-eaa5e6b06892"],
+    "gold_chunk_ids": ["dccdeb45-19ea-469c-b294-1e88c98d1943"],
     "expected_keywords": ["кордон", "виїзд"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
