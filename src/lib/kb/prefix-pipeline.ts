@@ -49,10 +49,27 @@ const SPECIFIC_SCOPE_PATTERNS: Array<{ pattern: RegExp; scope: string }> = [
   { pattern: /культурн.*діяч|кінематограф/i, scope: 'specific: культурні діячі' },
 ];
 
+/** Patterns that indicate the keyword appears as an EXCEPTION, not as the main topic. */
+const EXCEPTION_CONTEXT = /крім|за виключенням|за винятком|окрім|не стосується|не поширюється|не застосовується/i;
+
 function ruleBasedScope(docTitle: string, chunkText: string): string | null {
-  const combined = (docTitle + ' ' + chunkText).toLowerCase();
+  // Check title first — if title mentions specific group, it's definitely specific
+  const titleLower = docTitle.toLowerCase();
   for (const { pattern, scope } of SPECIFIC_SCOPE_PATTERNS) {
-    if (pattern.test(combined)) return scope;
+    if (pattern.test(titleLower)) return scope;
+  }
+
+  // Check chunk text — but only if NOT in exception context
+  const textLower = chunkText.toLowerCase();
+  for (const { pattern, scope } of SPECIFIC_SCOPE_PATTERNS) {
+    const match = pattern.exec(textLower);
+    if (!match) continue;
+
+    // Look at 100 chars before the match — is it an exception context?
+    const before = textLower.slice(Math.max(0, match.index - 100), match.index);
+    if (EXCEPTION_CONTEXT.test(before)) continue; // skip — mentioned as exception, not main topic
+
+    return scope;
   }
   return null; // unknown — let AI decide
 }
