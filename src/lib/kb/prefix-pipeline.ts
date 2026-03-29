@@ -40,38 +40,51 @@ function toArray(val: unknown): string[] {
 }
 
 // ── Pre-enrichment: rule-based scope ─────────────────────────────────────────
+//
+// APPROACH: AI (Gemini) = primary scope decision. Rules = only TITLE-based high-precision.
+// Chunk text patterns disabled — too many false positives (see git history for old version).
+// Critic recommendation: "rules only as high-precision signals, not override for weak patterns"
 
-const SPECIFIC_SCOPE_PATTERNS: Array<{ pattern: RegExp; scope: string }> = [
+const TITLE_SCOPE_PATTERNS: Array<{ pattern: RegExp; scope: string }> = [
   { pattern: /священнослужител/i, scope: 'specific: священнослужителі' },
-  { pattern: /морськ|моряк|судноплав/i, scope: 'specific: моряки' },
+  { pattern: /моряк|морськ|судноплав/i, scope: 'specific: моряки' },
   { pattern: /авіаційн|пілот/i, scope: 'specific: авіаційний персонал' },
   { pattern: /спортсмен|олімпійськ/i, scope: 'specific: спортсмени' },
   { pattern: /культурн.*діяч|кінематограф/i, scope: 'specific: культурні діячі' },
 ];
 
-/** Patterns that indicate the keyword appears as an EXCEPTION, not as the main topic. */
-const EXCEPTION_CONTEXT = /крім|за виключенням|за винятком|окрім|не стосується|не поширюється|не застосовується/i;
+/* ── OLD chunk-text scope engine (disabled — too many FP on large legal docs)
+ *
+ * const SPECIFIC_SCOPE_PATTERNS = TITLE_SCOPE_PATTERNS;
+ * const EXCEPTION_CONTEXT = /крім|за виключенням|за винятком|окрім|не стосується|не поширюється|не застосовується/i;
+ *
+ * function ruleBasedScope(docTitle, chunkText) {
+ *   // Check title
+ *   for (const { pattern, scope } of SPECIFIC_SCOPE_PATTERNS) {
+ *     if (pattern.test(docTitle.toLowerCase())) return scope;
+ *   }
+ *   // Check chunk text — but only if NOT in exception context
+ *   const textLower = chunkText.toLowerCase();
+ *   for (const { pattern, scope } of SPECIFIC_SCOPE_PATTERNS) {
+ *     const match = pattern.exec(textLower);
+ *     if (!match) continue;
+ *     const before = textLower.slice(Math.max(0, match.index - 100), match.index);
+ *     if (EXCEPTION_CONTEXT.test(before)) continue;
+ *     return scope;
+ *   }
+ *   return null;
+ * }
+ * ── END OLD */
 
-function ruleBasedScope(docTitle: string, chunkText: string): string | null {
-  // Check title first — if title mentions specific group, it's definitely specific
+function ruleBasedScope(docTitle: string, _chunkText: string): string | null {
+  // ONLY check document title — high precision, zero false positives.
+  // If title says "бронювання священнослужителів" — it's 100% specific.
+  // Chunk text analysis disabled — AI handles it better.
   const titleLower = docTitle.toLowerCase();
-  for (const { pattern, scope } of SPECIFIC_SCOPE_PATTERNS) {
+  for (const { pattern, scope } of TITLE_SCOPE_PATTERNS) {
     if (pattern.test(titleLower)) return scope;
   }
-
-  // Check chunk text — but only if NOT in exception context
-  const textLower = chunkText.toLowerCase();
-  for (const { pattern, scope } of SPECIFIC_SCOPE_PATTERNS) {
-    const match = pattern.exec(textLower);
-    if (!match) continue;
-
-    // Look at 100 chars before the match — is it an exception context?
-    const before = textLower.slice(Math.max(0, match.index - 100), match.index);
-    if (EXCEPTION_CONTEXT.test(before)) continue; // skip — mentioned as exception, not main topic
-
-    return scope;
-  }
-  return null; // unknown — let AI decide
+  return null; // let AI decide
 }
 
 // ── Build prefix text from JSON ──────────────────────────────────────────────
