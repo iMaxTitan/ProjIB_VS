@@ -77,41 +77,39 @@ function logKBQuery(data: {
     .catch((err: unknown) => { logger.error('[kb/search] log failed:', err); });
 }
 
-// ── Subject filter — use [Стосується:] + [Тип:] metadata to remove wrong-category chunks ─
-
-/** Profession-specific markers in [Стосується:] that indicate a narrow subcategory */
-const PROFESSION_MARKERS = [
-  'культур', 'кінематограф', 'мінкульт', 'телерадіо', 'медіа', 'стратегіч',
-  'морськ', 'моряк', 'судноплав', 'авіаційн', 'пілот',
-  'спортсмен', 'олімпійськ', 'залізнич',
-];
+// ── Scope filter — uses scope DB column, not prefix text parsing ────────────
 
 /**
- * If query is about a GENERAL subject (заброньований, військовозобов'язаний)
- * and a chunk's [Стосується:] mentions a SPECIFIC profession — remove it.
- * Keeps chunks without [Стосується:] metadata or with general subjects.
+ * Filter out chunks with scope='specific:X' when query doesn't mention X.
+ * Reads from chunk.scope column (set at index time), no regex on prefix.
  */
 function filterBySubject(query: string, chunks: KBChunk[]): KBChunk[] {
   const qLower = query.toLowerCase();
-  // Only filter when query is about general categories, not specific professions
-  const isGeneralQuery = ['заброньован', 'забронирован', 'бронюванн', 'військовозобов']
-    .some(t => qLower.includes(t));
-  const mentionsSpecificProfession = PROFESSION_MARKERS.some(t => qLower.includes(t));
-  if (!isGeneralQuery || mentionsSpecificProfession) return chunks;
 
   const filtered = chunks.filter(chunk => {
-    const prefix = (chunk.contextual_prefix || '').toLowerCase();
-    const stMatch = prefix.match(/\[стосується:\s*([^\]]+)\]/);
-    if (!stMatch) return true;
-    const subject = stMatch[1];
-    const isProfessionSpecific = PROFESSION_MARKERS.some(t => subject.includes(t));
-    if (isProfessionSpecific) {
-      logger.prod('[kb/search] subject-filter: excluded', subject.slice(0, 60));
+    // Read scope from DB column (falls back to prefix parsing for old chunks)
+    let scope = (chunk as KBChunk & { scope?: string }).scope || '';
+    if (!scope || scope === 'general') {
+      // Fallback: parse from prefix text for chunks not yet reindexed
+      const match = (chunk.contextual_prefix || '').match(/\[scope:\s*specific:\s*([^\]]+)\]/i);
+      scope = match ? `specific: ${match[1].trim()}` : 'general';
     }
-    return !isProfessionSpecific;
+    if (!scope.startsWith('specific')) return true;
+
+    const category = scope.replace(/^specific:\s*/, '').trim().toLowerCase();
+    if (!category) return true;
+
+    // Stem-match: check if any word ≥5 chars appears in query
+    const words = category.split(/[\s,''ʼ]+/).filter(w => w.length >= 5);
+    if (words.length === 0) return true;
+
+    const mentioned = words.some(w => qLower.includes(w.slice(0, Math.max(5, w.length - 3))));
+    if (!mentioned) {
+      logger.prod('[kb/search] scope-filter: excluded [', scope.slice(0, 50), ']');
+    }
+    return mentioned;
   });
 
-  // Safety: don't filter out everything — keep at least 3 chunks
   return filtered.length >= 3 ? filtered : chunks;
 }
 
@@ -121,7 +119,7 @@ const MATCH_COUNT = parseInt(process.env.KB_MATCH_COUNT ?? '15', 10);
 const MATCH_THRESHOLD = parseFloat(process.env.KB_MATCH_THRESHOLD ?? '0.20');
 const RERANK_TOP_K = parseInt(process.env.KB_RERANK_TOP_K ?? '10', 10);
 const RERANK_REFUSE_THRESHOLD = parseFloat(process.env.KB_RERANK_REFUSE_THRESHOLD ?? '0.15');
-const POST_RERANK_MAX_PER_DOC = parseInt(process.env.KB_POST_RERANK_MAX_PER_DOC ?? '2', 10);
+const POST_RERANK_MAX_PER_DOC = parseInt(process.env.KB_POST_RERANK_MAX_PER_DOC ?? '3', 10);
 const NO_RESULTS_TEXT = 'В базі знань не знайдено інформації за цим запитом.\n\nСпробуйте уточнити тему: <b>ІБ</b>, <b>HR</b>, <b>IT</b> або <b>юридичні</b> питання.';
 
 // ── Retrieval ─────────────────────────────────────────────────────────────────
@@ -186,6 +184,18 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
     return { text: mqResult.clarification || 'Уточніть, будь ласка, що саме ви маєте на увазі?', parseMode: 'HTML' };
   }
 
+  // 1.5. Enrich queries with deterministic synonyms from kb_synonym_dict
+  try {
+    const { expandQueryWithSynonyms } = await import('./synonym-lookup');
+    const dictTerms = await expandQueryWithSynonyms(query);
+    if (dictTerms.length > 0) {
+      // Add a synonym-expanded query as additional sub-query
+      const synQuery = dictTerms.slice(0, 5).join(' ');
+      subQueries.push(synQuery);
+      logger.prod('[kb/search] synonym expansion:', synQuery.slice(0, 60));
+    }
+  } catch { /* dict not available — proceed without */ }
+
   // 2. Embedding
   let embeddings: number[][];
   try {
@@ -234,6 +244,20 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
   // 4.1. Rerank
   const detectedDomain = domain !== 'general' ? (domain as string) : dominantCategorySlug(subjectFiltered) || undefined;
   const reranked = await rerankChunks(query, subjectFiltered, RERANK_TOP_K, detectedDomain);
+
+  // 4.2. Demote fallback chunks (prefix generation failed — lower confidence)
+  for (const chunk of reranked) {
+    const status = (chunk as KBChunk & { prefix_status?: string }).prefix_status;
+    if (status === 'fallback' || status === 'needs_review') {
+      const score = (chunk as KBChunk & { _rerank_score?: number })._rerank_score;
+      if (typeof score === 'number') {
+        (chunk as KBChunk & { _rerank_score: number })._rerank_score = score * 0.7;
+      }
+    }
+  }
+  // Re-sort after demotion
+  reranked.sort((a, b) => ((b as KBChunk & { _rerank_score?: number })._rerank_score ?? 0) - ((a as KBChunk & { _rerank_score?: number })._rerank_score ?? 0));
+
   const rerankTopScore = (reranked[0] as KBChunk & { _rerank_score?: number })?._rerank_score ?? null;
 
   // 5. Single quality gate — after rerank
@@ -258,8 +282,11 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
   const expanded = await expandWithNeighbors(diversified, db);
   const crossExpanded = await expandWithRelatedDocs(expanded, primaryQuery, db);
 
+  // 6.1. Re-apply subject filter after expansion (expansion can re-introduce narrow-scope docs)
+  const finalChunks = filterBySubject(query, crossExpanded);
+
   // 7. AI synthesis
-  const synthesis = await synthesizeAnswer(primaryQuery, crossExpanded, history);
+  const synthesis = await synthesizeAnswer(primaryQuery, finalChunks, history);
 
   // Cost footer
   const mqc = mqResult.mqCost;

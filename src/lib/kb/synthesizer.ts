@@ -31,6 +31,8 @@ interface ExtractedFact {
   text: string;
   fragment: number;    // 1-based fragment index
   ref?: string;        // e.g. "п. 3", "ст. 25"
+  norm_type?: 'general' | 'exception' | 'procedure';
+  audience?: string;   // "all" | "retail_employee" | "state_officer" | "military" | etc.
 }
 
 interface ExtractionResult {
@@ -119,7 +121,9 @@ const EXTRACT_PROMPT =
   'INPUT: user query + numbered document fragments.\n' +
   'OUTPUT: strictly valid JSON, no markdown fences, no commentary.\n\n' +
   'Schema:\n' +
-  '{"level":"direct|partial|adjacent|none","facts":[{"text":"...","fragment":N,"ref":"п.3"}],"missing":"..."}\n\n' +
+  '{"level":"direct|partial|adjacent|none","facts":[{"text":"...","fragment":N,"ref":"п.3","norm_type":"general|exception|procedure","audience":"all|retail_employee|state_officer|military|diplomat|culture|maritime|sports"}],"missing":"..."}\n' +
+  'norm_type: "general" = applies to everyone; "exception" = narrow subcategory rule; "procedure" = step-by-step instructions.\n' +
+  'audience: WHO does this fact apply to? "all" = all employees/citizens; "retail_employee" = private company workers; "state_officer" = державні службовці; etc.\n\n' +
   'STEP 1 — UNDERSTAND THE QUERY:\n' +
   'Before extracting, identify:\n' +
   '- SUBJECT: who is the question about? (працівник як суб\'єкт даних? як обробник? військовозобов\'язаний? заброньований? підприємство?)\n' +
@@ -132,8 +136,9 @@ const EXTRACT_PROMPT =
   '   - Base set comparison: if fragments list approved software (e.g. PeaZip as archiver) and user asks about a DIFFERENT product in same category (e.g. WinRAR) → state that the asked product is NOT in the base set and may require a license.\n' +
   '   - Licensing: if a table marks a category as "потрібне придбання ліцензії" → apply to the queried product.\n' +
   '   - Legal YES/NO: if the query asks "чи може?/чи має право?/чи треба?" — the answer MUST start with a clear YES/NO fact, then supporting details.\n' +
-  '   - General vs specific norms: if fragments contain BOTH a general rule (e.g. "всі заброньовані мають право") AND specific procedures for subcategories (e.g. "працівники культури", "моряки", "спортсмени") — extract the GENERAL rule first. Only include specific-category facts if the query ASKS about that category.\n' +
-  '   - Wrong subcategory: if a fragment describes procedures for a specific profession/category NOT mentioned in the query — SKIP it. E.g. query about "заброньовані" in general → skip facts about "лист Мінкультури" or "лист Держкомтелерадіо" (these are for specific subcategories).\n' +
+  '   - General vs specific norms: legal texts often have a general rule followed by narrow exceptions for subcategories. Example: "заброньовані особи мають право на виїзд" = general rule; "одинокі матері серед заброньованих працівників ДЕРЖАВНИХ ОРГАНІВ" = narrow exception for a specific subcategory. RULE: extract the GENERAL norm. For exceptions/subcategories apply this test: "Does the query mention this specific subcategory?" If NO → SKIP the exception. Signals of a narrow exception: mention of a specific institution type (державні органи, військові частини, Мінкультури, Держкомтелерадіо), specific profession (моряки, спортсмени, працівники культури), or a family-status qualifier tied to a sector.\n' +
+  '   - Wrong subcategory: if a fragment describes procedures for a specific profession/category NOT mentioned in the query — SKIP it. E.g. query about "заброньовані" in general → skip facts about "лист Мінкультури" or "лист Держкомтелерадіо".\n' +
+  '   - AUDIENCE FILTER: the user is an employee of a PRIVATE retail company (АТБ-Маркет). Facts about subcategories that ONLY apply to державні органи, військові частини, дипломатична служба, заклади культури, моряки, спортсмени, or other specific sectors — are IRRELEVANT unless the query explicitly mentions that sector. SKIP such facts even if they appear in the same article/paragraph as the general rule. Example: "одинока мати серед заброньованих працівників державних органів з дитиною до 18 років" → SKIP (user works in private retail, not a state body).\n' +
   '3. Each fact = one clean sentence in Ukrainian. Put clause/article refs in "ref" field (e.g. "п.3.2", "ст.25"), NOT in "text".\n' +
   '4. One fact per logical statement. Do not merge unrelated statements.\n' +
   '5. "fragment" = 1-based index. "ref" = article/clause reference if present (optional).\n\n' +
@@ -146,51 +151,110 @@ const EXTRACT_PROMPT =
   '    • Query about "чи треба X" → fragments describing procedure of X but not stating if it\'s required = adjacent.\n' +
   '- "none" = nothing relevant to the topic at all.\n' +
   '- "missing" = what specific information the fragments lack. Be precise: "Немає норми про обов\'язковість ВЛК саме для заброньованих осіб".\n\n' +
-  'IMPORTANT: Do NOT guess or extrapolate when the specific norm is absent. If fragments say "ВЗ проходять ВЛК" but don\'t specify whether заброньовані MUST pass it — that\'s "adjacent", not "partial".';
+  'IMPORTANT: Do NOT guess or extrapolate when the specific norm is absent. If fragments say "ВЗ проходять ВЛК" but don\'t specify whether заброньовані MUST pass it — that\'s "adjacent", not "partial".\n\n' +
+  'RELEVANCE SCORES: Each fragment has a relevance score (0-1). Fragments with score below 0.3 are weakly related — extract facts from them ONLY if they contain the general rule. NEVER extract narrow exceptions or subcategory-specific facts from low-score fragments.\n' +
+  'For ALL fragments: when a single fragment contains BOTH a general rule AND a narrow exception — extract ONLY the general rule unless the query specifically asks about the exception\'s subcategory.';
 
 function buildFragmentsBlock(chunks: KBChunk[]): string {
-  return chunks.slice(0, 4).map((c, i) => {
+  return chunks.slice(0, 6).map((c, i) => {
     const ctx = c.contextual_prefix ? `[Контекст: ${c.contextual_prefix}]\n` : '';
-    return `[Фрагмент ${i + 1}] ${c.document_title}` +
+    const score = typeof c._rerank_score === 'number' ? ` (relevance: ${c._rerank_score.toFixed(2)})` : '';
+    return `[Фрагмент ${i + 1}${score}] ${c.document_title}` +
       (c.heading ? ` > ${c.heading}` : '') +
       `\n${ctx}${c.content.slice(0, 2000)}`;
   }).join('\n\n---\n\n');
+}
+
+/** Clean AI response to valid JSON — strip fences, find JSON object boundaries. */
+function cleanJsonResponse(raw: string): string {
+  let s = raw.replace(/```json\n?|\n?```/g, '').trim();
+  // Find first { and last } — extract JSON object
+  const start = s.indexOf('{');
+  const end = s.lastIndexOf('}');
+  if (start >= 0 && end > start) s = s.slice(start, end + 1);
+  return s;
+}
+
+/** Call OpenRouter Gemini Flash-Lite for extract (cheap, structured JSON task). */
+async function callGeminiExtract(systemPrompt: string, userMsg: string): Promise<{ text: string; ok: boolean }> {
+  const apiKey = config.openrouter.apiKey;
+  if (!apiKey) return { text: '', ok: false };
+  try {
+    const { fetchWithTimeout } = await import('@/lib/shared/utils/fetch-with-timeout');
+    const res = await fetchWithTimeout('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: 'google/gemini-3.1-flash-lite-preview',
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMsg }],
+        temperature: 0, max_tokens: 1500,
+        response_format: { type: 'json_object' },
+      }),
+    }, 25_000);
+    if (!res.ok) return { text: '', ok: false };
+    const data = await res.json();
+    return { text: data?.choices?.[0]?.message?.content || '', ok: true };
+  } catch { return { text: '', ok: false }; }
 }
 
 async function extractFacts(
   query: string, chunks: KBChunk[],
 ): Promise<{ result: ExtractionResult; usage: { p: number; c: number; cost: number } }> {
   const fragments = buildFragmentsBlock(chunks);
+  const userMsg = `<fragments>\n${fragments}\n</fragments>\n\n<query>${query}</query>`;
 
-  const res = await generateAITextWithUsage({
-    messages: [{ role: 'user', content: `<fragments>\n${fragments}\n</fragments>\n\n<query>${query}</query>` }],
-    systemPrompt: EXTRACT_PROMPT,
-    providerOverride: 'anthropic',
-    anthropicModel: 'claude-haiku-4-5-20251001',
-    apiKeyOverride: config.anthropic.apiKey!,
-    maxTokens: 1200,
-    temperature: 0,
-    timeoutMs: 15_000,
-  });
-
-  const p = res.usage?.prompt_tokens || 0;
-  const c = res.usage?.completion_tokens || 0;
-  // Haiku 4.5: $1.00/1M input, $5.00/1M output
-  const cost = (p * 1.00 + c * 5.00) / 1_000_000;
-
-  try {
-    const json = res.text.replace(/```json\n?|\n?```/g, '').trim();
-    const parsed = JSON.parse(json) as ExtractionResult;
-    if (!parsed.facts) parsed.facts = [];
-    if (!parsed.level) parsed.level = parsed.facts.length > 0 ? 'direct' : 'none';
-    return { result: parsed, usage: { p, c, cost } };
-  } catch {
-    logger.prod('[kb/synth] extraction JSON parse failed, using raw');
-    return {
-      result: { level: 'direct', facts: [{ text: res.text, fragment: 1 }] },
-      usage: { p, c, cost },
-    };
+  // Try L1: Gemini Flash-Lite (cheap, fast)
+  const gemini = await callGeminiExtract(EXTRACT_PROMPT, userMsg);
+  if (gemini.ok && gemini.text) {
+    try {
+      const json = cleanJsonResponse(gemini.text);
+      const parsed = JSON.parse(json) as ExtractionResult;
+      if (!parsed.facts) parsed.facts = [];
+      if (!parsed.level) parsed.level = parsed.facts.length > 0 ? 'direct' : 'none';
+      logger.prod('[kb/synth] extract via Gemini Flash-Lite');
+      return { result: parsed, usage: { p: 0, c: 0, cost: 0 } }; // OpenRouter cost tracked separately
+    } catch {
+      logger.warn('[kb/synth] Gemini extract JSON parse failed, falling back to Haiku');
+    }
   }
+
+  // Fallback L2: Haiku (reliable)
+  let totalP = 0, totalC = 0;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const messages = attempt === 0
+      ? [{ role: 'user' as const, content: userMsg }]
+      : [{ role: 'user' as const, content: userMsg }, { role: 'assistant' as const, content: '{' }];
+
+    const res = await generateAITextWithUsage({
+      messages,
+      systemPrompt: EXTRACT_PROMPT + (attempt > 0 ? '\n\nIMPORTANT: Return ONLY raw JSON. No markdown fences. Start with {' : ''),
+      providerOverride: 'anthropic',
+      anthropicModel: 'claude-haiku-4-5-20251001',
+      apiKeyOverride: config.anthropic.apiKey!,
+      maxTokens: 1200,
+      temperature: 0,
+      timeoutMs: 20_000,
+    });
+
+    totalP += res.usage?.prompt_tokens || 0;
+    totalC += res.usage?.completion_tokens || 0;
+    const rawText = attempt > 0 ? '{' + res.text : res.text;
+
+    try {
+      const json = cleanJsonResponse(rawText);
+      const parsed = JSON.parse(json) as ExtractionResult;
+      if (!parsed.facts) parsed.facts = [];
+      if (!parsed.level) parsed.level = parsed.facts.length > 0 ? 'direct' : 'none';
+      const cost = (totalP * 1.00 + totalC * 5.00) / 1_000_000;
+      logger.prod('[kb/synth] extract via Haiku (fallback)');
+      return { result: parsed, usage: { p: totalP, c: totalC, cost } };
+    } catch {
+      if (attempt === 0) { logger.warn('[kb/synth] Haiku extract JSON parse failed, retrying'); continue; }
+    }
+  }
+
+  const cost = (totalP * 1.00 + totalC * 5.00) / 1_000_000;
+  return { result: { level: 'none', facts: [], missing: 'JSON parse error in extract stage' }, usage: { p: totalP, c: totalC, cost } };
 }
 
 // ── Stage 2: Compose answer from facts (Claude Sonnet) ──────────────────────────
@@ -230,11 +294,11 @@ const COMPOSE_DOMAIN: Record<string, string> = {
     'Sections: 1) <b>Коротка відповідь</b> 2) <b>Інструкція</b> 3) <b>Важливо знати</b>\n' +
     'Skip empty sections.',
   legal:
-    '\nRole: Legal consultant. Tone: precise, clear. Quote key legal formulations verbatim.\n' +
-    'One continuous text, do NOT split into sections.\n' +
-    'CRITICAL: If some facts are about a DIFFERENT subject than the query asks about — IGNORE those facts. ' +
-    'Example: query about "заброньовані" → ignore facts about "культурні діячі" or "моряки". ' +
-    'Only use facts that apply to the SPECIFIC subject of the query.\n' +
+    '\nRole: Legal consultant for a large PRIVATE retail company (АТБ-Маркет). Tone: precise, clear.\n' +
+    'AUDIENCE: employee or HR manager of a private retail company — answer from the employer/employee perspective, not abstract legal theory.\n' +
+    'Prioritize facts relevant to the company and its employees. Ignore facts about categories not asked about.\n' +
+    'If facts mention exceptions for sectors other than private retail (державні органи, військові частини, дипломатична служба, заклади культури) — OMIT them from the answer entirely unless the query asks about that sector.\n' +
+    'One continuous text, do NOT split into sections. Quote key legal formulations verbatim.\n' +
     'End with: "⚠️ Перевірте актуальність на zakon.rada.gov.ua — законодавство може змінюватись."',
 };
 
@@ -386,6 +450,34 @@ export async function synthesizeAnswer(
     // No relevant facts → early return
     if (extraction.level === 'none' || extraction.facts.length === 0) {
       const noInfoText = `В базі знань немає інформації про цю тему.${extraction.missing ? ` ${extraction.missing}` : ''}`;
+      return { text: noInfoText, cost: extUsage.cost, promptTokens: extUsage.p, completionTokens: extUsage.c, model: 'claude-haiku-4.5-extract', stages };
+    }
+
+    // Stage 1.5: Applicability Filter — remove facts irrelevant to user audience
+    const RETAIL_AUDIENCE = new Set(['all', 'retail_employee', undefined, '']);
+    const beforeFilter = extraction.facts.length;
+    extraction.facts = extraction.facts.filter(f => {
+      const aud = f.audience?.toLowerCase() || 'all';
+      if (RETAIL_AUDIENCE.has(aud)) return true;
+      // Exception: keep if query explicitly mentions this audience
+      const qLower = query.toLowerCase();
+      if (aud === 'state_officer' && (qLower.includes('держслужб') || qLower.includes('державн'))) return true;
+      if (aud === 'military' && (qLower.includes('військов') || qLower.includes('збройн'))) return true;
+      if (aud === 'maritime' && (qLower.includes('моряк') || qLower.includes('морськ'))) return true;
+      logger.prod('[kb/synth] audience-filter: removed fact for', aud, ':', f.text.slice(0, 50));
+      return false;
+    });
+    // Sort: general first, then procedure, then exception
+    const normOrder = { general: 0, procedure: 1, exception: 2 };
+    extraction.facts.sort((a, b) => (normOrder[a.norm_type || 'general'] ?? 1) - (normOrder[b.norm_type || 'general'] ?? 1));
+
+    if (beforeFilter !== extraction.facts.length) {
+      logger.prod('[kb/synth] audience-filter:', beforeFilter, '→', extraction.facts.length, 'facts');
+    }
+
+    // Re-check after filter
+    if (extraction.facts.length === 0) {
+      const noInfoText = `В базі знань немає інформації, що стосується працівників приватної роздрібної компанії, за цим запитом.${extraction.missing ? ` ${extraction.missing}` : ''}`;
       return { text: noInfoText, cost: extUsage.cost, promptTokens: extUsage.p, completionTokens: extUsage.c, model: 'claude-haiku-4.5-extract', stages };
     }
 

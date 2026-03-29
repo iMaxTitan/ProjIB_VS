@@ -99,7 +99,8 @@ const MULTI_QUERY_PROMPT =
   '1. DIRECT — translate to Ukrainian, preserve specific names (software, services, document numbers)\n' +
   '2. NORMATIVE — rephrase using formal document terminology\n' +
   '   (флешка → знімні носії, звільнення → припинення трудових відносин, заброньований → військовозобов\'язаний який не підлягає призову)\n' +
-  '3. CONTEXTUAL — broader topic to capture context\n\n' +
+  '3. CONTEXTUAL — reframe from the perspective of an employee or employer of a large retail company.\n' +
+  '   Think: "what would our HR department or line manager need to know about this?"\n\n' +
   'CRITICAL: If the query mentions a specific SUBJECT (заброньований, моряк, водій), EVERY sub-query MUST include that subject. Do NOT generalize "заброньований" to just "військовозобов\'язаний".\n\n' +
   'DOMAIN — classify the query:\n' +
   '• "ib" — information security, passwords, software, hardware, network, antivirus\n' +

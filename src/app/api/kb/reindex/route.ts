@@ -16,7 +16,7 @@ import { hasRole } from '@/lib/shared/auth/role-groups';
 import { getServerDb } from '@/lib/shared/db-server';
 import { buildContextualContent } from '@/lib/kb/chunker';
 import { embedBatch } from '@/lib/kb/embedder';
-import { generateContextualPrefix } from '@/lib/kb/contextual-prefix';
+import { generateChunkPrefix, buildTocSummary } from '@/lib/kb/contextual-prefix';
 
 const RATE_LIMIT = 5;
 const RATE_WINDOW_MS = 3600_000;
@@ -88,27 +88,27 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const docText = doc.content || '';
       const categoryName = catMap.get(doc.category_id) || 'Загальне';
+      const tocSummary = buildTocSummary(chunks.map(c => ({ heading: c.heading || '', content: c.content })));
 
       // Generate contextual prefixes only for chunks missing them
-      const prefixes: string[] = [];
+      const prefixes: Array<{ prefixText: string; scope: string; searchTerms: string[]; semanticSummary: string }> = [];
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         if (chunk.contextual_prefix) {
-          prefixes.push(chunk.contextual_prefix);
+          prefixes.push({ prefixText: chunk.contextual_prefix, scope: 'general', searchTerms: [], semanticSummary: '' });
         } else {
-          const prefix = await generateContextualPrefix(
-            doc.title, docText.slice(0, 6000), chunk.heading || '', chunk.content,
+          const result = await generateChunkPrefix(
+            doc.title, tocSummary, chunk.heading || '', chunk.content,
           );
-          prefixes.push(prefix);
+          prefixes.push(result);
           if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 150));
         }
       }
 
       // Build contextual content for embedding
       const contextualContents = chunks.map((chunk, i) =>
-        buildContextualContent(categoryName, doc.title, chunk.heading || '', chunk.content, prefixes[i] || undefined)
+        buildContextualContent(categoryName, doc.title, chunk.heading || '', chunk.content, prefixes[i]?.prefixText || undefined)
       );
 
       // Re-embed in batches
@@ -120,13 +120,17 @@ export async function POST(req: NextRequest) {
 
         const embeddings = await embedBatch(batchContents);
 
-        // Update each chunk with new embedding + prefix
+        // Update each chunk with new embedding + prefix + scope
         for (let i = 0; i < batchChunks.length; i++) {
+          const p = batchPrefixes[i];
           const { error: updateError } = await db
             .from('kb_chunks')
             .update({
               embedding: JSON.stringify(embeddings[i]),
-              contextual_prefix: batchPrefixes[i] || null,
+              contextual_prefix: p?.prefixText || null,
+              scope: p?.scope || 'general',
+              search_terms: p?.searchTerms || [],
+              semantic_summary: p?.semanticSummary || null,
             })
             .eq('id', batchChunks[i].id);
 
@@ -136,7 +140,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const prefixCount = prefixes.filter(Boolean).length;
+      const prefixCount = prefixes.filter(p => p.prefixText).length;
       totalChunks += chunks.length;
       totalPrefixes += prefixCount;
       logger.prod('[kb/reindex]', doc.title, ':', chunks.length, 'chunks,', prefixCount, 'prefixes');

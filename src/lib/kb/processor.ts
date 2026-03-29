@@ -12,7 +12,7 @@ import { getServerDb } from '@/lib/shared/db-server';
 import logger from '@/lib/shared/logger';
 import { chunkDocument, buildContextualContent, type DocMetaForEmbedding } from './chunker';
 import { embedBatch } from './embedder';
-import { generateContextualPrefixes } from './contextual-prefix';
+import { generatePrefixes, type PrefixResult } from './prefix-pipeline';
 import { parseDOCX } from './processor-docx';
 export { parseDOCX };
 export type { ParsedDocument, StyleMetadata } from './processor-docx';
@@ -150,7 +150,8 @@ async function loadDocMeta(db: SupabaseClient, documentId: string): Promise<DocM
 /** Shared embed+insert logic for both processDocument and processFromMarkdown. */
 async function embedAndInsertChunks(
   db: SupabaseClient, documentId: string, chunks: Chunk[],
-  prefixes: string[], categoryName: string, title: string,
+  prefixes: PrefixResult[],
+  categoryName: string, title: string,
   docMeta?: DocMetaForEmbedding | null,
 ): Promise<void> {
   const EMBED_BATCH = 80;
@@ -164,18 +165,26 @@ async function embedAndInsertChunks(
     const batchChunks = chunks.slice(batchStart, batchStart + EMBED_BATCH);
     const batchPrefixes = prefixes.slice(batchStart, batchStart + EMBED_BATCH);
     const contextualContents = batchChunks.map((chunk, i) =>
-      buildContextualContent(categoryName, title, chunk.heading, chunk.content, batchPrefixes[i] || undefined, docMeta)
+      buildContextualContent(categoryName, title, chunk.heading, chunk.content, batchPrefixes[i]?.prefixText || undefined, docMeta)
     );
     const embeddings = await embedBatch(contextualContents);
-    const chunkRows = batchChunks.map((chunk, i) => ({
-      document_id: documentId,
-      chunk_index: chunk.chunkIndex,
-      content: chunk.content,
-      embedding: JSON.stringify(embeddings[i]),
-      heading: chunk.heading || null,
-      token_count: chunk.tokenCount,
-      contextual_prefix: batchPrefixes[i] || null,
-    }));
+    const chunkRows = batchChunks.map((chunk, i) => {
+      const p = batchPrefixes[i];
+      return {
+        document_id: documentId,
+        chunk_index: chunk.chunkIndex,
+        content: chunk.content,
+        embedding: JSON.stringify(embeddings[i]),
+        heading: chunk.heading || null,
+        token_count: chunk.tokenCount,
+        contextual_prefix: p?.prefixText || null,
+        scope: p?.scope || 'general',
+        search_terms: p?.searchTerms || [],
+        semantic_summary: p?.semanticSummary || null,
+        prefix_status: p?.status || 'ok',
+        prefix_cache_key: p?.cacheKey || null,
+      };
+    });
     for (let i = 0; i < chunkRows.length; i += DB_BATCH) {
       const { error } = await db.from('kb_chunks').insert(chunkRows.slice(i, i + DB_BATCH));
       if (error) throw error;
@@ -226,14 +235,13 @@ export async function processDocument(
     if (chunks.length === 0) throw new Error('No chunks produced from document');
 
     await setStage('prefix');
-    let prefixes: string[];
+    let prefixes: PrefixResult[];
     try {
-      prefixes = await generateContextualPrefixes(
-        effectiveTitle, fullText, chunks.map(c => ({ heading: c.heading, content: c.content })),
-      );
+      prefixes = await generatePrefixes(effectiveTitle, categoryName,
+        chunks.map(c => ({ heading: c.heading, content: c.content })));
     } catch (prefixErr) {
-      logger.warn(`[kb/processor] Contextual prefix generation failed, proceeding without: ${(prefixErr as Error).message}`);
-      prefixes = chunks.map(() => '');
+      logger.warn(`[kb/processor] Prefix pipeline failed, proceeding without: ${(prefixErr as Error).message}`);
+      prefixes = chunks.map(() => ({ prefixText: '', scope: 'general', searchTerms: [], semanticSummary: '', status: 'fallback' as const, cacheKey: '', model: 'fallback' as const, confidence: 0 }));
     }
 
     await setStage('embedding');
@@ -279,14 +287,13 @@ export async function processFromMarkdown(
     if (chunks.length === 0) throw new Error('No chunks produced from normalized text');
 
     await setStage('prefix');
-    let prefixes: string[];
+    let prefixes: PrefixResult[];
     try {
-      prefixes = await generateContextualPrefixes(
-        title, markdownText, chunks.map(c => ({ heading: c.heading, content: c.content })),
-      );
+      prefixes = await generatePrefixes(title, categoryName,
+        chunks.map(c => ({ heading: c.heading, content: c.content })));
     } catch (prefixErr) {
-      logger.warn(`[kb/processor] Contextual prefix generation failed, proceeding without: ${(prefixErr as Error).message}`);
-      prefixes = chunks.map(() => '');
+      logger.warn(`[kb/processor] Prefix pipeline failed, proceeding without: ${(prefixErr as Error).message}`);
+      prefixes = chunks.map(() => ({ prefixText: '', scope: 'general', searchTerms: [], semanticSummary: '', status: 'fallback' as const, cacheKey: '', model: 'fallback' as const, confidence: 0 }));
     }
 
     await setStage('embedding');

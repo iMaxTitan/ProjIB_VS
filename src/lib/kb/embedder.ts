@@ -2,9 +2,8 @@
  * KB Embeddings — Voyage AI (voyage-4 family, 1024 dims via Matryoshka).
  * Uses VOYAGE_API_KEY (same key as reranker).
  *
- * Asymmetric search (shared embedding space):
- *   - voyage-4-large  → indexing (max quality, one-time cost)
- *   - voyage-4-lite   → queries  (low latency, ongoing cost)
+ * Same model for indexing and queries — ensures consistent embedding space.
+ * voyage-4-large for both (best quality). ~50ms extra latency on queries vs lite — negligible.
  *
  * input_type: "document" for indexing, "query" for search — improves recall.
  * output_dimension: 1024 (Matryoshka truncation, HNSW limit 2000).
@@ -13,7 +12,7 @@ import { config } from '@/lib/shared/config';
 import { fetchWithTimeout } from '@/lib/shared/utils/fetch-with-timeout';
 
 const DOCUMENT_MODEL = 'voyage-4-large';
-const QUERY_MODEL = 'voyage-4-lite';
+const QUERY_MODEL = 'voyage-4-large';
 const OUTPUT_DIMENSION = 1024;
 const EMBEDDING_ENDPOINT = 'https://api.voyageai.com/v1/embeddings';
 /** Voyage API: max 1000 items, max 120K tokens per batch for voyage-4-large.

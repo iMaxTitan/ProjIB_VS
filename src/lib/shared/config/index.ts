@@ -16,6 +16,8 @@ export const config = {
     anonKey:        process.env.POSTGREST_ANON_KEY ?? '',
     serviceRoleKey: process.env.POSTGREST_SERVICE_KEY ?? '',
     jwtSecret:      process.env.POSTGREST_JWT_SECRET ?? '',
+    /** When true, PostgREST serves at / without /rest/v1 prefix */
+    direct:         process.env.POSTGREST_DIRECT === '1',
   },
 
   azure: {
@@ -35,6 +37,14 @@ export const config = {
 
   voyage: {
     apiKey: process.env.VOYAGE_API_KEY ?? '',
+  },
+
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY ?? '',
+  },
+
+  openrouter: {
+    apiKey: process.env.OPENROUTER_API_KEY ?? '',
   },
 
   telegram: {
