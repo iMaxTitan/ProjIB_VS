@@ -47,7 +47,7 @@
   {
     "id": "booking-priests",
     "query": "бронювання священнослужителів",
-    "gold_chunk_ids": ["1cc79d4f-382f-43df-89d9-8e6139086487", "1c0ad756-2356-47e5-908b-238cd3bff160"],
+    "gold_chunk_ids": ["12d80ef4-d4b9-4433-93f7-3ae09198b140", "cc6cb38d-bce5-4d95-8feb-42312e7d6e56"],
     "expected_keywords": ["священнослужител", "релігійн"],
     "negative_keywords": [],
     "wrong_scope_markers": [],

@@ -31,15 +31,35 @@ export async function applyIdfPenalty(chunks: KBChunk[], db: SupabaseClient): Pr
   }).sort((a, b) => b.similarity - a.similarity);
 }
 
-// ── Document diversity — cap per-document chunks to avoid single-doc domination ─
+// ── Document diversity — dynamic cap per document ────────────────────────────
+
+/**
+ * Dynamic MAX_PER_DOC: base=maxPerDoc, but allow +1 if the next chunk from the
+ * same doc has a competitive rerank score (within SCORE_GAP of the previous one).
+ * This prevents cutting a highly relevant 3rd chunk from a dominant document.
+ */
+const DYNAMIC_SCORE_GAP = 0.02;
 
 export function diversifyByDocument(chunks: KBChunk[], maxPerDoc: number): KBChunk[] {
   const docCounts = new Map<string, number>();
+  const docLastScore = new Map<string, number>();
   return chunks.filter(chunk => {
+    const score = (chunk as KBChunk & { _rerank_score?: number })._rerank_score ?? chunk.similarity;
     const count = docCounts.get(chunk.document_id) ?? 0;
-    if (count >= maxPerDoc) return false;
-    docCounts.set(chunk.document_id, count + 1);
-    return true;
+    const lastScore = docLastScore.get(chunk.document_id) ?? 0;
+
+    if (count < maxPerDoc) {
+      docCounts.set(chunk.document_id, count + 1);
+      docLastScore.set(chunk.document_id, score);
+      return true;
+    }
+    // Allow one extra chunk if score is competitive (close to previous)
+    if (count === maxPerDoc && lastScore - score <= DYNAMIC_SCORE_GAP) {
+      docCounts.set(chunk.document_id, count + 1);
+      logger.prod('[kb/search] diversity: allowed extra chunk from doc, score gap', (lastScore - score).toFixed(3));
+      return true;
+    }
+    return false;
   });
 }
 

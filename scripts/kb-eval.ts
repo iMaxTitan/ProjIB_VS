@@ -70,14 +70,18 @@ async function main() {
         if (dict.length > 0) subQueries.push(dict.slice(0, 5).join(' '));
       } catch { /* ok */ }
 
-      // 2. Embed + search
+      // 2. Embed + search (using tuned params from search.ts)
+      const EVAL_MATCH_COUNT = 50;
+      const EVAL_MATCH_THRESHOLD = 0.10;
+      const EVAL_RERANK_TOP_K = 50;
+
       const embeddings = await embedBatchQueries(subQueries);
       const slug = mq.domain !== 'general' ? mq.domain : null;
       const chunkMap = new Map<string, any>();
       for (let i = 0; i < subQueries.length; i++) {
         const { data } = await db.rpc('match_kb_documents', {
           query_embedding: `[${embeddings[i].join(',')}]`,
-          query_text: subQueries[i], match_count: 15, match_threshold: 0.20,
+          query_text: subQueries[i], match_count: EVAL_MATCH_COUNT, match_threshold: EVAL_MATCH_THRESHOLD,
           filter_category_slug: slug, filter_process_id: null,
         });
         for (const r of (data || []) as any[]) {
@@ -87,8 +91,16 @@ async function main() {
       }
       const allChunks = [...chunkMap.values()].sort((a: any, b: any) => b.similarity - a.similarity);
 
+      // Stage diagnostics: gold presence in raw candidates
+      const rawCandidateIds = allChunks.map((c: any) => c.chunk_id);
+      const goldInCandidates = tc.gold_chunk_ids.filter(id => rawCandidateIds.includes(id));
+
       // 3. Rerank
-      const reranked = await rerankChunks(tc.query, allChunks, 10, slug || undefined);
+      const reranked = await rerankChunks(tc.query, allChunks, EVAL_RERANK_TOP_K, slug || undefined);
+
+      // Stage diagnostics: gold presence after rerank
+      const rerankIds = reranked.map((c: any) => c.chunk_id);
+      const goldInRerank = tc.gold_chunk_ids.filter(id => rerankIds.includes(id));
 
       // 4. Metrics
       const top10ids = reranked.slice(0, 10).map((c: any) => c.chunk_id);
@@ -98,6 +110,11 @@ async function main() {
       let mrr10 = tc.gold_chunk_ids.length > 0 ? 0 : -1;
       for (let i = 0; i < Math.min(reranked.length, 10); i++) {
         if (tc.gold_chunk_ids.includes((reranked[i] as any).chunk_id)) { mrr10 = 1 / (i + 1); break; }
+      }
+
+      // Stage diagnostics log (only for cases with gold chunks)
+      if (tc.gold_chunk_ids.length > 0 && VERBOSE) {
+        console.log(`    [stage] candidates=${allChunks.length} gold_in_raw=${goldInCandidates.length}/${tc.gold_chunk_ids.length} gold_in_rerank=${goldInRerank.length}/${tc.gold_chunk_ids.length} gold_in_top10=${goldFound.length}/${tc.gold_chunk_ids.length}`);
       }
 
       const top3text = reranked.slice(0, 3)

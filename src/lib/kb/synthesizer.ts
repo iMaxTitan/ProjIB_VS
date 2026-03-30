@@ -133,7 +133,7 @@ const EXTRACT_PROMPT =
   '1. Extract facts that answer the SPECIFIC question for the SPECIFIC subject in the SPECIFIC situation.\n' +
   '2. DEDUCTION (apply ALL of these):\n' +
   '   - Category → item: rule for "ПЗ" applies to "Photoshop", rule for "знімні носії" applies to "флешка".\n' +
-  '   - Base set comparison: if fragments list approved software (e.g. PeaZip as archiver) and user asks about a DIFFERENT product in same category (e.g. WinRAR) → state that the asked product is NOT in the base set and may require a license.\n' +
+  '   - Base set comparison (IMPORTANT): if fragments contain a TABLE or LIST of approved/standard items and the user asks about a SPECIFIC item — ALWAYS extract: (a) what IS approved in that category from the table, (b) whether the asked item is in the approved list or not. This applies to any approved-vs-requested comparison (software, equipment, procedures, etc.).\n' +
   '   - Licensing: if a table marks a category as "потрібне придбання ліцензії" → apply to the queried product.\n' +
   '   - Legal YES/NO: if the query asks "чи може?/чи має право?/чи треба?" — the answer MUST start with a clear YES/NO fact, then supporting details.\n' +
   '   - General vs specific norms: legal texts often have a general rule followed by narrow exceptions for subcategories. Example: "заброньовані особи мають право на виїзд" = general rule; "одинокі матері серед заброньованих працівників ДЕРЖАВНИХ ОРГАНІВ" = narrow exception for a specific subcategory. RULE: extract the GENERAL norm. For exceptions/subcategories apply this test: "Does the query mention this specific subcategory?" If NO → SKIP the exception. Signals of a narrow exception: mention of a specific institution type (державні органи, військові частини, Мінкультури, Держкомтелерадіо), specific profession (моряки, спортсмени, працівники культури), or a family-status qualifier tied to a sector.\n' +
@@ -268,7 +268,8 @@ const COMPOSE_BASE =
   'RULES:\n' +
   '- Use wording as close to original facts as possible. Do not rephrase unnecessarily.\n' +
   '- Do NOT invent facts, terms, or advice ("зверніться", "рекомендую") not present in input.\n' +
-  '- Keep article references (ст. X, п. Y) from facts inline in each bullet. Do NOT add [N] footnote markers.\n\n' +
+  '- Keep article references (ст. X, п. Y) from facts inline in each bullet.\n' +
+  '- ALWAYS keep [N] document markers from the facts. Place them after the article reference: "(п.3.2) [1]". If a bullet combines facts from multiple documents, include all markers: "[1][2]".\n\n' +
   'FORMAT (HTML for messenger):\n' +
   '- <b>Section title</b>, bullets «•» on new lines, NO blank lines between bullets.\n' +
   '- Blank line ONLY between different sections.\n' +
@@ -349,7 +350,6 @@ async function composeAnswer(
   domain: string,
   history?: ConversationTurn[],
 ): Promise<AIResult> {
-  // For caveat domains (e.g. 'legal_caveat'), apply base domain prompt + caveat suffix
   const baseDomain = domain.replace('_caveat', '');
   const isCaveat = domain.endsWith('_caveat');
   const domainPrompt = COMPOSE_DOMAIN[baseDomain] ?? '';
@@ -379,20 +379,19 @@ function renderWithFootnotes(
 ): string {
   let body = stripHallucinations(sanitizeHtml(text));
 
-  // Strip [N] references and superscripts — articles are already inline in bullets
-  body = body.replace(/(\([^)]+\))\s*\[(\d+)\]/g, '$1');
-  body = body.replace(/\[(\d+)(?:,\s*[^\]]+)?\]/g, '');
-  body = body.replace(/\s*\[(?:п|ст|р)\.?\s*\d+(?:\(\d+\))?\]/g, '');
+  // Convert [N] document markers → superscript (¹²³) for footnote links
+  body = body.replace(/\[(\d+)\]/g, (_match, n) => toSuper(Number(n)));
+  // Strip leftover (ref) markers
   body = body.replace(/\s*\(ref\)/gi, '');
 
-  // Build source links — deduplicated list of source documents
+  // Build numbered source links — footnotes matching superscript markers
   if (sourceMap.size > 0) {
-    const lines = [...sourceMap.values()]
-      .filter((v, i, arr) => arr.findIndex(x => x.shortName === v.shortName) === i)
-      .map(info =>
+    const lines = [...sourceMap.entries()]
+      .filter(([, v], i, arr) => arr.findIndex(([, x]) => x.shortName === v.shortName) === i)
+      .map(([num, info]) =>
         info.url
-          ? `📄 <a href="${info.url}">${info.shortName}</a>`
-          : `📄 ${info.shortName}`,
+          ? `${toSuper(num)} <a href="${info.url}">${info.shortName}</a>`
+          : `${toSuper(num)} ${info.shortName}`,
       );
     body += '\n\n---\n\n' + lines.join('\n');
   }
