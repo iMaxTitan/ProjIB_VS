@@ -17,6 +17,7 @@ import logger from '@/lib/shared/logger';
 import { computeStats, detectArtifacts, extractMetadata } from './validator-stats';
 import { runChecks, CHECK_LABELS } from './validator-checks';
 import { isHeadingLine } from './chunker';
+import { sanitizeJsonString } from './shared/json';
 
 // ── Public types ───────────────────────────────────────────────────────────────
 
@@ -135,43 +136,6 @@ const AI_FALLBACK_ERROR: AIAnalysis = {
   fixInstructions: [],
 };
 
-/**
- * Sanitize JSON string returned by LLM: escape literal control characters
- * (newlines, tabs, carriage returns) that appear inside JSON string values.
- * LLMs occasionally emit these unescaped, causing JSON.parse to throw.
- */
-function sanitizeJSONString(input: string): string {
-  let result = '';
-  let inString = false;
-  let backslash = false;
-
-  for (let i = 0; i < input.length; i++) {
-    const ch = input[i];
-
-    if (backslash) {
-      result += ch;
-      backslash = false;
-      continue;
-    }
-    if (ch === '\\' && inString) {
-      backslash = true;
-      result += ch;
-      continue;
-    }
-    if (ch === '"') {
-      inString = !inString;
-      result += ch;
-      continue;
-    }
-    if (inString) {
-      if (ch === '\n') { result += '\\n'; continue; }
-      if (ch === '\r') { result += '\\r'; continue; }
-      if (ch === '\t') { result += '\\t'; continue; }
-    }
-    result += ch;
-  }
-  return result;
-}
 
 async function getAIAnalysis(
   cleanedText: string,
@@ -237,7 +201,7 @@ async function getAIAnalysis(
 
     const jsonMatch = result.text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No JSON in response');
-    const parsed = JSON.parse(sanitizeJSONString(jsonMatch[0])) as Partial<AIAnalysis>;
+    const parsed = JSON.parse(sanitizeJsonString(jsonMatch[0])) as Partial<AIAnalysis>;
     return {
       overallScore: parsed.overallScore ?? 'minor_fixes',
       summary: parsed.summary ?? '',

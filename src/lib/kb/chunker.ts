@@ -14,6 +14,8 @@
  * Tables: preserved whole; large tables (>1500 tokens) split by rows with header duplication
  */
 
+import { splitIntoSegments, chunkTable } from './chunker-tables';
+
 export interface Chunk {
   content: string;
   heading: string;     // e.g. "Розділ 3 > п. 3.4"
@@ -24,7 +26,6 @@ export interface Chunk {
 /**
  * Token estimator for Cyrillic/Ukrainian text.
  * Voyage tokenizer: ~2.5 chars/token for Ukrainian.
- * (OpenAI estimate was 4 chars/token — valid for English, not Cyrillic)
  */
 const CHARS_PER_TOKEN = 2.5;
 function estimateTokens(text: string): number {
@@ -34,174 +35,26 @@ function estimateTokens(text: string): number {
 const MAX_TOKENS = 700;
 const OVERLAP_TOKENS = 100;
 const OVERLAP_CHARS = Math.round(OVERLAP_TOKENS * CHARS_PER_TOKEN); // 250 chars
-const MIN_CHUNK_TOKENS = 30; // skip tiny chunks (ToC lines, approval stamps, signatures, etc.)
-
-/** Max tokens for a table chunk before splitting by rows */
-const MAX_TABLE_TOKENS = 1500;
+const MIN_CHUNK_TOKENS = 30;
 
 /** Detect table of contents chunks — lines like "Назва розділу\t15" or "Section...3" */
 export function isTableOfContents(text: string): boolean {
   const lines = text.trim().split('\n').filter(l => l.trim());
   if (lines.length === 0) return false;
-  // ToC line: ends with tab+digits, or dots+digits, or just digits
   const tocLine = /(\t\d+\s*$|\.\s*\d+\s*$|…\s*\d+\s*$|\s{2,}\d+\s*$)/;
   const tocCount = lines.filter(l => tocLine.test(l)).length;
-  // Flag as ToC if at least half the lines match
   return tocCount >= Math.max(1, Math.ceil(lines.length * 0.5));
 }
 
-/** Detect if a line looks like a section heading.
- *  Handles two sources:
- *  - mammoth output:       # Title, ## Sub, ### Point
- *  - word-extractor/plain: 1. Title, 1.1 Sub, I. Intro
- */
+/** Detect if a line looks like a section heading. */
 export function isHeadingLine(line: string): boolean {
-  // mammoth markdown headings (from Word Heading 1/2/3 styles)
   if (/^#{1,3}\s+\S/.test(line)) return true;
-  // numbered headings: "1. ", "1.1 ", "2.3.4 "
   if (/^\s*(\d+\.)+\s+\S/.test(line)) return true;
-  // Roman numeral headings: "I. ", "II. "
   if (/^[IIVVX]+\.\s+\S/.test(line)) return true;
   return false;
 }
 
-/** Check if a line is part of a markdown table */
-function isTableLine(line: string): boolean {
-  return line.trimStart().startsWith('|');
-}
-
-/** Check if a line is a bold caption (table caption from table-converter) */
-function isTableCaption(line: string): boolean {
-  return /^\*\*[^*]+\*\*$/.test(line.trim());
-}
-
-// ---- Segment splitting: separate text and table blocks ----
-
-interface Segment {
-  type: 'text' | 'table';
-  content: string;
-}
-
-/**
- * Split section content into alternating text and markdown-table segments.
- * Table = consecutive lines starting with "|", optionally preceded by a bold caption.
- */
-function splitIntoSegments(content: string): Segment[] {
-  const lines = content.split('\n');
-  const segments: Segment[] = [];
-  let textLines: string[] = [];
-
-  function flushText() {
-    const text = textLines.join('\n').trim();
-    if (text) segments.push({ type: 'text', content: text });
-    textLines = [];
-  }
-
-  let i = 0;
-  while (i < lines.length) {
-    if (isTableLine(lines[i])) {
-      // Check if previous line was a bold caption — include it with the table
-      let caption = '';
-      if (textLines.length > 0 && isTableCaption(textLines[textLines.length - 1])) {
-        caption = textLines.pop()!;
-      }
-      flushText();
-
-      // Collect all consecutive table lines
-      const tableLines: string[] = [];
-      if (caption) tableLines.push(caption);
-      while (i < lines.length && isTableLine(lines[i])) {
-        tableLines.push(lines[i]);
-        i++;
-      }
-      segments.push({ type: 'table', content: tableLines.join('\n') });
-    } else {
-      textLines.push(lines[i]);
-      i++;
-    }
-  }
-  flushText();
-
-  return segments;
-}
-
-// ---- Table chunking with header duplication ----
-
-/**
- * Split a large markdown table into chunks, duplicating header + separator in each.
- * Returns table as single chunk if within MAX_TABLE_TOKENS.
- */
-function chunkTable(tableContent: string, heading: string, startIdx: number): Chunk[] {
-  if (estimateTokens(tableContent) <= MAX_TABLE_TOKENS) {
-    return [{
-      content: tableContent,
-      heading,
-      chunkIndex: startIdx,
-      tokenCount: estimateTokens(tableContent),
-    }];
-  }
-
-  // Split into lines, find header (line 0) and separator (line 1)
-  const lines = tableContent.split('\n');
-
-  // Find where the actual table starts (might have a bold caption before)
-  let tableStartIdx = 0;
-  let caption = '';
-  if (lines.length > 0 && isTableCaption(lines[0])) {
-    caption = lines[0];
-    tableStartIdx = 1;
-  }
-
-  const headerLine = lines[tableStartIdx] || '';
-  const separatorLine = lines[tableStartIdx + 1] || '';
-  const bodyLines = lines.slice(tableStartIdx + 2);
-
-  const headerBlock = [
-    ...(caption ? [caption] : []),
-    headerLine,
-    separatorLine,
-  ].join('\n');
-  const headerTokens = estimateTokens(headerBlock);
-  const maxBodyTokens = MAX_TABLE_TOKENS - headerTokens;
-
-  const chunks: Chunk[] = [];
-  let idx = startIdx;
-  let currentBodyLines: string[] = [];
-  let currentTokens = 0;
-
-  for (const bodyLine of bodyLines) {
-    const lineTokens = estimateTokens(bodyLine);
-    if (currentTokens + lineTokens > maxBodyTokens && currentBodyLines.length > 0) {
-      // Flush current chunk
-      const chunkContent = headerBlock + '\n' + currentBodyLines.join('\n');
-      chunks.push({
-        content: chunkContent,
-        heading,
-        chunkIndex: idx++,
-        tokenCount: estimateTokens(chunkContent),
-      });
-      currentBodyLines = [];
-      currentTokens = 0;
-    }
-    currentBodyLines.push(bodyLine);
-    currentTokens += lineTokens;
-  }
-
-  // Flush remaining
-  if (currentBodyLines.length > 0) {
-    const chunkContent = headerBlock + '\n' + currentBodyLines.join('\n');
-    chunks.push({
-      content: chunkContent,
-      heading,
-      chunkIndex: idx++,
-      tokenCount: estimateTokens(chunkContent),
-    });
-  }
-
-  return chunks;
-}
-
-// ---- Text chunking (original logic) ----
+// ---- Text chunking ----
 
 /** Split text content into token-sized chunks with overlap */
 function splitTextIntoChunks(content: string, heading: string, startIndex: number): Chunk[] {
@@ -210,7 +63,7 @@ function splitTextIntoChunks(content: string, heading: string, startIndex: numbe
   let idx = startIndex;
 
   while (remaining.length > 0) {
-    const maxChars = Math.round(MAX_TOKENS * CHARS_PER_TOKEN); // 1125 chars
+    const maxChars = Math.round(MAX_TOKENS * CHARS_PER_TOKEN);
 
     if (estimateTokens(remaining) <= MAX_TOKENS) {
       chunks.push({
@@ -222,20 +75,16 @@ function splitTextIntoChunks(content: string, heading: string, startIndex: numbe
       break;
     }
 
-    // Find a good split point within maxChars (prefer semantic boundaries)
     let splitAt = maxChars;
 
-    // Try paragraph boundary first
     const paraIdx = remaining.lastIndexOf('\n\n', maxChars);
     if (paraIdx > maxChars * 0.5) {
       splitAt = paraIdx;
     } else {
-      // Try sentence boundary
       const sentIdx = remaining.lastIndexOf('. ', maxChars);
       if (sentIdx > maxChars * 0.5) {
-        splitAt = sentIdx + 1; // include the period
+        splitAt = sentIdx + 1;
       } else {
-        // Try word boundary to avoid mid-word splits
         const spaceIdx = remaining.lastIndexOf(' ', maxChars);
         if (spaceIdx > maxChars * 0.3) {
           splitAt = spaceIdx;
@@ -253,7 +102,6 @@ function splitTextIntoChunks(content: string, heading: string, startIndex: numbe
       tokenCount: estimateTokens(chunkText),
     });
 
-    // Move forward with overlap
     const nextStart = Math.max(0, splitAt - OVERLAP_CHARS);
     remaining = remaining.slice(nextStart).trim();
   }
@@ -266,15 +114,11 @@ function splitTextIntoChunks(content: string, heading: string, startIndex: numbe
 /** Extract section number from heading like "### 3.6.16. Якщо зовнішня..." → "§ 3.6.16" */
 function shortenHeading(heading: string): string {
   if (!heading) return '';
-  // Strip markdown markers
   const clean = heading.replace(/^#+\s*/, '').trim();
-  // Try to extract numbered prefix: "3.6.16. Text..." or "3.6.16 Text..."
   const numMatch = clean.match(/^((?:\d+\.)+\d*)\s*/);
   if (numMatch) return `§ ${numMatch[1].replace(/\.$/, '')}`;
-  // Roman numerals: "II. Text..."
   const romanMatch = clean.match(/^([IIVVX]+)\.\s/);
   if (romanMatch) return `§ ${romanMatch[1]}`;
-  // No number — first 50 chars
   return clean.length > 50 ? clean.slice(0, 50) + '…' : clean;
 }
 
@@ -285,14 +129,9 @@ function splitIntoSections(text: string): Array<{ heading: string; content: stri
   const lines = text.split('\n');
   const sections: Array<{ heading: string; content: string }> = [];
 
-  // Detect document structure to choose section-break strategy:
-  // 1. Multiple markdown headings (DOCX via mammoth) → use ONLY # headings
-  // 2. Single # heading + numbered paragraphs (legal docs from law-fetcher) → use both
-  // 3. No markdown headings → use numbered headings
   const mdHeadingLines = lines.filter(l => /^#{1,3}\s+\S/.test(l));
   const hasMultipleMdHeadings = mdHeadingLines.length > 1;
 
-  // Legal doc pattern: single # title + paragraphs like "21. ", "26. ", "210. "
   const legalParagraphRx = /^\d{1,3}\.\s+\S/;
   const hasLegalParagraphs = !hasMultipleMdHeadings && lines.some(l => legalParagraphRx.test(l));
 
@@ -311,8 +150,6 @@ function splitIntoSections(text: string): Array<{ heading: string; content: stri
       if (content) {
         sections.push({ heading: currentHeading, content });
       } else if (currentHeading) {
-        // Heading with no body (e.g. single-line numbered point used as heading
-        // in plain-text docs) — preserve heading text as content
         sections.push({ heading: currentHeading, content: currentHeading });
       }
       currentHeading = line.trim();
@@ -329,13 +166,11 @@ function splitIntoSections(text: string): Array<{ heading: string; content: stri
     sections.push({ heading: currentHeading, content: currentHeading });
   }
 
-  // If no sections detected (flat text), treat whole document as one section
   if (sections.length === 0) {
     sections.push({ heading: '', content: text.trim() });
   }
 
-  // Merge adjacent short sections (< 200 tokens) to avoid over-fragmentation
-  // Heading strategy: shorten previous headings, keep last (most relevant) full
+  // Merge adjacent short sections (< 200 tokens)
   const merged: Array<{ heading: string; content: string }> = [];
   for (const sec of sections) {
     const tokens = estimateTokens(sec.content);
@@ -345,9 +180,7 @@ function splitIntoSections(text: string): Array<{ heading: string; content: stri
       estimateTokens(prev.content) < 200
     );
     if (shouldMerge && prev) {
-      // Shorten previous heading(s), keep current full
       if (prev.heading && sec.heading) {
-        // prev.heading may already contain " > " from earlier merges
         const prevParts = prev.heading.split(' > ').map(shortenHeading);
         prev.heading = [...prevParts, sec.heading].join(' > ');
       } else {
@@ -374,23 +207,19 @@ export function chunkDocument(text: string): Chunk[] {
   for (const section of sections) {
     if (!section.content.trim()) continue;
 
-    // Split section into text segments and table segments
     const segments = splitIntoSegments(section.content);
 
     for (const segment of segments) {
       const startIdx = allChunks.length;
 
       if (segment.type === 'table') {
-        // Table: keep whole or split by rows for huge tables
         allChunks.push(...chunkTable(segment.content, section.heading, startIdx));
       } else {
-        // Text: standard token-based chunking with overlap
         allChunks.push(...splitTextIntoChunks(segment.content, section.heading, startIdx));
       }
     }
   }
 
-  // Filter out garbage chunks (too short, or table of contents) and re-index
   const filtered = allChunks.filter(c =>
     c.tokenCount >= MIN_CHUNK_TOKENS && !isTableOfContents(c.content)
   );
@@ -398,15 +227,12 @@ export function chunkDocument(text: string): Chunk[] {
   return filtered;
 }
 
-/** Build contextual content string for embedding.
- *  If AI contextual prefix is available, uses it for richer context.
- *  Falls back to template-based prefix otherwise.
- */
+/** Build contextual content string for embedding. */
 export interface DocMetaForEmbedding {
   doc_type?: string;
   doc_number?: string;
-  parent_law?: string;    // e.g. "Закон 3543-XII — Про мобілізаційну підготовку та мобілізацію"
-  related_acts?: string;  // e.g. "КМУ №76 (бронювання), КМУ №560 (призов)"
+  parent_law?: string;
+  related_acts?: string;
 }
 
 export function buildContextualContent(
@@ -418,7 +244,6 @@ export function buildContextualContent(
   docMeta?: DocMetaForEmbedding | null,
 ): string {
   if (contextualPrefix) {
-    // Contextual prefix already has AI-generated context — just add doc meta header
     const metaHeader = docMeta ? buildMetaHeader(docMeta) : '';
     return metaHeader ? `${metaHeader}\n${contextualPrefix}\n\n${chunkContent}` : `${contextualPrefix}\n\n${chunkContent}`;
   }

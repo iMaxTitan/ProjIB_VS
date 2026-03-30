@@ -14,7 +14,6 @@ import { generateL1Prefix } from './prefix-l1';
 import { generateL2Prefix, initBatchQuota, canEscalateL2 } from './prefix-l2';
 import { validatePrefix, type PrefixJson } from './prefix-validator';
 import { computeCacheKey, getPipelineVersionHash } from './prefix-cache';
-import { buildTocSummary } from './contextual-prefix';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -205,7 +204,7 @@ export async function generateChunkPrefix(
 
     // 5. Escalate to L2 (Haiku)
     if (await canEscalateL2(domain)) {
-      const v1errors = (await validatePrefix(l1.json, dictSynonyms, ruleScope, domain)).errors;
+      const v1errors = v1.errors;
       const l2 = await generateL2Prefix(chunkText, heading, docTitle, dictSynonyms, v1errors, domain);
       if (l2.json) {
         if (dictSynonyms.length > 0) {
@@ -267,7 +266,28 @@ export async function generateChunkPrefix(
 
 // ── Batch generation for a document ──────────────────────────────────────────
 
-export { buildTocSummary } from './contextual-prefix';
+// ── TOC builder (moved from contextual-prefix.ts) ──────────────────────────
+
+const MAX_TOC_CHARS = 1500;
+
+export function buildTocSummary(chunks: Array<{ heading: string; content: string }>): string {
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  let totalChars = 'Структура документа:\n'.length;
+  for (const chunk of chunks) {
+    const h = chunk.heading?.trim();
+    if (!h || seen.has(h)) continue;
+    seen.add(h);
+    const shortH = h.length > 80 ? h.slice(0, 77) + '…' : h;
+    const first = chunk.content.replace(/\r/g, '').split(/[.\n]/)[0]?.trim() || '';
+    const sentence = first.length > 80 ? first.slice(0, 77) + '…' : first;
+    const line = sentence ? `• ${shortH}\n  → ${sentence}` : `• ${shortH}`;
+    if (totalChars + line.length + 1 > MAX_TOC_CHARS) break;
+    lines.push(line);
+    totalChars += line.length + 1;
+  }
+  return lines.length > 0 ? 'Структура документа:\n' + lines.join('\n') : '';
+}
 
 /**
  * Generate prefixes for all chunks of a document.

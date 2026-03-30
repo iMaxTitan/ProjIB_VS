@@ -8,6 +8,7 @@ import { config } from '@/lib/shared/config';
 import { fetchWithTimeout } from '@/lib/shared/utils/fetch-with-timeout';
 import logger from '@/lib/shared/logger';
 import type { PrefixJson } from './prefix-validator';
+import { cleanJsonResponse } from './shared/json';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const L1_MODEL = 'google/gemini-3.1-flash-lite-preview';
@@ -92,7 +93,7 @@ export async function generateL1Prefix(
     const raw = data?.choices?.[0]?.message?.content || '';
     if (!raw) return { json: null, raw: '' };
 
-    const clean = raw.replace(/```json\n?|\n?```/g, '').trim();
+    const clean = cleanJsonResponse(raw);
     const parsed = JSON.parse(clean) as PrefixJson;
     return { json: parsed, raw };
   } catch (err) {

@@ -147,7 +147,7 @@ function parseResponse(
     // Markers not found — don't use raw AI response as document content.
     return {
       normalizedText: originalText,
-      changes: ['Документ нормалізовано'],
+      changes: ['⚠ Відповідь AI не містить очікуваних маркерів — документ НЕ змінено'],
       usage: usage ?? fallbackUsage,
       structuralCheck: validateTextStructure(originalText),
       wasTextTruncated,

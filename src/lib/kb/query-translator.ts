@@ -4,6 +4,7 @@
  */
 
 import { config } from '@/lib/shared/config';
+import { cleanJsonResponse } from './shared/json';
 
 // ── Shared chunk type ──────────────────────────────────────────────────────────
 
@@ -152,8 +153,7 @@ export async function generateMultiQueries(text: string): Promise<MultiQueryResu
     const mqCost = { model: 'claude-haiku-4.5', promptTokens: pTok, completionTokens: cTok,
       cost: (pTok * 1.00 + cTok * 5.00) / 1_000_000 };
 
-    const cleanJson = content.replace(/```json\n?|\n?```/g, '').trim();
-    const parsed = JSON.parse(cleanJson) as { queries?: string[]; domain?: string; clarification?: string; specificity?: string };
+    const parsed = JSON.parse(cleanJsonResponse(content)) as { queries?: string[]; domain?: string; clarification?: string; specificity?: string };
     const domain: KBDomain = VALID_DOMAINS.includes(parsed.domain as KBDomain)
       ? (parsed.domain as KBDomain)
       : 'general';

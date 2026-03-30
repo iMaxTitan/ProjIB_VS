@@ -16,7 +16,7 @@ import { hasRole } from '@/lib/shared/auth/role-groups';
 import { getServerDb } from '@/lib/shared/db-server';
 import { buildContextualContent } from '@/lib/kb/chunker';
 import { embedBatch } from '@/lib/kb/embedder';
-import { generateChunkPrefix, buildTocSummary } from '@/lib/kb/contextual-prefix';
+import { generateChunkPrefix, buildTocSummary } from '@/lib/kb/prefix-pipeline';
 
 const RATE_LIMIT = 5;
 const RATE_WINDOW_MS = 3600_000;

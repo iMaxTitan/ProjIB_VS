@@ -6,6 +6,7 @@ import { generateAIText } from '@/lib/shared/ai/client';
 import { config } from '@/lib/shared/config';
 import logger from '@/lib/shared/logger';
 import type { PrefixJson } from './prefix-validator';
+import { cleanJsonResponse } from './shared/json';
 
 // Same JSON schema prompt but more detailed instructions for Haiku
 const SYSTEM_PROMPT =
@@ -91,14 +92,6 @@ export async function generateL2Prefix(
     userMsg += `\n\nL1 модель допустила помилки: ${validationErrors.join('; ')}. Виправ їх.`;
   }
 
-  // Clean JSON from AI response — strip fences, find { }
-  const cleanJson = (raw: string): string => {
-    let s = raw.replace(/```json\n?|\n?```/g, '').trim();
-    const start = s.indexOf('{');
-    const end = s.lastIndexOf('}');
-    if (start >= 0 && end > start) s = s.slice(start, end + 1);
-    return s;
-  };
 
   // Try up to 2 times (initial + retry with prefill on parse fail)
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -127,7 +120,7 @@ export async function generateL2Prefix(
         continue;
       }
 
-      const json = cleanJson(rawText);
+      const json = cleanJsonResponse(rawText);
       const parsed = JSON.parse(json) as PrefixJson;
 
       // Only count successful calls against quota

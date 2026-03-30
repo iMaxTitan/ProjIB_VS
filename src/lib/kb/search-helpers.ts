@@ -129,9 +129,9 @@ export async function expandWithRelatedDocs(
 
   // 5. Filter to only related document chunks, take top N
   const relDocIdSet = relatedDocIds;
-  const existingChunkIds = new Set(chunks.map(c => c.id));
+  const existingChunkIds = new Set(chunks.map(c => c.chunk_id));
   const filtered = (relChunks as KBChunk[])
-    .filter(c => relDocIdSet.has(c.document_id) && !existingChunkIds.has(c.id))
+    .filter(c => relDocIdSet.has(c.document_id) && !existingChunkIds.has(c.chunk_id))
     .slice(0, MAX_CROSS_REF_CHUNKS);
 
   if (filtered.length === 0) return chunks;
