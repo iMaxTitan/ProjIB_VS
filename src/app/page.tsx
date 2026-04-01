@@ -10,7 +10,6 @@ import { UserRole } from '@/types/supabase';
 import { getDashboardSectionFromPath, isDashboardSectionFullHeight } from '@/components/dashboard/sections';
 import QueryProvider from '@/app/QueryProvider';
 import { Spinner } from '@/components/ui/Spinner';
-import logger from '@/lib/shared/logger';
 
 const LOADING_TEXT = '\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430...';
 
@@ -31,39 +30,6 @@ export default function HomePage() {
 
   const currentSection = getDashboardSectionFromPath(currentPath);
   const useInnerPageScroll = isDashboardSectionFullHeight(currentSection);
-
-  const fetchPlanCounts = async () => {
-    if (!user) return;
-
-    try {
-      const res = await fetch(`/api/plans/count?userId=${user.user_id}`, {
-        headers: { Accept: 'application/json' },
-        credentials: 'include',
-      });
-
-      const contentType = res.headers.get('content-type') || '';
-      if (!res.ok || !contentType.includes('application/json')) {
-        const preview = (await res.text()).slice(0, 120);
-        const details = { status: res.status, contentType, preview };
-        if (res.status === 401 || res.status === 403) {
-          logger.warn('[home] Plan counts unavailable: unauthorized', details);
-        } else if (res.status === 429) {
-          logger.warn('[home] Plan counts rate-limited', details);
-        } else if (res.status >= 500) {
-          logger.error('[home] Failed to fetch plan counts', details);
-        } else {
-          logger.warn('[home] Failed to fetch plan counts', details);
-        }
-        return;
-      }
-
-      await res.json();
-    } catch (error: unknown) {
-      logger.warn('[home] fetchPlanCounts request failed', {
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  };
 
   if (loading) {
     return (
@@ -91,7 +57,6 @@ export default function HomePage() {
           <DashboardContent
             user={user}
             currentPath={currentPath}
-            fetchPlanCounts={fetchPlanCounts}
           />
         </main>
       </div>

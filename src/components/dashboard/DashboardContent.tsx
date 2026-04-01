@@ -12,10 +12,9 @@ import {
 interface DashboardContentProps {
   user: UserInfo;
   currentPath?: string;
-  fetchPlanCounts?: () => void;
 }
 
-export default function DashboardContent({ user, currentPath, fetchPlanCounts }: DashboardContentProps) {
+export default function DashboardContent({ user, currentPath }: DashboardContentProps) {
   const pathname = usePathname();
   const activePath = currentPath || pathname || '';
   const currentSection = getDashboardSectionFromPath(activePath);
@@ -23,7 +22,7 @@ export default function DashboardContent({ user, currentPath, fetchPlanCounts }:
 
   return (
     <div className={isFullHeightPage ? 'h-full min-h-0 overflow-hidden' : 'px-6 pb-6'}>
-      {renderDashboardSection(currentSection, { user, fetchPlanCounts })}
+      {renderDashboardSection(currentSection, { user })}
     </div>
   );
 }

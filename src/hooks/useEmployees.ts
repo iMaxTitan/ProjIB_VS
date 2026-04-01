@@ -2,69 +2,33 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { employeesQueryOptions } from '@/lib/ops/reference-queries';
-import { supabase } from '@/lib/shared/db-client';
+import { employeesQueryOptions, departmentsQueryOptions, botStatusQueryOptions } from '@/lib/ops/reference-queries';
+import { saveEmployee as saveEmployeeCmd, type SaveEmployeeParams } from '@/lib/ops/reference-commands';
 import { SupabaseUserInfo } from '@/types/supabase';
 
-// ─── useDepartments ───────────────────────────────────────────────────────────
+// ─── useDepartments ───────────────────────────────────────────
 
 export interface Department {
   id: string;
   name: string;
 }
 
-/** Thin hook — loads departments list (static reference data) */
 export function useDepartments(): { departments: Department[]; loading: boolean } {
-  const { data = [], isLoading } = useQuery({
-    queryKey: ['departments'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('departments')
-        .select('department_id, department_name')
-        .order('department_name');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return ((data || []) as any[]).map((d: { department_id: string; department_name: string }) => ({
-        id: d.department_id,
-        name: d.department_name,
-      }));
-    },
-    staleTime: Infinity,
-  });
+  const { data = [], isLoading } = useQuery(departmentsQueryOptions);
   return { departments: data, loading: isLoading };
 }
 
-// ─── useEmployeeSave ──────────────────────────────────────────────────────────
+// ─── useEmployeeSave ──────────────────────────────────────────
 
-export interface SaveEmployeeParams {
-  email: string;
-  fullName: string;
-  departmentId: string;
-  photoBase64: string | null;
-  role: string;
-  status: string;
-  position: string | null;
-  workRate: number;
-}
+export { type SaveEmployeeParams } from '@/lib/ops/reference-commands';
 
-/** Hook for saving (create/update) employee profile via upsert_user_profile RPC */
 export function useEmployeeSave() {
   const [saving, setSaving] = useState(false);
 
   const saveEmployee = useCallback(async (params: SaveEmployeeParams): Promise<SupabaseUserInfo> => {
     setSaving(true);
     try {
-      const { data, error } = await supabase.rpc('upsert_user_profile', {
-        p_email: params.email,
-        p_full_name: params.fullName,
-        p_department_id: params.departmentId,
-        p_photo_base64: params.photoBase64,
-        p_role: params.role,
-        p_status: params.status,
-        p_position: params.position,
-        p_work_rate: params.workRate,
-      });
-      if (error) throw error;
-      return data as unknown as SupabaseUserInfo;
+      return await saveEmployeeCmd(params);
     } finally {
       setSaving(false);
     }
@@ -73,7 +37,7 @@ export function useEmployeeSave() {
   return { saving, saveEmployee };
 }
 
-// ─── useBotStatus ─────────────────────────────────────────────────────────────
+// ─── useBotStatus ─────────────────────────────────────────────
 
 export interface BotStatus {
   telegram_is_active: boolean;
@@ -83,57 +47,37 @@ export interface BotStatus {
   notification_channel: string | null;
 }
 
-/** Read-only hook — loads bot connection status for an employee */
 export function useBotStatus(userId: string | null): { data: BotStatus | null; isLoading: boolean } {
-  const { data = null, isLoading } = useQuery<BotStatus | null>({
-    queryKey: ['bot-status', userId],
-    queryFn: async () => {
-      if (!userId) return null;
-      const { data } = await supabase
-        .from('user_profiles')
-        .select('telegram_is_active, telegram_username, teams_is_active, ai_provider, notification_channel')
-        .eq('user_id', userId)
-        .single();
-      return data as BotStatus | null;
-    },
-    enabled: !!userId,
-    staleTime: 30_000,
-  });
-  return { data, isLoading };
+  const { data = null, isLoading } = useQuery(botStatusQueryOptions(userId));
+  return { data: data as BotStatus | null, isLoading };
 }
 
-/** Thin hook — just raw employees list without filtering/state management */
+// ─── useAllEmployees ──────────────────────────────────────────
+
 export function useAllEmployees(): { employees: SupabaseUserInfo[]; isLoading: boolean } {
   const { data: employees = [], isLoading } = useQuery(employeesQueryOptions);
   return { employees, isLoading };
 }
 
+// ─── useEmployees (full) ──────────────────────────────────────
+
 export type StatusFilter = 'all' | 'active' | 'blocked';
 
 interface UseEmployeesReturn {
-  // Данные
   employees: SupabaseUserInfo[];
   loading: boolean;
   error: string | null;
-
-  // Группировка по отделам
   employeesByDepartment: Record<string, SupabaseUserInfo[]>;
   departments: string[];
-
-  // Фильтрация
   statusFilter: StatusFilter;
   setStatusFilter: (filter: StatusFilter) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   filteredEmployees: SupabaseUserInfo[];
-
-  // Состояние отделов (свернуты/развернуты)
   expandedDepartments: Record<string, boolean>;
   toggleDepartment: (department: string) => void;
   expandAll: () => void;
   collapseAll: () => void;
-
-  // Действия
   refreshEmployees: () => Promise<void>;
   handleEmployeeUpserted: (employee: SupabaseUserInfo) => void;
 }
@@ -147,60 +91,36 @@ export function useEmployees(): UseEmployeesReturn {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedDepartments, setExpandedDepartments] = useState<Record<string, boolean>>({});
 
-  // Инициализация expandedDepartments при первом получении данных
   useEffect(() => {
     if (employees.length > 0) {
       setExpandedDepartments(prev => {
         const depts: Record<string, boolean> = {};
-        employees.forEach(emp => {
-          if (emp.department_name) {
-            depts[emp.department_name] = false;
-          }
-        });
-        // Сохраняем существующие состояния
+        employees.forEach(emp => { if (emp.department_name) depts[emp.department_name] = false; });
         const merged = { ...depts };
-        Object.keys(prev).forEach(key => {
-          if (key in merged) {
-            merged[key] = prev[key];
-          }
-        });
+        Object.keys(prev).forEach(key => { if (key in merged) merged[key] = prev[key]; });
         return merged;
       });
     }
   }, [employees]);
 
-  // Фильтрация сотрудников
   const filteredEmployees = useMemo(() => {
     return employees.filter(emp => {
-      // Фильтр по статусу
       if (statusFilter !== 'all' && emp.status !== statusFilter) return false;
-
-      // Фильтр по поиску
       if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const matchesName = emp.full_name?.toLowerCase().includes(query);
-        const matchesEmail = emp.email?.toLowerCase().includes(query);
-        const matchesDept = emp.department_name?.toLowerCase().includes(query);
-        if (!matchesName && !matchesEmail && !matchesDept) return false;
+        const q = searchQuery.toLowerCase();
+        if (!emp.full_name?.toLowerCase().includes(q) && !emp.email?.toLowerCase().includes(q) && !emp.department_name?.toLowerCase().includes(q)) return false;
       }
-
       return true;
     });
   }, [employees, statusFilter, searchQuery]);
 
-  // Группировка по отделам
   const employeesByDepartment = useMemo(() => {
     const grouped: Record<string, SupabaseUserInfo[]> = {};
-
     filteredEmployees.forEach(emp => {
       const dept = emp.department_name || 'Без отдела';
-      if (!grouped[dept]) {
-        grouped[dept] = [];
-      }
+      if (!grouped[dept]) grouped[dept] = [];
       grouped[dept].push(emp);
     });
-
-    // Сортировка сотрудников внутри отделов: сначала начальники, потом по имени
     Object.keys(grouped).forEach(dept => {
       grouped[dept].sort((a, b) => {
         const roleOrder = { chief: 0, head: 1, employee: 2 };
@@ -210,11 +130,9 @@ export function useEmployees(): UseEmployeesReturn {
         return (a.full_name || '').localeCompare(b.full_name || '', 'ru');
       });
     });
-
     return grouped;
   }, [filteredEmployees]);
 
-  // Список отделов (отсортированный)
   const departments = useMemo(() => {
     return Object.keys(employeesByDepartment).sort((a, b) => {
       if (a === 'Без отдела') return 1;
@@ -223,67 +141,25 @@ export function useEmployees(): UseEmployeesReturn {
     });
   }, [employeesByDepartment]);
 
-  // Управление состоянием отделов
-  const toggleDepartment = useCallback((department: string) => {
-    setExpandedDepartments(prev => ({
-      ...prev,
-      [department]: !prev[department]
-    }));
-  }, []);
+  const toggleDepartment = useCallback((dept: string) => { setExpandedDepartments(prev => ({ ...prev, [dept]: !prev[dept] })); }, []);
+  const expandAll = useCallback(() => { const all: Record<string, boolean> = {}; departments.forEach(d => { all[d] = true; }); setExpandedDepartments(all); }, [departments]);
+  const collapseAll = useCallback(() => { const all: Record<string, boolean> = {}; departments.forEach(d => { all[d] = false; }); setExpandedDepartments(all); }, [departments]);
 
-  const expandAll = useCallback(() => {
-    const all: Record<string, boolean> = {};
-    departments.forEach(dept => {
-      all[dept] = true;
-    });
-    setExpandedDepartments(all);
-  }, [departments]);
-
-  const collapseAll = useCallback(() => {
-    const all: Record<string, boolean> = {};
-    departments.forEach(dept => {
-      all[dept] = false;
-    });
-    setExpandedDepartments(all);
-  }, [departments]);
-
-  // Оптимистичное обновление
   const handleEmployeeUpserted = useCallback((employee: SupabaseUserInfo) => {
-    queryClient.setQueryData<SupabaseUserInfo[]>(
-      ['employees'],
-      (prev) => {
-        if (!prev) return [employee];
-        const existingIndex = prev.findIndex(emp => emp.user_id === employee.user_id);
-        if (existingIndex >= 0) {
-          const updated = [...prev];
-          updated[existingIndex] = employee;
-          return updated;
-        }
-        return [...prev, employee];
-      }
-    );
+    queryClient.setQueryData<SupabaseUserInfo[]>(['employees'], prev => {
+      if (!prev) return [employee];
+      const idx = prev.findIndex(emp => emp.user_id === employee.user_id);
+      if (idx >= 0) { const updated = [...prev]; updated[idx] = employee; return updated; }
+      return [...prev, employee];
+    });
   }, [queryClient]);
 
-  const refreshEmployees = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ['employees'] });
-  }, [queryClient]);
+  const refreshEmployees = useCallback(async () => { await queryClient.invalidateQueries({ queryKey: ['employees'] }); }, [queryClient]);
 
   return {
-    employees,
-    loading,
-    error,
-    employeesByDepartment,
-    departments,
-    statusFilter,
-    setStatusFilter,
-    searchQuery,
-    setSearchQuery,
-    filteredEmployees,
-    expandedDepartments,
-    toggleDepartment,
-    expandAll,
-    collapseAll,
-    refreshEmployees,
-    handleEmployeeUpserted,
+    employees, loading, error, employeesByDepartment, departments,
+    statusFilter, setStatusFilter, searchQuery, setSearchQuery, filteredEmployees,
+    expandedDepartments, toggleDepartment, expandAll, collapseAll,
+    refreshEmployees, handleEmployeeUpserted,
   };
 }

@@ -7,7 +7,7 @@
  *   quarterly-plan-report.service.ts — getQuarterlyPlanReportData, getQuarterlyReportData
  */
 export * from './types';
-export * from './service';
+export * from './quarterly-reports';
 export * from './company-report';
 export * from './employee-report';
 export * from './quarterly-plan';

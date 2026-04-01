@@ -18,21 +18,15 @@ export const processesQueryOptions = queryOptions({
   queryFn: async (): Promise<Process[]> => {
     const { data, error } = await supabase
       .from('processes')
-      .select('process_id, process_name, description, mission, expected_result, department_id')
+      .select('process_id, process_name, description, mission, expected_result, department_id, departments(department_name)')
       .order('process_name', { ascending: true });
     if (error) throw error;
-    const rows = (data ?? []) as Process[];
-    // Fetch department names
-    const deptIds = [...new Set(rows.map(r => r.department_id).filter(Boolean))] as string[];
-    if (deptIds.length > 0) {
-      const { data: depts } = await supabase.from('departments').select('department_id, department_name').in('department_id', deptIds);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const deptMap = new Map((depts || []).map((d: any) => [d.department_id, d.department_name] as [string, string]));
-      for (const r of rows) {
-        if (r.department_id) r.department_name = deptMap.get(r.department_id) ?? null;
-      }
-    }
-    return rows;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((r: any) => ({
+      ...r,
+      department_name: r.departments?.department_name ?? null,
+      departments: undefined,
+    })) as Process[];
   },
   staleTime: Infinity,
 });
@@ -98,6 +92,38 @@ export type ProcedureKpiRow = {
   plans_count?: number | null;
   total_hours?: number | null;
 };
+
+// --- Departments (5 rows, staleTime: Infinity) ---
+export const departmentsQueryOptions = queryOptions({
+  queryKey: ['departments'] as const,
+  queryFn: async () => {
+    const { data } = await supabase
+      .from('departments')
+      .select('department_id, department_name')
+      .order('department_name');
+    return ((data || []) as { department_id: string; department_name: string }[]).map(d => ({
+      id: d.department_id,
+      name: d.department_name,
+    }));
+  },
+  staleTime: Infinity,
+});
+
+// --- Bot status for a specific user ---
+export const botStatusQueryOptions = (userId: string | null) => queryOptions({
+  queryKey: ['bot-status', userId] as const,
+  queryFn: async () => {
+    if (!userId) return null;
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('telegram_is_active, telegram_username, teams_is_active, ai_provider, notification_channel')
+      .eq('user_id', userId)
+      .single();
+    return data as { telegram_is_active: boolean; telegram_username: string | null; teams_is_active: boolean; ai_provider: string | null; notification_channel: string | null } | null;
+  },
+  enabled: !!userId,
+  staleTime: 30_000,
+});
 
 export const proceduresQueryOptions = queryOptions({
   queryKey: ['procedures'] as const,

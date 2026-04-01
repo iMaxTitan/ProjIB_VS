@@ -9,7 +9,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { useCreateTask, useUpdateTask, usePlanTasks, type PlanTaskItem } from '@/hooks/usePlannerTasks';
 import { useCollectTasks } from '@/hooks/usePlanner';
 import { projectsQueryOptions } from '@/lib/ops/reference-queries';
-import TaskFileUpload from '@/components/dashboard/plans/Tasks/TaskFileUpload';
+import TaskFileUpload from './TaskFileUpload';
 import type { ActivePlanForSlot, CalendarEntry } from '@/lib/ops/planner/calendar-entries';
 
 // ─── Types ──────────────────────────────────────────────────────────────────

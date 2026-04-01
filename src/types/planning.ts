@@ -83,8 +83,10 @@ export interface DailyTask {
   monthly_plan_id: string;
   user_id: string;
   task_date: string; // YYYY-MM-DD
+  title?: string;
   description: string;
   spent_hours: number;
+  source?: string;
   attachment_url?: string;
   document_number?: string;
   project_id?: string | null;

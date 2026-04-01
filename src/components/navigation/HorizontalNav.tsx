@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { UserRole } from '@/types/supabase';
 import {
   Zap,
-  Calendar,
   CalendarDays,
   FileText,
   BarChart3,
@@ -34,8 +33,7 @@ interface NavItem {
 // Пункты меню для руководителя (chief)
 const chiefNavItems: NavItem[] = [
   { label: 'Активність', path: '/', icon: Zap },
-  { label: 'Плани', path: '/plans', icon: Calendar },
-  { label: 'Плани 2', path: '/plans-v2', icon: Network },
+  { label: 'Плани', path: '/plans', icon: Network },
   { label: 'Планувальник', path: '/planner', icon: CalendarDays },
   { label: 'Отчеты', path: '/reports', icon: FileText },
   { label: 'Сводная', path: '/summary', icon: PieChart },
@@ -49,8 +47,7 @@ const chiefNavItems: NavItem[] = [
 // Пункты меню для начальника отдела (head)
 const headNavItems: NavItem[] = [
   { label: 'Активність', path: '/', icon: Zap },
-  { label: 'Плани', path: '/plans', icon: Calendar },
-  { label: 'Плани 2', path: '/plans-v2', icon: Network },
+  { label: 'Плани', path: '/plans', icon: Network },
   { label: 'Планувальник', path: '/planner', icon: CalendarDays },
   { label: 'Отчеты', path: '/reports', icon: FileText },
   { label: 'Сводная', path: '/summary', icon: PieChart },
@@ -63,8 +60,7 @@ const headNavItems: NavItem[] = [
 // Пункты меню для аналитика (analyst) — employee + отчёты, справочники
 const analystNavItems: NavItem[] = [
   { label: 'Активність', path: '/', icon: Zap },
-  { label: 'Плани', path: '/plans', icon: Calendar },
-  { label: 'Плани 2', path: '/plans-v2', icon: Network },
+  { label: 'Плани', path: '/plans', icon: Network },
   { label: 'Планувальник', path: '/planner', icon: CalendarDays },
   { label: 'Отчеты', path: '/reports', icon: FileText },
   { label: 'Справочники', path: '/references', icon: BookOpen },
@@ -74,8 +70,7 @@ const analystNavItems: NavItem[] = [
 // Пункты меню для сотрудника (employee)
 const employeeNavItems: NavItem[] = [
   { label: 'Активність', path: '/', icon: Zap },
-  { label: 'Плани', path: '/plans', icon: Calendar },
-  { label: 'Плани 2', path: '/plans-v2', icon: Network },
+  { label: 'Плани', path: '/plans', icon: Network },
   { label: 'Планувальник', path: '/planner', icon: CalendarDays },
   { label: 'Кабінет', path: '/cabinet', icon: UserCircle },
 ];

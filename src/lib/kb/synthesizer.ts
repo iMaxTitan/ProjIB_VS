@@ -183,12 +183,18 @@ export async function synthesizeAnswer(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.prod('[kb/synth] anthropic failed, falling back to openai:', message);
-      compRes = await composeAnswer(query, factsText, composeDomain, history, {
-        providerOverride: 'openai',
-        openAIModel: 'gpt-4.1',
-        apiKeyOverride: config.openai.apiKey,
-      });
-      composeModel = 'gpt-4.1';
+      try {
+        compRes = await composeAnswer(query, factsText, composeDomain, history, {
+          providerOverride: 'openai',
+          openAIModel: 'gpt-4.1',
+          apiKeyOverride: config.openai.apiKey,
+        });
+        composeModel = 'gpt-4.1';
+      } catch (fallbackErr) {
+        const fbMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+        logger.error('[kb/synth] openai fallback also failed:', fbMsg);
+        throw fallbackErr;
+      }
     }
     const cp = compRes.usage?.prompt_tokens || 0;
     const cc = compRes.usage?.completion_tokens || 0;

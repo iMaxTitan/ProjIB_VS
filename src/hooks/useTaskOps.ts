@@ -1,8 +1,7 @@
 'use client';
 
-// Compatibility shim — wraps planner/task-service functions with client-side supabase
-// TODO: Remove in Phase 7
-import { supabase } from '@/lib/shared/db-client';
+// Thin shim — wraps planner/task-service with client-side PostgREST
+import { supabase as db } from '@/lib/shared/db-client';
 import {
   getWeeklyTasksSpentHours as _getWeeklyTasksSpentHours,
   getTaskCompanies as _getTaskCompanies,
@@ -10,10 +9,10 @@ import {
 } from '@/lib/ops/planner/task-service';
 
 export const getWeeklyTasksSpentHours = (userId: string, date: string) =>
-  _getWeeklyTasksSpentHours(supabase, userId, date);
+  _getWeeklyTasksSpentHours(db, userId, date);
 
 export const getTaskCompanies = (taskId: string) =>
-  _getTaskCompanies(supabase, taskId);
+  _getTaskCompanies(db, taskId);
 
 export const updateTaskCompanies = (taskId: string, companyIds: string[]) =>
-  _updateTaskCompanies(supabase, taskId, companyIds);
+  _updateTaskCompanies(db, taskId, companyIds);
