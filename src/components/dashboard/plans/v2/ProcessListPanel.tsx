@@ -1,33 +1,19 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { ChevronRight, Ban, Ellipsis, Loader, CheckCheck, Play, Check } from 'lucide-react';
+import { ChevronRight, Play, Check } from 'lucide-react';
 import { cn } from '@/lib/shared/utils';
+import { SummaryBox, pctColor, STATUS_ICON_MAP, type PlanStatus } from '@/components/dashboard/shared';
 import type { ProcessNode, ViewLevel, AnnualPlanRow, QuarterlyPlanRow } from '@/hooks/usePlansV2';
 import type { MonthlyPlan } from '@/types/planning';
 
-type ProcessStatus = 'none' | 'pending' | 'active' | 'done';
-
-const STATUS_ICON_MAP: Record<ProcessStatus, { Icon: typeof Ban; cls: string; title: string }> = {
-  none: { Icon: Ban, cls: 'text-slate-300', title: 'Немає плану' },
-  pending: { Icon: Ellipsis, cls: 'text-amber-500', title: 'Не затверджено' },
-  active: { Icon: Loader, cls: 'text-indigo-500', title: 'В роботі' },
-  done: { Icon: CheckCheck, cls: 'text-emerald-500', title: 'Виконано' },
-};
-
 /** Next status transition: pending→active, active→done */
-const NEXT_STATUS: Partial<Record<ProcessStatus, { target: ProcessStatus; icon: typeof Play; label: string; cls: string }>> = {
+const NEXT_STATUS: Partial<Record<PlanStatus, { target: PlanStatus; icon: typeof Play; label: string; cls: string }>> = {
   pending: { target: 'active', icon: Play, label: 'Затвердити', cls: 'text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50' },
   active: { target: 'done', icon: Check, label: 'Виконано', cls: 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50' },
 };
 
-function pctColor(pct: number): string {
-  if (pct >= 80) return 'text-emerald-600';
-  if (pct >= 40) return 'text-indigo-600';
-  return 'text-amber-600';
-}
-
-function getProcedureStatus(plans: MonthlyPlan[]): ProcessStatus {
+function getProcedureStatus(plans: MonthlyPlan[]): PlanStatus {
   if (plans.length === 0) return 'none';
   const statuses = plans.map(p => p.status);
   if (statuses.every(s => s === 'done')) return 'done';
@@ -66,7 +52,7 @@ export default function ProcessListPanel({
 }: ProcessListPanelProps) {
   const [saving, setSaving] = useState<string | null>(null); // monthly_plan_id being updated
 
-  const changeProcStatus = useCallback(async (monthlyPlanId: string, newStatus: ProcessStatus) => {
+  const changeProcStatus = useCallback(async (monthlyPlanId: string, newStatus: PlanStatus) => {
     setSaving(monthlyPlanId);
     try {
       await fetch('/api/plans/status', {
@@ -79,16 +65,16 @@ export default function ProcessListPanel({
   }, [onRefresh]);
 
   // Determine process status based on scope
-  const getProcessStatus = useCallback((processId: string): ProcessStatus => {
+  const getPlanStatus = useCallback((processId: string): PlanStatus => {
     if (viewLevel === 'year') {
       const plan = annualPlans.find(a => a.process_id === processId);
       if (!plan) return 'none';
-      return (plan.status as ProcessStatus) || 'pending';
+      return (plan.status as PlanStatus) || 'pending';
     }
     if (viewLevel === 'quarter' && quarter) {
       const plan = quarterlyPlans.find(q => q.process_id === processId && q.quarter === quarter);
       if (!plan) return 'none';
-      return (plan.status as ProcessStatus) || 'pending';
+      return (plan.status as PlanStatus) || 'pending';
     }
     // month — aggregate from monthly plans (procedures have plans)
     const proc = processTree.find(p => p.processId === processId);
@@ -121,7 +107,7 @@ export default function ProcessListPanel({
       {/* Body */}
       <div className="flex-1 overflow-y-auto py-1">
         {processTree.map(proc => {
-          const status = getProcessStatus(proc.processId);
+          const status = getPlanStatus(proc.processId);
           const stIcon = STATUS_ICON_MAP[status];
           const pct = proc.totalPlanned > 0 ? Math.round((proc.totalSpent / proc.totalPlanned) * 100) : 0;
           const isProcessSelected = selectedProcessId === proc.processId && !selectedProcedureId;
@@ -130,19 +116,24 @@ export default function ProcessListPanel({
 
           return (
             <div key={proc.processId} className="border-b border-slate-100 last:border-b-0">
-              {/* Process header — matches MonthlyUsersView employee row */}
-              <button
-                type="button"
-                onClick={() => {
-                  toggleExpand(proc.processId);
-                  if (!isProcessSelected) onSelectProcess(proc.processId);
-                }}
+              {/* Process header: arrow toggles expand, rest selects */}
+              <div
                 className={cn(
                   'w-full flex items-center gap-2.5 px-4 py-2.5 transition-colors cursor-pointer text-left',
                   (isProcessSelected || hasProcSelected) ? 'bg-indigo-50/80 hover:bg-indigo-50' : 'bg-slate-50/80 hover:bg-slate-100/80',
                 )}
+                role="button" tabIndex={0}
+                onClick={() => onSelectProcess(isProcessSelected ? '' : proc.processId)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectProcess(isProcessSelected ? '' : proc.processId); } }}
               >
-                <ChevronRight className={cn('w-3.5 h-3.5 text-slate-400 flex-shrink-0 transition-transform', isExpanded && 'rotate-90')} />
+                <button
+                  type="button"
+                  className="flex-shrink-0 p-0.5 -m-0.5 rounded hover:bg-slate-200/60 transition-colors"
+                  onClick={(e) => { e.stopPropagation(); toggleExpand(proc.processId); }}
+                  aria-label={isExpanded ? 'Згорнути' : 'Розгорнути'}
+                >
+                  <ChevronRight className={cn('w-3.5 h-3.5 text-slate-400 transition-transform', isExpanded && 'rotate-90')} />
+                </button>
                 <span className="flex-shrink-0" title={stIcon.title}><stIcon.Icon className={cn('w-3.5 h-3.5', stIcon.cls)} /></span>
                 <div className="flex-1 min-w-0">
                   <div className={cn('text-xs font-semibold truncate', isProcessSelected ? 'text-indigo-700' : 'text-slate-800')}>
@@ -152,7 +143,7 @@ export default function ProcessListPanel({
                 <span className={cn('text-[10px] font-bold min-w-[28px] text-right flex-shrink-0', pctColor(pct))}>
                   {pct}%
                 </span>
-              </button>
+              </div>
 
               {/* Procedure rows — matches MonthlyUsersView child rows */}
               {isExpanded && proc.procedures.map(pr => {
@@ -213,19 +204,11 @@ export default function ProcessListPanel({
 
       {/* Summary footer — 3 metrics in one row */}
       <div className="flex-shrink-0 grid grid-cols-3 gap-1.5 p-2.5 bg-slate-50 border-t border-slate-200">
-        <FooterMetric label="Процесів" value={`${processTree.length}`} />
-        <FooterMetric label="Факт" value={`${grandSpent} год`} />
-        <FooterMetric label="План" value={`${grandPlanned} год`} />
+        <SummaryBox label="Процесів" value={`${processTree.length}`} />
+        <SummaryBox label="Факт" value={`${grandSpent} год`} />
+        <SummaryBox label="План" value={`${grandPlanned} год`} />
       </div>
     </div>
   );
 }
 
-function FooterMetric({ label, value, colorClass }: { label: string; value: string; colorClass?: string }) {
-  return (
-    <div className="px-2 py-1.5 rounded-lg bg-white border border-slate-200/60 text-center">
-      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wide">{label}</div>
-      <div className={cn('text-sm font-extrabold mt-0.5 leading-tight', colorClass || 'text-slate-800')}>{value}</div>
-    </div>
-  );
-}

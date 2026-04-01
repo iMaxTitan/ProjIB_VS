@@ -3,11 +3,11 @@
 import React from 'react';
 import { cn } from '@/lib/shared/utils';
 import type { DailyTask, MonthlyPlan, MonthlyPlanAssignee } from '@/types/planning';
-import Image from 'next/image';
 import type { ProcessNode, ProcedureNode } from '@/hooks/usePlansV2';
 import EmptyState from '@/components/ui/EmptyState';
 import { Spinner } from '@/components/ui/Spinner';
 import { Users, ChevronRight } from 'lucide-react';
+import { SummaryBox, pctColor, SourceBadge, UserAvatar, getInitials } from '@/components/dashboard/shared';
 
 interface EmployeeTasksPanelProps {
   selectedProcess: ProcessNode | null;
@@ -21,26 +21,6 @@ interface EmployeeTasksPanelProps {
   scopeMonths: number[];
   month: number | null;
   resourceHours: number;
-}
-
-function pctColor(pct: number): string {
-  if (pct >= 80) return 'text-emerald-600';
-  if (pct >= 40) return 'text-indigo-600';
-  return 'text-amber-600';
-}
-
-function getInitials(name: string): string {
-  return name.split(' ').map(w => w[0] || '').slice(0, 2).join('').toUpperCase();
-}
-
-const AVATAR_COLORS = [
-  'bg-indigo-500', 'bg-purple-500', 'bg-cyan-500',
-  'bg-emerald-500', 'bg-amber-500', 'bg-blue-500',
-  'bg-rose-500', 'bg-teal-500',
-];
-
-function avatarColor(idx: number): string {
-  return AVATAR_COLORS[idx % AVATAR_COLORS.length];
 }
 
 // ── Types for grouped data ──────────────────────────────────
@@ -207,7 +187,7 @@ export default function EmployeeTasksPanel({
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 bg-slate-50/80 hover:bg-slate-100/80 transition-colors cursor-pointer text-left"
               >
                 <ChevronRight className={cn('w-3.5 h-3.5 text-slate-400 flex-shrink-0 transition-transform', isExpanded && 'rotate-90')} />
-                <Avatar name={emp.name} photo={emp.photo} initials={emp.initials} idx={empIdx} />
+                <UserAvatar name={emp.name} photo={emp.photo} initials={emp.initials} idx={empIdx} />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-semibold text-slate-800 truncate">{emp.name}</div>
                 </div>
@@ -257,7 +237,7 @@ export default function EmployeeTasksPanel({
                 key={a.user_id}
                 className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50/50 transition-colors border-b border-slate-100/80 last:border-b-0"
               >
-                <Avatar
+                <UserAvatar
                   name={a.full_name || a.email || '??'}
                   photo={a.photo_url}
                   initials={getInitials(a.full_name || a.email || '??')}
@@ -306,44 +286,3 @@ export default function EmployeeTasksPanel({
   );
 }
 
-// ── Sub-components ──────────────────────────────────────────
-
-function Avatar({ name, photo, initials, idx }: { name: string; photo?: string; initials: string; idx: number }) {
-  if (photo) {
-    return (
-      <Image src={photo} alt={name} width={28} height={28}
-        className="rounded-full flex-shrink-0 object-cover" unoptimized />
-    );
-  }
-  return (
-    <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0', avatarColor(idx))}>
-      {initials}
-    </div>
-  );
-}
-
-function SourceBadge({ source }: { source?: string }) {
-  if (!source || source === 'self') return null;
-  const label = source === 'chief' ? 'ШЕФ' : source === 'head' ? 'КЕР' : source === 'calendar' ? 'КАЛЕНДАР' : source.toUpperCase();
-  const color = source === 'chief'
-    ? 'bg-red-50 text-red-600 border-red-200/60'
-    : source === 'head'
-      ? 'bg-amber-50 text-amber-600 border-amber-200/60'
-      : source === 'calendar'
-        ? 'bg-blue-50 text-blue-600 border-blue-200/60'
-        : 'bg-slate-100 text-slate-500 border-slate-200/60';
-  return (
-    <span className={cn('px-1.5 py-0.5 text-[9px] font-bold rounded border flex-shrink-0', color)}>
-      {label}
-    </span>
-  );
-}
-
-function SummaryBox({ label, value, colorClass }: { label: string; value: string; colorClass?: string }) {
-  return (
-    <div className="px-2 py-1.5 rounded-lg bg-white border border-slate-200/60 text-center">
-      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wide">{label}</div>
-      <div className={cn('text-sm font-extrabold mt-0.5 leading-tight', colorClass || 'text-slate-800')}>{value}</div>
-    </div>
-  );
-}

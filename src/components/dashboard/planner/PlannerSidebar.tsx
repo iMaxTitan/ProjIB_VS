@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { ClipboardCheck } from 'lucide-react';
 import { cn } from '@/lib/shared/utils';
+import { SummaryBox, PanelFooter, pctColor, WEEKLY_CAPACITY } from '@/components/dashboard/shared';
 import type { ActivePlanForSlot, CalendarEntry } from '@/lib/ops/planner/calendar-entries';
 import type { SuggestedSlot } from '@/lib/ops/planner/weekly-suggest';
 import { STATUS_CONFIG } from '@/lib/ops/plans/planning-utils';
@@ -173,6 +174,19 @@ export default function PlannerSidebar({ activePlans, entries, suggestions, sele
     return map;
   }, [suggestions]);
 
+  // ─── Footer stats
+  const fmt = (n: number) => n.toFixed(1).replace('.0', '');
+  const calStats = useMemo(() => {
+    let planHours = 0, syncedHours = 0, externalHours = 0;
+    for (const e of entries) {
+      const hrs = e.duration_minutes / 60;
+      if (e.source === 'plan') { planHours += hrs; if (e.outlook_event_id) syncedHours += hrs; }
+      else if (e.source === 'external') externalHours += hrs;
+    }
+    const coverage = WEEKLY_CAPACITY > 0 ? Math.round((planHours / WEEKLY_CAPACITY) * 100) : 0;
+    return { planHours, syncedHours, externalHours, coverage };
+  }, [entries]);
+
   if (activePlans.length === 0) {
     return (
       <div className="text-center py-6">
@@ -182,21 +196,32 @@ export default function PlannerSidebar({ activePlans, entries, suggestions, sele
   }
 
   return (
-    <div className="p-1 space-y-1">
-      {sortedPlans.map((plan) => {
-        const hrs = hoursByProcedure.get(plan.procedureId) || { synced: 0, unsynced: 0, assigned: 0, collectable: 0 };
-        return (
-          <DraggableProcedure
-            key={plan.monthlyPlanId} plan={plan}
-            syncedHours={hrs.synced} unsyncedHours={hrs.unsynced}
-            suggestedHours={suggestedByProcedure.get(plan.procedureId) || 0}
-            isSelected={selectedProcedureId === plan.procedureId}
-            isCollected={collectedProcedureIds.has(plan.procedureId)}
-            onSelect={() => onSelectProcedure(plan.procedureId)}
-            onCollectTasks={onCollectTasks} totalSlotHours={hrs.collectable}
-          />
-        );
-      })}
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto p-1 space-y-1">
+        {sortedPlans.map((plan) => {
+          const hrs = hoursByProcedure.get(plan.procedureId) || { synced: 0, unsynced: 0, assigned: 0, collectable: 0 };
+          return (
+            <DraggableProcedure
+              key={plan.monthlyPlanId} plan={plan}
+              syncedHours={hrs.synced} unsyncedHours={hrs.unsynced}
+              suggestedHours={suggestedByProcedure.get(plan.procedureId) || 0}
+              isSelected={selectedProcedureId === plan.procedureId}
+              isCollected={collectedProcedureIds.has(plan.procedureId)}
+              onSelect={() => onSelectProcedure(plan.procedureId)}
+              onCollectTasks={onCollectTasks} totalSlotHours={hrs.collectable}
+            />
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      <PanelFooter>
+        <SummaryBox label="Процедур" value={String(sortedPlans.length)} />
+        <SummaryBox label="Факт" value={`${fmt(calStats.planHours)} год`} colorClass="text-blue-600" />
+        <SummaryBox label="Покриття" value={`${calStats.coverage}%`} colorClass={pctColor(calStats.coverage)} />
+      </PanelFooter>
     </div>
   );
 }
+

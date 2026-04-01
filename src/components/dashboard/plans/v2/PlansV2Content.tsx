@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState } from 'react';
 import type { UserInfo } from '@/types/azure';
 import { MONTH_NAMES_UK } from '@/types/planning';
 import { usePlansV2 } from '@/hooks/usePlansV2';
@@ -8,7 +8,8 @@ import { usePlansV2Detail } from '@/hooks/usePlansV2Detail';
 import { cn } from '@/lib/shared/utils';
 import { Spinner } from '@/components/ui/Spinner';
 import EmptyState from '@/components/ui/EmptyState';
-import { Network } from 'lucide-react';
+import { Network, ListTree, Users } from 'lucide-react';
+import { ThreePanelLayout } from '@/components/dashboard/shared';
 import ProcessListPanel from './ProcessListPanel';
 import ProcedureDetailPanel from './ProcedureDetailPanel';
 import EmployeeTasksPanel from './EmployeeTasksPanel';
@@ -52,45 +53,7 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
   const isChief = user.role === 'chief';
   const { refreshData } = data;
 
-  // ─── Resizable 3-column split (same as Planner)
-  const [leftPct, setLeftPct] = useState(25);
-  const [midPct, setMidPct] = useState(40);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const handleSplitterDown = useCallback((which: 'left' | 'right', e: React.PointerEvent) => {
-    e.preventDefault();
-    const container = containerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const startLeft = leftPct;
-    const startMid = midPct;
-    const onMove = (ev: PointerEvent) => {
-      const cursorPct = ((ev.clientX - rect.left) / rect.width) * 100;
-      if (which === 'left') {
-        const newLeft = Math.max(15, Math.min(35, cursorPct));
-        const rightPct = 100 - newLeft - startMid;
-        if (rightPct >= 15) {
-          setLeftPct(newLeft);
-        }
-      } else {
-        const newMid = cursorPct - startLeft;
-        const rightPct = 100 - startLeft - newMid;
-        if (newMid >= 25 && rightPct >= 15) {
-          setMidPct(newMid);
-        }
-      }
-    };
-    const onUp = () => {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
-  }, [leftPct, midPct]);
+  const [mobilePanel, setMobilePanel] = useState<string | null>(null);
 
   const scopeLabel = month
     ? `${MONTH_NAMES_UK[month - 1]} ${year}`
@@ -98,10 +61,74 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
       ? `Q${quarter} ${year}`
       : `${year}`;
 
+  // ─── Content blocks ──
+
+  const centerContent = (
+    <>
+      {viewLevel === 'year' && !selectedProcess && (
+        <AnnualListView annualPlans={annualPlans} processTree={processTree} year={year} annualBudgetSumMap={annualBudgetSumMap} annualBudgetNamesMap={annualBudgetNamesMap} canEdit={canEdit} isChief={isChief} onSelectProcess={selectProcess} onRefresh={refreshData} />
+      )}
+      {selectedProcess && !selectedProcedure && (
+        <ProcessDetailView
+          process={selectedProcess} viewLevel={viewLevel} year={year} quarter={quarter} month={month}
+          annualPlan={selectedAnnualPlan} annualBudgetItems={annualBudgetItems} availableBudgetItems={availableBudgetItems}
+          quarterlyPlan={selectedQuarterlyPlan} initiatives={quarterlyInitiatives}
+          hoursMap={hoursMap} dailyTasks={detail.dailyTasks} canEdit={canEdit} onRefresh={refreshData} onClose={() => selectProcess('')}
+        />
+      )}
+      {viewLevel === 'quarter' && !selectedProcess && quarter && (
+        <QuarterlyListView quarterlyPlans={quarterlyPlans} processTree={processTree} annualPlans={annualPlans} quarterlyBudgetSumMap={quarterlyBudgetSumMap} quarterlyBudgetItemsMap={quarterlyBudgetItemsMap} quarterlyInitiativesMap={quarterlyInitiativesMap} quarter={quarter} year={year} canEdit={canEdit} isChief={isChief} onSelectProcess={selectProcess} onRefresh={refreshData} />
+      )}
+      {viewLevel === 'month' && !selectedProcess && month && (
+        <MonthlyPlansListView processTree={processTree} monthlyPlans={monthlyPlans} companyHours={monthlyCompanyHours} year={year} month={month} canEdit={canEdit} isChief={isChief} scopeLabel={scopeLabel} onRefresh={refreshData} onSelectProcedure={selectProcedure} />
+      )}
+      {selectedProcedure && (
+        <ProcedureDetailPanel
+          selectedProcess={selectedProcess} selectedProcedure={selectedProcedure} viewLevel={viewLevel}
+          scopeLabel={scopeLabel} scopeMonths={scopeMonths}
+          companies={detail.companies} projects={detail.projects} kbDocs={detail.kbDocs}
+          assignees={detail.assignees} rawAssignees={detail.rawAssignees}
+          hoursMap={hoursMap} processGoals={processGoals} initiatives={quarterlyInitiatives} onClose={() => selectProcess('')}
+        />
+      )}
+    </>
+  );
+
+  const rightContent = viewLevel === 'month' && !selectedProcess ? (
+    <MonthlyUsersView userProcHours={monthlyUserProcHours} processTree={processTree} scopeLabel={scopeLabel} />
+  ) : (
+    <EmployeeTasksPanel
+      selectedProcess={selectedProcess} selectedProcedure={selectedProcedure} detailPlans={detailPlans}
+      dailyTasks={detail.dailyTasks} tasksLoading={detail.tasksLoading}
+      assignees={detail.assignees} assigneesLoading={detail.assigneesLoading}
+      scopeLabel={scopeLabel} scopeMonths={scopeMonths} month={month} resourceHours={resourceHours}
+    />
+  );
+
+  const leftPanel = (
+    <ProcessListPanel
+      processTree={processTree} viewLevel={viewLevel}
+      selectedProcessId={selectedProcessId} selectedProcedureId={selectedProcedureId}
+      onSelectProcess={selectProcess} onSelectProcedure={selectProcedure}
+      resourceHours={resourceHours} annualPlans={annualPlans} quarterlyPlans={quarterlyPlans}
+      quarter={quarter} canEdit={canEdit} onRefresh={refreshData}
+    />
+  );
+
+  const mobileLeftPanel = (
+    <ProcessListPanel
+      processTree={processTree} viewLevel={viewLevel}
+      selectedProcessId={selectedProcessId} selectedProcedureId={selectedProcedureId}
+      onSelectProcess={(id) => { selectProcess(id); setMobilePanel(null); }}
+      onSelectProcedure={(procId, procedureId) => { selectProcedure(procId, procedureId); setMobilePanel(null); }}
+      resourceHours={resourceHours} annualPlans={annualPlans} quarterlyPlans={quarterlyPlans}
+      quarter={quarter} canEdit={canEdit} onRefresh={refreshData}
+    />
+  );
+
   const filtersBlock = (
     <div className="glass-panel rounded-xl flex-shrink-0 p-1 lg:p-2">
       <div className="flex flex-col gap-0.5 lg:gap-1">
-        {/* Row 1: Year + Quarter */}
         <div className="flex items-center gap-0.5">
           <div className="nav-group flex-1 min-w-0">
             {availableYears.map(y => (
@@ -122,7 +149,6 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
             ))}
           </div>
         </div>
-        {/* Row 2: Months (always 3 — from selected or current quarter) */}
         <div className="nav-group flex-1">
           {MONTHS_BY_QUARTER[quarter || Math.ceil((new Date().getMonth() + 1) / 3)].map(m => (
             <button key={m.idx} onClick={() => setMonth(m.idx === month ? null : m.idx)}
@@ -150,128 +176,19 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
           description="За обраний період не знайдено планів у розрізі процесів"
         />
       ) : (
-        <div ref={containerRef} className="flex flex-row h-[calc(100vh-118px)]">
-          {/* ── LEFT: Filters + Process list ── */}
-          <div className="flex flex-col gap-2 min-w-0 overflow-hidden" style={{ width: `${leftPct}%` }}>
-            {filtersBlock}
-            <div className="glass-panel rounded-xl flex-1 min-h-0 flex flex-col overflow-hidden p-2">
-              <div className="element-card flex-1 min-h-0 flex flex-col overflow-hidden" style={{ borderRadius: 12 }}>
-                <ProcessListPanel
-                  processTree={processTree}
-                  viewLevel={viewLevel}
-                  selectedProcessId={selectedProcessId}
-                  selectedProcedureId={selectedProcedureId}
-                  onSelectProcess={selectProcess}
-                  onSelectProcedure={selectProcedure}
-                  resourceHours={resourceHours}
-                  annualPlans={annualPlans}
-                  quarterlyPlans={quarterlyPlans}
-                  quarter={quarter}
-                  canEdit={canEdit}
-                  onRefresh={refreshData}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ── Splitter 1 ── */}
-          <div
-            className="flex items-center justify-center flex-shrink-0 cursor-col-resize select-none group"
-            style={{ width: 8 }}
-            onPointerDown={(e) => handleSplitterDown('left', e)}
-          >
-            <div className="w-[3px] h-10 rounded-full bg-slate-300/60 group-hover:bg-indigo-400/60 group-active:bg-indigo-500/80 transition-colors" />
-          </div>
-
-          {/* ── CENTER: Detail panel (switches by viewLevel) ── */}
-          <div className="flex flex-col min-w-0 overflow-hidden" style={{ width: `${midPct}%` }}>
-            <div className="glass-panel rounded-xl flex-1 min-h-0 flex flex-col overflow-hidden p-2">
-              <div className="element-card flex-1 min-h-0 flex flex-col overflow-hidden" style={{ borderRadius: 12 }}>
-                {viewLevel === 'year' && !selectedProcess && (
-                  <AnnualListView annualPlans={annualPlans} processTree={processTree} year={year} annualBudgetSumMap={annualBudgetSumMap} annualBudgetNamesMap={annualBudgetNamesMap} canEdit={canEdit} isChief={isChief} onSelectProcess={selectProcess} onRefresh={refreshData} />
-                )}
-                {/* Process selected (no procedure) → unified ProcessDetailView */}
-                {selectedProcess && !selectedProcedure && (
-                  <ProcessDetailView
-                    process={selectedProcess}
-                    viewLevel={viewLevel}
-                    year={year}
-                    quarter={quarter}
-                    month={month}
-                    annualPlan={selectedAnnualPlan}
-                    annualBudgetItems={annualBudgetItems}
-                    availableBudgetItems={availableBudgetItems}
-                    quarterlyPlan={selectedQuarterlyPlan}
-                    initiatives={quarterlyInitiatives}
-                    hoursMap={hoursMap}
-                    dailyTasks={detail.dailyTasks}
-                    canEdit={canEdit}
-                    onRefresh={refreshData}
-                    onClose={() => selectProcess('')}
-                  />
-                )}
-                {viewLevel === 'quarter' && !selectedProcess && quarter && (
-                  <QuarterlyListView quarterlyPlans={quarterlyPlans} processTree={processTree} annualPlans={annualPlans} quarterlyBudgetSumMap={quarterlyBudgetSumMap} quarterlyBudgetItemsMap={quarterlyBudgetItemsMap} quarterlyInitiativesMap={quarterlyInitiativesMap} quarter={quarter} year={year} canEdit={canEdit} isChief={isChief} onSelectProcess={selectProcess} onRefresh={refreshData} />
-                )}
-                {viewLevel === 'month' && !selectedProcess && month && (
-                  <MonthlyPlansListView processTree={processTree} monthlyPlans={monthlyPlans} companyHours={monthlyCompanyHours} year={year} month={month} canEdit={canEdit} isChief={isChief} scopeLabel={scopeLabel} onRefresh={refreshData} onSelectProcedure={selectProcedure} />
-                )}
-                {selectedProcedure && (
-                  <ProcedureDetailPanel
-                    selectedProcess={selectedProcess}
-                    selectedProcedure={selectedProcedure}
-                    viewLevel={viewLevel}
-                    scopeLabel={scopeLabel}
-                    scopeMonths={scopeMonths}
-                    companies={detail.companies}
-                    projects={detail.projects}
-                    kbDocs={detail.kbDocs}
-                    assignees={detail.assignees}
-                    rawAssignees={detail.rawAssignees}
-                    hoursMap={hoursMap}
-                    processGoals={processGoals}
-                    initiatives={quarterlyInitiatives}
-                    onClose={() => selectProcess('')}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ── Splitter 2 ── */}
-          <div
-            className="flex items-center justify-center flex-shrink-0 cursor-col-resize select-none group"
-            style={{ width: 8 }}
-            onPointerDown={(e) => handleSplitterDown('right', e)}
-          >
-            <div className="w-[3px] h-10 rounded-full bg-slate-300/60 group-hover:bg-indigo-400/60 group-active:bg-indigo-500/80 transition-colors" />
-          </div>
-
-          {/* ── RIGHT: Employees ── */}
-          <div className="flex flex-col min-w-0 overflow-hidden" style={{ width: `${Math.max(100 - leftPct - midPct, 15)}%` }}>
-            <div className="glass-panel rounded-xl flex-1 min-h-0 flex flex-col overflow-hidden p-2">
-              <div className="element-card flex-1 min-h-0 flex flex-col overflow-hidden" style={{ borderRadius: 12 }}>
-                {viewLevel === 'month' && !selectedProcess ? (
-                  <MonthlyUsersView userProcHours={monthlyUserProcHours} processTree={processTree} scopeLabel={scopeLabel} />
-                ) : (
-                  <EmployeeTasksPanel
-                    selectedProcess={selectedProcess}
-                    selectedProcedure={selectedProcedure}
-                    detailPlans={detailPlans}
-                    dailyTasks={detail.dailyTasks}
-                    tasksLoading={detail.tasksLoading}
-                    assignees={detail.assignees}
-                    assigneesLoading={detail.assigneesLoading}
-                    scopeLabel={scopeLabel}
-                    scopeMonths={scopeMonths}
-                    month={month}
-                    resourceHours={resourceHours}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <ThreePanelLayout
+          filters={filtersBlock}
+          leftPanel={leftPanel}
+          centerPanel={centerContent}
+          rightPanel={rightContent}
+          mobileLeftPanel={mobileLeftPanel}
+          mobilePanel={mobilePanel}
+          onMobilePanelChange={setMobilePanel}
+          mobileFabs={[
+            { id: 'procs', label: 'Процеси', icon: ListTree, variant: 'procs' },
+            { id: 'employees', label: 'Працівники', icon: Users, variant: 'tasks' },
+          ]}
+        />
       )}
     </div>
   );

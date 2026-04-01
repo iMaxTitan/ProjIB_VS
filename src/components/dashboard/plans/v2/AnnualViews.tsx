@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { cn } from '@/lib/shared/utils';
-import { Target, Banknote, CalendarDays, FileCheck, FileText, Pencil, Check, X, Trash2, ShieldCheck, Plus, Copy, Ban, Ellipsis, Loader, CheckCheck } from 'lucide-react';
+import { Target, Banknote, CalendarDays, FileCheck, FileText, Pencil, Check, X, Trash2, ShieldCheck, Plus, Copy } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
+import { STATUS_ICON_MAP, type PlanStatus } from '@/components/dashboard/shared';
 import type { ProcessNode, AnnualPlanRow, AnnualBudgetRow } from '@/hooks/usePlansV2';
 
 export interface BudgetItemOption {
@@ -11,15 +12,6 @@ export interface BudgetItemOption {
   name: string;
   category_name: string | null;
 }
-
-// ── Shared helpers ──
-
-const STATUS_ICON_MAP: Record<string, { Icon: typeof Ban; cls: string; title: string }> = {
-  none: { Icon: Ban, cls: 'text-slate-300', title: 'Немає плану' },
-  pending: { Icon: Ellipsis, cls: 'text-amber-500', title: 'Не затверджено' },
-  active: { Icon: Loader, cls: 'text-indigo-500', title: 'В роботі' },
-  done: { Icon: CheckCheck, cls: 'text-emerald-500', title: 'Виконано' },
-};
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   none: { label: 'Немає плану', cls: 'bg-slate-100 text-slate-500' },
@@ -79,7 +71,7 @@ export function AnnualListView({ annualPlans, processTree, year, annualBudgetSum
           <EmptyState variant="centered" icon={<Target className="h-10 w-10" />} title="Немає процесів" description="Процеси не знайдено" />
         ) : (
           items.map(({ proc, plan }) => {
-            const status = plan?.status || 'none';
+            const status = (plan?.status || 'none') as PlanStatus;
             const st = STATUS_ICON_MAP[status] || STATUS_ICON_MAP.none;
             return (
               <div

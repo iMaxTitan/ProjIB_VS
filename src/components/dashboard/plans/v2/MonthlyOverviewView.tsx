@@ -2,8 +2,9 @@
 
 import React, { useState, useCallback } from 'react';
 import { cn } from '@/lib/shared/utils';
-import { Building2, Users, ChevronRight, Check, X, Plus, Copy, Ban, Ellipsis, Loader, CheckCheck } from 'lucide-react';
+import { Building2, Users, ChevronRight, Check, X, Plus, Copy } from 'lucide-react';
 import Image from 'next/image';
+import { SummaryBox, STATUS_ICON_MAP, type PlanStatus } from '@/components/dashboard/shared';
 import type { ProcessNode } from '@/hooks/usePlansV2';
 import type { MonthlyPlan } from '@/types/planning';
 import { MONTH_NAMES_UK } from '@/types/planning';
@@ -114,8 +115,8 @@ export function MonthlyCompaniesView({ companyHours, processTree, scopeLabel }: 
       </div>
 
       <div className="flex-shrink-0 grid grid-cols-2 gap-1.5 p-2.5 bg-slate-50 border-t border-slate-200">
-        <FooterMetric label="Компаній" value={String(companyHours.length)} />
-        <FooterMetric label="Факт годин" value={`${Math.round(totalHours * 10) / 10}`} colorClass="text-emerald-600" />
+        <SummaryBox label="Компаній" value={String(companyHours.length)} />
+        <SummaryBox label="Факт годин" value={`${Math.round(totalHours * 10) / 10}`} colorClass="text-emerald-600" />
       </div>
     </div>
   );
@@ -261,8 +262,8 @@ export function MonthlyUsersView({ userProcHours, processTree, scopeLabel }: Mon
       </div>
 
       <div className="flex-shrink-0 grid grid-cols-2 gap-1.5 p-2.5 bg-slate-50 border-t border-slate-200">
-        <FooterMetric label="Виконавців" value={String(users.length)} />
-        <FooterMetric label="Факт годин" value={`${Math.round(users.reduce((s, u) => s + u.totalHours, 0) * 10) / 10}`} colorClass="text-emerald-600" />
+        <SummaryBox label="Виконавців" value={String(users.length)} />
+        <SummaryBox label="Факт годин" value={`${Math.round(users.reduce((s, u) => s + u.totalHours, 0) * 10) / 10}`} colorClass="text-emerald-600" />
       </div>
     </div>
   );
@@ -276,14 +277,6 @@ async function fetchApi(url: string, init?: RequestInit) {
   return res.json();
 }
 
-const STATUS_ICON_MAP = {
-  none: { Icon: Ban, cls: 'text-slate-300', title: 'Немає плану' },
-  pending: { Icon: Ellipsis, cls: 'text-amber-500', title: 'Не затверджено' },
-  active: { Icon: Loader, cls: 'text-indigo-500', title: 'В роботі' },
-  done: { Icon: CheckCheck, cls: 'text-emerald-500', title: 'Виконано' },
-} as const;
-
-type PlanStatus = 'none' | 'pending' | 'active' | 'done';
 
 interface MonthlyPlansListViewProps {
   processTree: ProcessNode[];
@@ -452,9 +445,9 @@ export function MonthlyPlansListView({ processTree, monthlyPlans, companyHours, 
       </div>
 
       <div className="flex-shrink-0 grid grid-cols-3 gap-1.5 p-2.5 bg-slate-50 border-t border-slate-200">
-        <FooterMetric label="Планів" value={`${totalPlans} / ${items.length}`} />
-        <FooterMetric label="План" value={`${totalHours} год`} />
-        <FooterMetric label="Факт" value={`${totalSpent} год`} colorClass="text-emerald-600" />
+        <SummaryBox label="Планів" value={`${totalPlans} / ${items.length}`} />
+        <SummaryBox label="План" value={`${totalHours} год`} />
+        <SummaryBox label="Факт" value={`${totalSpent} год`} colorClass="text-emerald-600" />
       </div>
     </div>
   );
@@ -467,12 +460,3 @@ const AVATAR_COLORS = [
   'bg-emerald-500', 'bg-amber-500', 'bg-blue-500',
   'bg-rose-500', 'bg-teal-500',
 ];
-
-function FooterMetric({ label, value, colorClass }: { label: string; value: string; colorClass?: string }) {
-  return (
-    <div className="px-2 py-1.5 rounded-lg bg-white border border-slate-200/60 text-center">
-      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wide">{label}</div>
-      <div className={cn('text-sm font-extrabold mt-0.5 leading-tight', colorClass || 'text-slate-800')}>{value}</div>
-    </div>
-  );
-}

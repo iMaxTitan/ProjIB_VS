@@ -67,10 +67,9 @@ const analystNavItems: NavItem[] = [
   { label: 'Кабінет', path: '/cabinet', icon: UserCircle },
 ];
 
-// Пункты меню для сотрудника (employee)
+// Пункты меню для сотрудника (employee) — нет Планів, только Планувальник
 const employeeNavItems: NavItem[] = [
   { label: 'Активність', path: '/', icon: Zap },
-  { label: 'Плани', path: '/plans', icon: Network },
   { label: 'Планувальник', path: '/planner', icon: CalendarDays },
   { label: 'Кабінет', path: '/cabinet', icon: UserCircle },
 ];

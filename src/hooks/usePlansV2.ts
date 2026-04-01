@@ -102,8 +102,9 @@ export function usePlansV2(user?: UserInfo) {
   const detailPlans = useMemo(() => {
     if (selectedProcedure) return selectedProcedure.plans;
     if (selectedProcess) return selectedProcess.procedures.flatMap(p => p.plans);
-    return [];
-  }, [selectedProcess, selectedProcedure]);
+    // No selection → all plans from visible processes (for employee panel)
+    return processTree.flatMap(p => p.procedures.flatMap(pr => pr.plans));
+  }, [selectedProcess, selectedProcedure, processTree]);
 
   const selectedQuarterlyPlan = useMemo(
     () => quarter ? quarterlyPlans.find(q => q.process_id === selectedProcessId && q.quarter === quarter) ?? null : null,

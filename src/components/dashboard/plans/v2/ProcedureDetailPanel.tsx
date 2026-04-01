@@ -6,6 +6,7 @@ import { MONTH_NAMES_UK } from '@/types/planning';
 import type { MonthlyPlanAssignee } from '@/types/planning';
 import EmptyState from '@/components/ui/EmptyState';
 import { FileSearch, Building2, FolderKanban, BookOpen, BookMarked, Lightbulb, Settings2, Target, ClipboardList, ChevronRight, X } from 'lucide-react';
+import { SummaryBox, pctColor, barBg } from '@/components/dashboard/shared';
 import type { ProcessNode, ProcedureNode, QuarterlyInitiativeRow, ViewLevel } from '@/hooks/usePlansV2';
 import type { PlanCompanyInfo, PlanProjectInfo, PlanDocInfo } from '@/hooks/usePlansV2Detail';
 
@@ -35,17 +36,6 @@ interface ProcedureDetailPanelProps {
   onClose?: () => void;
 }
 
-function pctColor(pct: number): string {
-  if (pct >= 80) return 'text-emerald-600';
-  if (pct >= 40) return 'text-indigo-600';
-  return 'text-amber-600';
-}
-
-function barBg(pct: number): string {
-  if (pct >= 80) return 'bg-emerald-500';
-  if (pct >= 40) return 'bg-indigo-500';
-  return 'bg-amber-500';
-}
 
 function statusIcon(pct: number): { char: string; color: string } {
   if (pct >= 100) return { char: '\u2713', color: 'text-emerald-500' };
@@ -611,21 +601,3 @@ function SummaryFooter({ planned, spent, pct }: { planned: number; spent: number
   );
 }
 
-function SummaryBox({
-  label,
-  value,
-  colorClass,
-}: {
-  label: string;
-  value: string;
-  colorClass?: string;
-}) {
-  return (
-    <div className="px-2 py-1.5 rounded-lg bg-white border border-slate-200/60 text-center">
-      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wide">{label}</div>
-      <div className={cn('text-sm font-extrabold mt-0.5 leading-tight', colorClass || 'text-slate-800')}>
-        {value}
-      </div>
-    </div>
-  );
-}

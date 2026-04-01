@@ -2,21 +2,15 @@
 
 import React, { useState } from 'react';
 import { cn } from '@/lib/shared/utils';
-import { Target, Lightbulb, FileCheck, FileText, Pencil, Check, X, Trash2, ShieldCheck, Plus, Copy, Banknote, CalendarDays, Ban, Ellipsis, Loader, CheckCheck } from 'lucide-react';
+import { Target, Lightbulb, FileCheck, FileText, Pencil, Check, X, Trash2, ShieldCheck, Plus, Copy, Banknote, CalendarDays } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
+import { STATUS_ICON_MAP, type PlanStatus } from '@/components/dashboard/shared';
 import type { ProcessNode, QuarterlyPlanRow, QuarterlyInitiativeRow, AnnualPlanRow, AnnualBudgetRow } from '@/hooks/usePlansV2';
 
 const INIT_STATUS_ICON: Record<string, { cls: string; label: string }> = {
   planned: { cls: 'bg-indigo-400', label: 'Заплановано' },
   in_progress: { cls: 'bg-indigo-600', label: 'В роботі' },
   completed: { cls: 'bg-emerald-400', label: 'Завершено' },
-};
-
-const STATUS_ICON_MAP: Record<string, { Icon: typeof Ban; cls: string; title: string }> = {
-  none: { Icon: Ban, cls: 'text-slate-300', title: 'Немає плану' },
-  pending: { Icon: Ellipsis, cls: 'text-amber-500', title: 'Не затверджено' },
-  active: { Icon: Loader, cls: 'text-indigo-500', title: 'В роботі' },
-  done: { Icon: CheckCheck, cls: 'text-emerald-500', title: 'Виконано' },
 };
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
@@ -87,7 +81,7 @@ export function QuarterlyListView({ quarterlyPlans, processTree, annualPlans = [
           <EmptyState variant="centered" icon={<Target className="h-10 w-10" />} title="Немає процесів" description="Процеси не знайдено" />
         ) : (
           items.map(({ proc, plan, annualPlan, budget, initiatives }) => {
-            const status = plan?.status || 'none';
+            const status = (plan?.status || 'none') as PlanStatus;
             const st = STATUS_ICON_MAP[status] || STATUS_ICON_MAP.none;
             const badge = STATUS_BADGE[status] || STATUS_BADGE.none;
             return (

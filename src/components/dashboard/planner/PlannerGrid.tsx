@@ -3,6 +3,7 @@
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { cn } from '@/lib/shared/utils';
+import { SummaryBox, PanelFooter, pctColor, WEEKLY_CAPACITY } from '@/components/dashboard/shared';
 import type { CalendarEntry, ActivePlanForSlot } from '@/lib/ops/planner/calendar-entries';
 import type { SuggestedSlot } from '@/lib/ops/planner/weekly-suggest';
 import { START_HOUR, END_HOUR, SLOT_STEP, ROWS, ROW_HEIGHT, timeLabel, CalendarBlock, GhostBlock, entryStatus } from './PlannerBlocks';
@@ -249,74 +250,96 @@ export default function PlannerGrid({
           })}
         </div>
 
-        {/* Time grid — scrollable area */}
-        <div className="grid grid-cols-[48px_repeat(5,1fr)] overflow-y-auto overflow-x-hidden custom-scroll" style={{ flex: 1, minHeight: 0 }}>
-          <div>
-            {Array.from({ length: ROWS }, (_, r) => (
-              <div key={r} className="flex items-start justify-end" style={{
-                height: ROW_HEIGHT, paddingRight: 8,
-                borderBottom: r % 2 === 0 ? '1px dashed rgba(203,213,225,0.35)' : '1px solid rgba(203,213,225,0.55)',
-                borderRight: '1px solid rgba(203,213,225,0.55)',
+        {/* Scrollable area: grid + legend */}
+        <div className="overflow-y-auto overflow-x-hidden custom-scroll" style={{ flex: 1, minHeight: 0 }}>
+          <div className="grid grid-cols-[48px_repeat(5,1fr)]">
+            <div>
+              {Array.from({ length: ROWS }, (_, r) => (
+                <div key={r} className="flex items-start justify-end" style={{
+                  height: ROW_HEIGHT, paddingRight: 8,
+                  borderBottom: r % 2 === 0 ? '1px dashed rgba(203,213,225,0.35)' : '1px solid rgba(203,213,225,0.55)',
+                  borderRight: '1px solid rgba(203,213,225,0.55)',
+                }}>
+                  {r % 2 === 0 && (
+                    <span className="text-[10px] font-medium text-slate-400 leading-none pt-0.5">{timeLabel(r)}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {weekDates.map((dateStr) => (
+              <div key={dateStr} className="relative cal-day-col-wrap" style={{
+                minHeight: gridHeight,
+                background: vacationDays?.has(dateStr) ? 'rgba(251,191,36,0.04)' : undefined,
               }}>
-                {r % 2 === 0 && (
-                  <span className="text-[10px] font-medium text-slate-400 leading-none pt-0.5">{timeLabel(r)}</span>
-                )}
+                {Array.from({ length: ROWS }, (_, r) => (
+                  <GridCell key={r} rowIdx={r} dateStr={dateStr} lunchStartHour={lunchStartHour} onTemplateDrop={onTemplateDrop} onProcedureDrop={onProcedureDrop} onSlotDrop={onSlotDrop} />
+                ))}
+                {dateStr === today && <NowLine />}
+                {(entriesByDate.get(dateStr) || []).map((entry) => {
+                  const lay = layoutByDate.get(dateStr)?.get(entry.id);
+                  const isDimmed = !!selectedProcedureId && entry.source === 'plan' && (!entry.monthly_plan_id || planToProcedure.get(entry.monthly_plan_id) !== selectedProcedureId);
+                  return (
+                    <CalendarBlock key={entry.id} entry={entry} dimmed={isDimmed}
+                      readOnly={!!entry.daily_task_id || (entry.source === 'external' && !entry.monthly_plan_id && !entry.task_template_id) || (!!entry.monthly_plan_id && completedPlanIds.has(entry.monthly_plan_id))}
+                      onDelete={onDeleteEntry} onResize={onResizeEntry}
+                      onSelectEntry={onSelectEntry}
+                      onOpenPicker={onLinkTask ? handleOpenPicker : undefined}
+                      onClearTemplate={onClearTemplate}
+                      onClearProcedure={onClearProcedure}
+                      layoutColumn={lay?.column} layoutTotal={lay?.totalColumns} />
+                  );
+                })}
+                {(suggestionsByDate.get(dateStr) || []).map((sg) => {
+                  const sgId = sg._id || `sg-${sg.date}-${sg.start_time}`;
+                  const lay = layoutByDate.get(dateStr)?.get(sgId);
+                  return (
+                    <GhostBlock key={sg._id || `ghost-${sg.date}-${sg.start_time}`} suggestion={sg}
+                      onAccept={onAcceptSuggestion} onDismiss={onDismissSuggestion} onResize={onResizeSuggestion}
+                      layoutColumn={lay?.column} layoutTotal={lay?.totalColumns} />
+                  );
+                })}
               </div>
             ))}
           </div>
 
-          {weekDates.map((dateStr) => (
-            <div key={dateStr} className="relative cal-day-col-wrap" style={{
-              minHeight: gridHeight,
-              background: vacationDays?.has(dateStr) ? 'rgba(251,191,36,0.04)' : undefined,
-            }}>
-              {Array.from({ length: ROWS }, (_, r) => (
-                <GridCell key={r} rowIdx={r} dateStr={dateStr} lunchStartHour={lunchStartHour} onTemplateDrop={onTemplateDrop} onProcedureDrop={onProcedureDrop} onSlotDrop={onSlotDrop} />
-              ))}
-              {dateStr === today && <NowLine />}
-              {(entriesByDate.get(dateStr) || []).map((entry) => {
-                const lay = layoutByDate.get(dateStr)?.get(entry.id);
-                const isDimmed = !!selectedProcedureId && entry.source === 'plan' && (!entry.monthly_plan_id || planToProcedure.get(entry.monthly_plan_id) !== selectedProcedureId);
-                return (
-                  <CalendarBlock key={entry.id} entry={entry} dimmed={isDimmed}
-                    readOnly={!!entry.daily_task_id || (entry.source === 'external' && !entry.monthly_plan_id && !entry.task_template_id) || (!!entry.monthly_plan_id && completedPlanIds.has(entry.monthly_plan_id))}
-                    onDelete={onDeleteEntry} onResize={onResizeEntry}
-                    onSelectEntry={onSelectEntry}
-                    onOpenPicker={onLinkTask ? handleOpenPicker : undefined}
-                    onClearTemplate={onClearTemplate}
-                    onClearProcedure={onClearProcedure}
-                    layoutColumn={lay?.column} layoutTotal={lay?.totalColumns} />
-                );
-              })}
-              {(suggestionsByDate.get(dateStr) || []).map((sg) => {
-                const sgId = sg._id || `sg-${sg.date}-${sg.start_time}`;
-                const lay = layoutByDate.get(dateStr)?.get(sgId);
-                return (
-                  <GhostBlock key={sg._id || `ghost-${sg.date}-${sg.start_time}`} suggestion={sg}
-                    onAccept={onAcceptSuggestion} onDismiss={onDismissSuggestion} onResize={onResizeSuggestion}
-                    layoutColumn={lay?.column} layoutTotal={lay?.totalColumns} />
-                );
-              })}
-            </div>
-          ))}
+          {/* Legend — scrolls with grid */}
+          {(() => {
+            const activeStatuses = new Set(entries.map(e => entryStatus(e)));
+            const visible = LEGEND_ITEMS.filter(l => activeStatuses.has(l.key));
+            if (visible.length === 0) return null;
+            return (
+              <div className="cal-footer" data-el="L2 cal-footer · legend" data-el-cat="extend">
+                {visible.map(({ key, label }) => (
+                  <div key={key} className={`cal-legend-chip data-cell st-${key}`}>
+                    {label}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
-
-        {/* Legend footer */}
-        {(() => {
-          const activeStatuses = new Set(entries.map(e => entryStatus(e)));
-          const visible = LEGEND_ITEMS.filter(l => activeStatuses.has(l.key));
-          if (visible.length === 0) return null;
-          return (
-            <div className="cal-footer" data-el="L2 cal-footer · legend" data-el-cat="extend">
-              {visible.map(({ key, label }) => (
-                <div key={key} className={`cal-legend-chip data-cell st-${key}`}>
-                  {label}
-                </div>
-              ))}
-            </div>
-          );
-        })()}
       </div>
+
+      {/* Stats footer */}
+      {(() => {
+        let planHrs = 0, syncHrs = 0, extHrs = 0;
+        for (const e of entries) {
+          const h = e.duration_minutes / 60;
+          if (e.source === 'plan') { planHrs += h; if (e.outlook_event_id) syncHrs += h; }
+          else if (e.source === 'external') extHrs += h;
+        }
+        const cov = WEEKLY_CAPACITY > 0 ? Math.round((planHrs / WEEKLY_CAPACITY) * 100) : 0;
+        const fmt = (n: number) => n.toFixed(1).replace('.0', '');
+        return (
+          <PanelFooter columns={4}>
+            <SummaryBox label="Розподілено" value={`${fmt(planHrs)}/${WEEKLY_CAPACITY}`} colorClass="text-blue-600" />
+            <SummaryBox label="Синхронізовано" value={`${fmt(syncHrs)} г`} colorClass="text-emerald-600" />
+            <SummaryBox label="Зовнішніх" value={`${fmt(extHrs)} г`} />
+            <SummaryBox label="Покриття" value={`${cov}%`} colorClass={pctColor(cov)} />
+          </PanelFooter>
+        );
+      })()}
 
       {pickerEntry && (() => {
         const hasLinkedPlan = !!pickerEntry.monthly_plan_id;

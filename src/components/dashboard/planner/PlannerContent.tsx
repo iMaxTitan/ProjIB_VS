@@ -4,6 +4,7 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, MeasuringStrategy, PointerSensor, useSensor, useSensors, pointerWithin, type Modifier } from '@dnd-kit/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/shared/utils';
+import { useResizablePanels } from '@/components/dashboard/shared';
 import { Spinner } from '@/components/ui/Spinner';
 import { useWeeklyEntries, useCreateEntry, useBatchCreateEntries, useUpdateEntry, useDeleteEntry, useCopyWeek, useSuggestSlots, useUpdateLunch, useCollectTasks, PLANNER_ENTRIES_KEY, type WeeklyPlannerData } from '@/hooks/usePlanner';
 import { usePullCalendar, usePushCalendar } from '@/hooks/usePlannerSync';
@@ -15,7 +16,6 @@ import type { SelectPayload } from './TaskPickerDropdown';
 import PlannerSidebar from './PlannerSidebar';
 import PlannerHeader from './PlannerHeader';
 import PlannerFilters from './PlannerFilters';
-import PlannerStats from './PlannerStats';
 import PlannerTasksDetail from './PlannerTasksDetail';
 import CalendarMeetingModal from './CalendarMeetingModal';
 import TasksModal, { type TasksModalState } from './TasksModal';
@@ -367,44 +367,10 @@ export default function PlannerContent() {
   const handleResizeSuggestion = useCallback((id: string, dur: number) => setSuggestions((prev) => prev.map((s) => s._id === id ? { ...s, duration_minutes: dur } : s)), []);
 
   // ─── Resizable 3-column split: Sidebar | Calendar | Tasks
-  const [leftPct, setLeftPct] = useState(25);
-  const [midPct, setMidPct] = useState(40);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const handleSplitterDown = useCallback((which: 'left' | 'right', e: React.PointerEvent) => {
-    e.preventDefault();
-    const container = containerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const startLeft = leftPct;
-    const startMid = midPct;
-    const onMove = (ev: PointerEvent) => {
-      const cursorPct = ((ev.clientX - rect.left) / rect.width) * 100;
-      if (which === 'left') {
-        const newLeft = Math.max(10, Math.min(25, cursorPct));
-        const rightPct = 100 - newLeft - startMid;
-        if (rightPct >= 15) {
-          setLeftPct(newLeft);
-        }
-      } else {
-        const newMid = cursorPct - startLeft;
-        const rightPct = 100 - startLeft - newMid;
-        if (newMid >= 25 && rightPct >= 15 && rightPct <= 35) {
-          setMidPct(newMid);
-        }
-      }
-    };
-    const onUp = () => {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
-  }, [leftPct, midPct]);
+  const { leftPct, midPct, containerRef, handleSplitterDown } = useResizablePanels({
+    initialLeft: 25, initialMid: 40,
+    leftMin: 10, leftMax: 25, rightMax: 35,
+  });
 
   // ─── Debug overlay
   const [debugMode, setDebugMode] = useState(false);
@@ -489,22 +455,21 @@ export default function PlannerContent() {
             <PlannerFilters weekStart={weekStart} onWeekChange={handleWeekChange} />
           </div>
 
-          <div className="glass-panel rounded-xl flex-1 min-h-0 overflow-y-auto custom-scroll p-1" data-el="L1 zone · sidebar" data-el-cat="glass">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12"><Spinner size="sm" /></div>
-            ) : (
-              <PlannerSidebar
-                activePlans={activePlans} entries={entries} suggestions={suggestions}
-                selectedProcedureId={selectedProcedureId} collectedProcedureIds={collectedProcedureIds}
-                onSelectProcedure={(id) => setSelectedProcedureId((prev) => prev === id ? null : id)}
-                onCollectTasks={handleCollectTasks}
-              />
-            )}
+          <div className="glass-panel rounded-xl flex-1 min-h-0 overflow-hidden flex flex-col p-2" data-el="L1 zone · sidebar" data-el-cat="glass">
+            <div className="element-card flex-1 min-h-0 flex flex-col overflow-hidden" style={{ borderRadius: 12 }}>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12"><Spinner size="sm" /></div>
+              ) : (
+                <PlannerSidebar
+                  activePlans={activePlans} entries={entries} suggestions={suggestions}
+                  selectedProcedureId={selectedProcedureId} collectedProcedureIds={collectedProcedureIds}
+                  onSelectProcedure={(id) => setSelectedProcedureId((prev) => prev === id ? null : id)}
+                  onCollectTasks={handleCollectTasks}
+                />
+              )}
+            </div>
           </div>
 
-          <div className="glass-panel rounded-xl flex-shrink-0" style={{ padding: '6px 8px' }} data-el="L1 zone · stats" data-el-cat="glass">
-            <PlannerStats entries={entries} activePlans={activePlans} />
-          </div>
         </div>
 
         {/* ── Splitter 1: left | middle ── */}
@@ -605,9 +570,9 @@ export default function PlannerContent() {
       </div>
 
       {/* ── MOBILE LAYOUT: Calendar only (sidebar/tasks via bottom sheet) ── */}
-      <div className="flex flex-col gap-2 lg:hidden">
+      <div className="flex flex-col gap-2 lg:hidden pb-16">
         <div className="glass-panel rounded-xl flex flex-col p-2" data-el="L1 zone · calendar" data-el-cat="glass">
-          <div className="element-card flex flex-col flex-1 min-h-0" style={{ borderRadius: 12, overflow: 'clip' }} data-el="L2 element-card · cal-table" data-el-cat="base">
+          <div className="element-card flex flex-col overflow-y-auto" style={{ borderRadius: 12, overflow: 'clip' }} data-el="L2 element-card · cal-table" data-el-cat="base">
             <PlannerHeader
               hasSuggestions={suggestions.length > 0}
               suggestPending={suggestMutation.isPending} copyPending={copyWeek.isPending}

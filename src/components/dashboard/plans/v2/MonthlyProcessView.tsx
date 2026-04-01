@@ -3,6 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { cn } from '@/lib/shared/utils';
 import { Target, FileText, Banknote, Lightbulb, CalendarDays, ChevronRight, X } from 'lucide-react';
+import { SummaryBox, pctColor, barBg } from '@/components/dashboard/shared';
 import type { ProcessNode } from '@/hooks/usePlansV2';
 import type { AnnualPlanRow, AnnualBudgetRow, QuarterlyInitiativeRow } from '@/hooks/usePlansV2';
 import type { DailyTask } from '@/types/planning';
@@ -28,17 +29,6 @@ const INIT_STATUS: Record<string, { cls: string; label: string }> = {
   completed: { cls: 'bg-emerald-400', label: 'Завершено' },
 };
 
-function pctColor(pct: number): string {
-  if (pct >= 80) return 'text-emerald-600';
-  if (pct >= 40) return 'text-indigo-600';
-  return 'text-amber-600';
-}
-
-function barBg(pct: number): string {
-  if (pct >= 80) return 'bg-emerald-500';
-  if (pct >= 40) return 'bg-indigo-500';
-  return 'bg-amber-500';
-}
 
 export default function MonthlyProcessView({
   process,
@@ -247,19 +237,11 @@ export default function MonthlyProcessView({
 
       {/* Footer */}
       <div className="flex-shrink-0 grid grid-cols-3 gap-1.5 p-2.5 bg-slate-50 border-t border-slate-200">
-        <FooterMetric label="Заплановано" value={`${process.totalPlanned} год`} />
-        <FooterMetric label="Виконано" value={`${process.totalSpent} год`} colorClass="text-emerald-600" />
-        <FooterMetric label="Прогрес" value={`${pct}%`} colorClass={pctColor(pct)} />
+        <SummaryBox label="Заплановано" value={`${process.totalPlanned} год`} />
+        <SummaryBox label="Виконано" value={`${process.totalSpent} год`} colorClass="text-emerald-600" />
+        <SummaryBox label="Прогрес" value={`${pct}%`} colorClass={pctColor(pct)} />
       </div>
     </div>
   );
 }
 
-function FooterMetric({ label, value, colorClass }: { label: string; value: string; colorClass?: string }) {
-  return (
-    <div className="px-2 py-1.5 rounded-lg bg-white border border-slate-200/60 text-center">
-      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wide">{label}</div>
-      <div className={cn('text-sm font-extrabold mt-0.5 leading-tight', colorClass || 'text-slate-800')}>{value}</div>
-    </div>
-  );
-}

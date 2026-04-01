@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Plus, X, Trash2, ArrowRight, Send, Check, RotateCcw, Pencil, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/shared/utils';
+import { SummaryBox, PanelFooter } from '@/components/dashboard/shared';
 import { Spinner } from '@/components/ui/Spinner';
 import { usePlanTasks, useDeleteTask, useAssignDraftToplan, useChangeTaskStatus, type PlanTaskItem, type PlanTaskDraft } from '@/hooks/usePlannerTasks';
 import { useTemplates } from '@/hooks/useTaskTemplates';
@@ -254,8 +255,6 @@ export default function PlannerTasksDetail({ plan, onClose, onAddTask, onEditTas
 
   const activeTemplates = (templates ?? []).filter(t => t.is_active);
 
-  const MONTH_NAMES = ['','Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
-  const monthLabel = planInfo?.month ? `${MONTH_NAMES[planInfo.month]} ${planInfo.year}` : '';
   const pct = planInfo?.plannedHours ? Math.round((summary.totalHours / planInfo.plannedHours) * 100) : 0;
 
   return (
@@ -401,36 +400,13 @@ export default function PlannerTasksDetail({ plan, onClose, onAddTask, onEditTas
         )}
       </div>
 
-      {/* Footer: grouped summary */}
-      <div className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 border-t border-slate-200/60 bg-slate-50 flex-wrap">
-        <div className="flex-1 min-w-[50px]">
-          <div className="text-[9px] text-slate-400">Незаверш</div>
-          <div className="text-sm font-extrabold text-blue-600">{allIncompleteTasks.length}</div>
-        </div>
-        <div className="flex-1 min-w-[50px]">
-          <div className="text-[9px] text-slate-400">Керівн</div>
-          <div className="text-sm font-extrabold text-amber-600">{managerTasks.length}</div>
-        </div>
-        <div className="flex-1 min-w-[50px]">
-          <div className="text-[9px] text-slate-400">Чернетки</div>
-          <div className="text-sm font-extrabold text-slate-800">{drafts.length}</div>
-        </div>
-        <div className="flex-1 min-w-[50px]">
-          <div className="text-[9px] text-slate-400">Шаблони</div>
-          <div className="text-sm font-extrabold text-slate-800">{activeTemplates.length}</div>
-        </div>
-        <div className="border-l border-slate-200 pl-2 ml-1">
-          {monthLabel && <span className="text-[10px] font-semibold text-slate-400">{monthLabel} </span>}
-          <span className="text-[11px] font-semibold text-slate-800">
-            {summary.totalHours}/{planInfo?.plannedHours ?? plan.plannedHours} год
-          </span>
-          {pct > 0 && (
-            <span className={cn('text-[10px] font-bold ml-1', pct >= 100 ? 'text-emerald-600' : pct >= 70 ? 'text-blue-500' : 'text-amber-500')}>
-              {pct}%
-            </span>
-          )}
-        </div>
-      </div>
+      {/* Footer */}
+      <PanelFooter>
+        <SummaryBox label="Невиконані" value={String(allIncompleteTasks.length)} colorClass="text-blue-600" />
+        <SummaryBox label="Години" value={`${summary.totalHours}/${planInfo?.plannedHours ?? plan.plannedHours}`} />
+        <SummaryBox label="Виконання" value={`${pct}%`} colorClass={pct >= 100 ? 'text-emerald-600' : pct >= 70 ? 'text-blue-500' : 'text-amber-500'} />
+      </PanelFooter>
     </div>
   );
 }
+
