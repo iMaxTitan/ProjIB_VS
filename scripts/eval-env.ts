@@ -5,7 +5,9 @@
  * Connects to PostgREST via SSH tunnel: localhost:3000
  * Tunnel: ssh -i ~/.ssh/id_nas -L 3000:localhost:3000 root@46.225.234.164 -N
  */
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env' });
+dotenv.config({ path: '.env.local', override: true });
 
 // PostgREST via SSH tunnel (direct mode — no /rest/v1 suffix)
 process.env.POSTGREST_URL = process.env.POSTGREST_URL || 'http://localhost:3000';

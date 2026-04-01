@@ -15,7 +15,7 @@ const RATE_LIMIT = 15;
 const RATE_WINDOW_MS = 60_000;
 
 interface ImportBody {
-  url: string;
+  url?: string;
   title: string;
   docType: string;
   docNumber: string;
@@ -23,6 +23,9 @@ interface ImportBody {
   parentDocId?: string;
   relatedDocIds?: string[];
   relatedDocsText?: string;
+  /** Markdown content when importing from file (no URL fetch needed). */
+  fileContent?: string;
+  fileName?: string;
 }
 
 /** Build markdown header with metadata for RAG chunker. */
@@ -73,43 +76,73 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: only chief or head can import laws' }, { status: 403 });
     }
     const body = (await req.json()) as ImportBody;
-    const { url, title, docType, docNumber, categoryId, parentDocId, relatedDocIds, relatedDocsText } = body;
+    const { url, title, docType, docNumber, categoryId, parentDocId, relatedDocIds, relatedDocsText, fileContent, fileName } = body;
 
-    if (!url || !title || !docType || !categoryId) {
-      return NextResponse.json({ error: 'url, title, docType, categoryId are required' }, { status: 400 });
+    if (!title || !docType || !categoryId) {
+      return NextResponse.json({ error: 'title, docType, categoryId are required' }, { status: 400 });
+    }
+    if (!url && !fileContent) {
+      return NextResponse.json({ error: 'url or fileContent is required' }, { status: 400 });
     }
 
     // Extract docNumber from URL if not provided
-    const rawDocNumber = docNumber || (url.match(/\/laws\/show\/([^\/#]+)/)?.[1] || 'unknown');
+    const rawDocNumber = docNumber || (url?.match(/\/laws\/show\/([^\/#]+)/)?.[1] || 'unknown');
     const effectiveDocNumber = decodeURIComponent(rawDocNumber);
 
-    // 1. Fetch document from zakon.rada.gov.ua
-    const fetched = await fetchLaw(url);
+    // 1. Get document content — fetch from URL or use provided file content
+    let fetchedTitle = title;
+    let rawMarkdown: string;
 
-    // 2. Build header with metadata
+    if (fileContent) {
+      rawMarkdown = fileContent;
+    } else {
+      const fetched = await fetchLaw(url!);
+      rawMarkdown = fetched.markdown;
+      fetchedTitle = fetched.title || title;
+    }
+
+    // 2. Resolve parent law title for header
+    let parentLawLabel: string | undefined;
+    if (parentDocId) {
+      const { data: parentDoc } = await db
+        .from('kb_documents')
+        .select('title, metadata')
+        .eq('id', parentDocId)
+        .single();
+      if (parentDoc) {
+        const pNum = (parentDoc.metadata as Record<string, string>)?.doc_number;
+        parentLawLabel = pNum ? `${pNum} — ${parentDoc.title as string}` : (parentDoc.title as string);
+      }
+    }
+
+    // 3. Build header with metadata
+    const sourceUrl = url?.replace(/#.*$/, '') || '';
     const header = buildHeader({
-      title: fetched.title || title,
+      title: fetchedTitle,
       docType,
       docNumber: effectiveDocNumber,
-      sourceUrl: url.replace(/#.*$/, ''),
-      parentLaw: undefined,
+      sourceUrl,
+      parentLaw: parentLawLabel,
       relatedText: relatedDocsText,
     });
 
-    // 3. Replace title line with title + header
-    let markdown = fetched.markdown;
+    // 4. Inject header into markdown
+    let markdown = rawMarkdown;
     const titleLine = markdown.match(/^# .+/);
     if (titleLine) {
       markdown = markdown.replace(/^# .+/, `${titleLine[0]}\n\n${header}`);
     } else {
-      markdown = `# ${fetched.title || title}\n\n${header}\n\n${markdown}`;
+      markdown = `# ${fetchedTitle}\n\n${header}\n\n${markdown}`;
     }
 
-    // 4. Insert document record
+    // 5. Insert document record
+    const sourceFilename = fileName
+      || (effectiveDocNumber !== 'unknown' ? `${effectiveDocNumber.replace(/[\/\\]/g, '-')}.md` : 'uploaded.md');
+
     const metadata = {
       doc_type: docType,
       doc_number: effectiveDocNumber,
-      source_url: url.replace(/#.*$/, ''),
+      source_url: sourceUrl || null,
       related_docs: relatedDocIds || [],
       parent_doc_id: parentDocId || null,
       fetched_at: new Date().toISOString().split('T')[0],
@@ -118,8 +151,8 @@ export async function POST(req: NextRequest) {
     const { data: docs, error: insertError } = await db
       .from('kb_documents')
       .insert({
-        title: fetched.title || title,
-        source_filename: `${effectiveDocNumber.replace(/[\/\\]/g, '-')}.md`,
+        title: fetchedTitle,
+        source_filename: sourceFilename,
         mime_type: 'text/markdown',
         category_id: categoryId,
         created_by: userId,
@@ -136,10 +169,9 @@ export async function POST(req: NextRequest) {
 
     const documentId = (docs[0] as { id: string }).id;
 
-    // 5. Fire-and-forget processing pipeline
+    // 6. Fire-and-forget processing pipeline
     const buffer = Buffer.from(markdown, 'utf-8');
 
-    // Get category name for processor
     const { data: cat } = await db
       .from('kb_categories')
       .select('name')
@@ -147,7 +179,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     Promise.resolve()
-      .then(() => processDocument(documentId, buffer, 'text/markdown', fetched.title || title, (cat?.name as string) || 'Законодавство'))
+      .then(() => processDocument(documentId, buffer, 'text/markdown', fetchedTitle, (cat?.name as string) || 'Законодавство'))
       .then(result => {
         logger.info(`[kb/laws/import] Processed ${documentId}: ${result.chunkCount} chunks`);
       })
@@ -158,7 +190,7 @@ export async function POST(req: NextRequest) {
         } catch { /* ignore update failure */ }
       });
 
-    return NextResponse.json({ documentId, title: fetched.title || title, charCount: markdown.length }, { status: 202 });
+    return NextResponse.json({ documentId, title: fetchedTitle, charCount: markdown.length }, { status: 202 });
   } catch (error: unknown) {
     logger.error('[kb/laws/import] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

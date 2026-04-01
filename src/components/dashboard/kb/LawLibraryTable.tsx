@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { RefreshCw, ChevronDown, ChevronRight, ExternalLink, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { useLawLibrary, type LawDoc, type UpdateStatus } from '@/hooks/useLawLibrary';
+import { RefreshCw, ChevronDown, ChevronRight, ExternalLink, Loader2, AlertCircle, CheckCircle2, Search, FilePlus } from 'lucide-react';
+import { useLawLibrary, type LawDoc, type UpdateStatus, type CompletenessResult } from '@/hooks/useLawLibrary';
 import { Badge } from '@/components/ui/badge';
 
 const STAGE_LABELS: Record<string, string> = {
@@ -32,10 +32,41 @@ function docTypeBadge(docType?: string): 'blue' | 'indigo' | 'amber' | 'emerald'
   return 'slate';
 }
 
-function LawRow({ doc, depth, updateStatuses }: { doc: LawDoc; depth: number; updateStatuses: Record<string, UpdateStatus> }) {
+function CompletenessInfo({ result }: { result: CompletenessResult }) {
+  if (result.missing.length === 0) {
+    return (
+      <span className="text-xs text-emerald-600 flex items-center gap-1">
+        <CheckCircle2 className="h-3 w-3" /> Повна ({result.present}/{result.total})
+      </span>
+    );
+  }
+  return (
+    <div className="px-3 py-2 bg-amber-50 border-t border-amber-100">
+      <p className="text-xs font-medium text-amber-700 mb-1">
+        Відсутні в KB ({result.missing.length} з {result.total}):
+      </p>
+      <ul className="space-y-0.5">
+        {result.missing.map(m => (
+          <li key={m.url} className="text-xs text-amber-600 flex items-center gap-1">
+            <span className="font-mono text-amber-500">{m.docNumber || '—'}</span>
+            <span className="truncate">{m.title}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function LawRow({ doc, depth, updateStatuses, completeness, onCheckCompleteness, onAddChild }: {
+  doc: LawDoc; depth: number; updateStatuses: Record<string, UpdateStatus>;
+  completeness: Record<string, CompletenessResult | 'checking'>;
+  onCheckCompleteness: (docId: string) => void;
+  onAddChild?: (doc: { id: string; title: string }) => void;
+}) {
   const [expanded, setExpanded] = React.useState(true);
   const hasChildren = doc.children && doc.children.length > 0;
   const status = updateStatuses[doc.id];
+  const compStatus = completeness[doc.id];
 
   return (
     <>
@@ -76,28 +107,55 @@ function LawRow({ doc, depth, updateStatuses }: { doc: LawDoc; depth: number; up
           </div>
         </td>
         <td className="py-2.5 px-3">
-          {doc.metadata?.source_url && (
-            <a
-              href={doc.metadata.source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-500 hover:text-blue-700 transition-colors"
-              title="Відкрити на zakon.rada.gov.ua"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
-          )}
+          <div className="flex items-center gap-1.5">
+            {onAddChild && (
+              <button
+                onClick={() => onAddChild({ id: doc.id, title: doc.title })}
+                className="text-slate-400 hover:text-emerald-600 transition-colors"
+                title="Додати дочірній документ"
+              >
+                <FilePlus className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {depth === 0 && doc.metadata?.source_url && (
+              compStatus === 'checking' ? (
+                <Loader2 className="h-3.5 w-3.5 text-slate-400 animate-spin" />
+              ) : (
+                <button
+                  onClick={() => onCheckCompleteness(doc.id)}
+                  className="text-slate-400 hover:text-indigo-600 transition-colors"
+                  title="Перевірити повноту пов'язаних актів"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                </button>
+              )
+            )}
+            {doc.metadata?.source_url && (
+              <a
+                href={doc.metadata.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:text-blue-700 transition-colors"
+                title="Відкрити на zakon.rada.gov.ua"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </div>
         </td>
       </tr>
+      {depth === 0 && compStatus && compStatus !== 'checking' && (
+        <tr><td colSpan={7} className="p-0"><CompletenessInfo result={compStatus} /></td></tr>
+      )}
       {expanded && hasChildren && doc.children.map(child => (
-        <LawRow key={child.id} doc={child} depth={depth + 1} updateStatuses={updateStatuses} />
+        <LawRow key={child.id} doc={child} depth={depth + 1} updateStatuses={updateStatuses} completeness={completeness} onCheckCompleteness={onCheckCompleteness} onAddChild={onAddChild} />
       ))}
     </>
   );
 }
 
-export default function LawLibraryTable() {
-  const { laws, isLoading, error, updateStatuses, checkAllUpdates } = useLawLibrary();
+export default function LawLibraryTable({ onAddChild }: { onAddChild?: (doc: { id: string; title: string }) => void } = {}) {
+  const { laws, isLoading, error, updateStatuses, completeness, checkAllUpdates, checkCompleteness } = useLawLibrary();
   const [checking, setChecking] = React.useState(false);
 
   const handleCheckAll = async () => {
@@ -154,7 +212,7 @@ export default function LawLibraryTable() {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {laws.map(law => (
-                <LawRow key={law.id} doc={law} depth={0} updateStatuses={updateStatuses} />
+                <LawRow key={law.id} doc={law} depth={0} updateStatuses={updateStatuses} completeness={completeness} onCheckCompleteness={checkCompleteness} onAddChild={onAddChild} />
               ))}
             </tbody>
           </table>

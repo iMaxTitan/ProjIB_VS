@@ -12,6 +12,7 @@ import { getServerDb } from '@/lib/shared/db-server';
 import logger from '@/lib/shared/logger';
 import { chunkDocument, buildContextualContent, type DocMetaForEmbedding } from './chunker';
 import { embedBatch } from './embedder';
+import { generateHydeForBatch } from './hyde-generator';
 import { generatePrefixes, type PrefixResult } from './prefix-pipeline';
 import { parseDOCX } from './processor-docx';
 export { parseDOCX };
@@ -168,19 +169,27 @@ async function embedAndInsertChunks(
       buildContextualContent(categoryName, title, chunk.heading, chunk.content, batchPrefixes[i]?.prefixText || undefined, docMeta)
     );
     const embeddings = await embedBatch(contextualContents);
+
+    // HyDE: embed hypothetical questions for dual-vector search
+    const batchQuestions = batchPrefixes.map(p => p?.hypotheticalQuestions || []);
+    const questionEmbeddings = await generateHydeForBatch(batchQuestions);
+
     const chunkRows = batchChunks.map((chunk, i) => {
       const p = batchPrefixes[i];
+      const qEmb = questionEmbeddings[i] ? JSON.stringify(questionEmbeddings[i]) : null;
       return {
         document_id: documentId,
         chunk_index: chunk.chunkIndex,
         content: chunk.content,
         embedding: JSON.stringify(embeddings[i]),
+        question_embedding: qEmb,
         heading: chunk.heading || null,
         token_count: chunk.tokenCount,
         contextual_prefix: p?.prefixText || null,
         scope: p?.scope || 'general',
         search_terms: p?.searchTerms || [],
         semantic_summary: p?.semanticSummary || null,
+        hypothetical_questions: p?.hypotheticalQuestions?.length ? p.hypotheticalQuestions : null,
         prefix_status: p?.status || 'ok',
         prefix_cache_key: p?.cacheKey || null,
       };
@@ -241,7 +250,7 @@ export async function processDocument(
         chunks.map(c => ({ heading: c.heading, content: c.content })));
     } catch (prefixErr) {
       logger.warn(`[kb/processor] Prefix pipeline failed, proceeding without: ${(prefixErr as Error).message}`);
-      prefixes = chunks.map(() => ({ prefixText: '', scope: 'general', searchTerms: [], semanticSummary: '', status: 'fallback' as const, cacheKey: '', model: 'fallback' as const, confidence: 0 }));
+      prefixes = chunks.map(() => ({ prefixText: '', scope: 'general', searchTerms: [], semanticSummary: '', hypotheticalQuestions: [], status: 'fallback' as const, cacheKey: '', model: 'fallback' as const, confidence: 0 }));
     }
 
     await setStage('embedding');
@@ -293,7 +302,7 @@ export async function processFromMarkdown(
         chunks.map(c => ({ heading: c.heading, content: c.content })));
     } catch (prefixErr) {
       logger.warn(`[kb/processor] Prefix pipeline failed, proceeding without: ${(prefixErr as Error).message}`);
-      prefixes = chunks.map(() => ({ prefixText: '', scope: 'general', searchTerms: [], semanticSummary: '', status: 'fallback' as const, cacheKey: '', model: 'fallback' as const, confidence: 0 }));
+      prefixes = chunks.map(() => ({ prefixText: '', scope: 'general', searchTerms: [], semanticSummary: '', hypotheticalQuestions: [], status: 'fallback' as const, cacheKey: '', model: 'fallback' as const, confidence: 0 }));
     }
 
     await setStage('embedding');

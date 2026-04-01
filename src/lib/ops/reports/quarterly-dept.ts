@@ -15,7 +15,7 @@ export async function loadQuarterlyDeptData(group: QuarterlyReportGroup): Promis
     .from('monthly_plans')
     .select('monthly_plan_id, procedure_id, quarterly_id, status, year, month, planned_hours')
     .in('quarterly_id', quarterlyIds)
-    .in('status', ['active', 'completed']);
+    .in('status', ['active', 'done']);
   if (plansErr) throw plansErr;
   const mPlans = (rawPlans || []) as MPlanRow[];
   if (mPlans.length === 0) return [];
@@ -83,7 +83,7 @@ export async function loadQuarterlyDeptData(group: QuarterlyReportGroup): Promis
       activeCount: 0, completedCount: 0, tasksCount: 0, totalHours: 0, plannedHours: 0,
     };
     if (mp.status === 'active') cur.activeCount += 1;
-    if (mp.status === 'completed') cur.completedCount += 1;
+    if (mp.status === 'done') cur.completedCount += 1;
     cur.totalHours += hours;
     cur.tasksCount += tasks;
     cur.plannedHours = (cur.plannedHours || 0) + planned;

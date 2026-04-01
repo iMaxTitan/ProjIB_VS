@@ -154,6 +154,7 @@ export default function AnnualPlanDetails({
     // Прогресс квартала по статусу: completed=100%, active=50%, остальные=0%
     const getStatusProgress = (status: PlanStatus): number => {
         switch (status) {
+            case 'done':
             case 'completed': return 100;
             case 'active': return 50;
             case 'approved': return 25;
@@ -342,7 +343,7 @@ export default function AnnualPlanDetails({
                                             {/* Квартал */}
                                             <div className={cn(
                                                 "w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-sm",
-                                                q.status === 'completed' ? 'bg-emerald-100 text-emerald-600' :
+                                                q.status === 'done' ? 'bg-emerald-100 text-emerald-600' :
                                                     q.status === 'active' ? 'bg-violet-100 text-violet-600' :
                                                         isExpanded ? 'bg-white text-purple-600' : 'bg-purple-100 text-purple-600'
                                             )}>

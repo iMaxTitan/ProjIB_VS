@@ -123,7 +123,7 @@ export async function getMonthlyReportData(
         if (!mp.quarterly_id) continue;
         const cur = qCompletion.get(mp.quarterly_id) || { planned: 0, completed: 0 };
         cur.planned += 1;
-        if (mp.status === 'completed') cur.completed += 1;
+        if (mp.status === 'done') cur.completed += 1;
         qCompletion.set(mp.quarterly_id, cur);
       }
 
@@ -218,7 +218,7 @@ export async function getMonthlyReportData(
       if (emp) emp.plans_count = plans.size;
     });
 
-    const completedPlans = (monthlyPlans || []).filter(p => p.status === 'completed').length;
+    const completedPlans = (monthlyPlans || []).filter(p => p.status === 'done').length;
     const activePlans = (monthlyPlans || []).filter(p => p.status === 'active').length;
     const failedPlans = (monthlyPlans || []).filter(p => p.status === 'failed').length;
     const totalPlans = (monthlyPlans || []).length;

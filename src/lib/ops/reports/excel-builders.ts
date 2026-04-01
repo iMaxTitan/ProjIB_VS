@@ -30,6 +30,7 @@ function styleHeaderRow(row: ExcelJS.Row): void {
 
 function styleStatusCell(cell: ExcelJS.Cell, status: string): void {
   switch (status) {
+    case 'done':
     case 'completed': cell.font = { color: { argb: COLORS.completed } }; break;
     case 'active':    cell.font = { color: { argb: COLORS.active } }; break;
     case 'failed':    cell.font = { color: { argb: COLORS.failed } }; break;
@@ -58,6 +59,7 @@ function translateStatus(status: string): string {
     'submitted': 'На рассмотрении',
     'approved': 'Утверждён',
     'active': 'В работе',
+    'done': 'Выполнено',
     'completed': 'Выполнено',
     'failed': 'Не выполнено',
     'returned': 'Возвращён'

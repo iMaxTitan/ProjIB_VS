@@ -9,7 +9,7 @@ import type { KBChunk } from './query-translator';
 // ── Scope filter — soft boost/penalty instead of hard drop ───────────────────
 
 /** Penalty multiplier for specific-scope chunks when query doesn't mention the subject. */
-const SCOPE_MISMATCH_PENALTY = 0.5;
+const SCOPE_MISMATCH_PENALTY = 0.75;
 
 /**
  * Soft scope filter: instead of dropping specific-scope chunks,
@@ -36,6 +36,11 @@ export function applyScopeBoost(query: string, chunks: KBChunk[]): KBChunk[] {
 
     const mentioned = words.some(w => qLower.includes(w.slice(0, Math.max(4, w.length - 4))));
     if (!mentioned) {
+      // Check search_terms overlap before penalizing — avoid false negatives
+      const terms: string[] = (chunk as KBChunk & { search_terms?: string[] }).search_terms || [];
+      const termMatch = terms.some(t => t.length >= 3 && qLower.includes(t.toLowerCase()));
+      if (termMatch) continue; // search_terms match query → don't penalize
+
       // Soft penalty — demote but don't drop
       chunk.similarity *= SCOPE_MISMATCH_PENALTY;
       logger.prod('[kb/search] scope-penalty:', scope.slice(0, 50), '→ sim *', SCOPE_MISMATCH_PENALTY);
@@ -113,6 +118,11 @@ const RESCUE_RULES: Array<{ query: RegExp; chunk: RegExp }> = [
   { query: /winrar|вінрар|винрар|архіватор|архиватор|\brar\b|7.?zip/i, chunk: /peazip|архіватор/i },
   { query: /teams|тімс|тимс/i, chunk: /teams|microsoft\s*teams/i },
   { query: /acrobat|pdf.*reader/i, chunk: /acrobat|pdf/i },
+  // Added from kb_query_log analysis (2026-03-31)
+  { query: /фотошоп|photoshop|фотошо/i, chunk: /програмне забезпечення|встановлення ПЗ|ліценз/i },
+  { query: /4g.*модем|модем.*4g|мобільн.*інтернет/i, chunk: /модем|мобільн.*пристр|підключення.*мереж/i },
+  { query: /secure\s?boot/i, chunk: /secure\s?boot|bios|uefi/i },
+  { query: /медичн.*огляд|медогляд/i, chunk: /медичн.*огляд|медогляд|профогляд/i },
 ];
 
 /**

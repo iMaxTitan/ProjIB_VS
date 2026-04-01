@@ -171,6 +171,7 @@ export const getStatusVariant = (status: PlanStatus): 'secondary' | 'info' | 'de
     case 'submitted': return 'info';
     case 'approved': return 'default';
     case 'active': return 'success';
+    case 'done':
     case 'completed': return 'success';
     case 'failed': return 'destructive';
     case 'returned': return 'warning';
@@ -188,6 +189,7 @@ export const getStatusColorClasses = (status: PlanStatus): string => {
     case 'submitted': return "bg-blue-500 text-white";
     case 'approved': return "bg-emerald-500 text-white";
     case 'active': return "bg-violet-500 text-white";
+    case 'done':
     case 'completed': return "bg-green-600 text-white";
     case 'failed': return "bg-red-500 text-white";
     case 'returned': return "bg-amber-500 text-white";

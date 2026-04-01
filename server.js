@@ -21,47 +21,8 @@ const httpsOptions = {
   cert: fs.readFileSync(certPath),
 };
 
-// PostgREST proxy target (DB VPS)
-const POSTGREST_HOST = process.env.POSTGREST_HOST || '10.0.0.3';
-const POSTGREST_PORT = parseInt(process.env.POSTGREST_PORT || '3000', 10);
-
 // n8n proxy target (local)
 const N8N_PORT = parseInt(process.env.N8N_PORT || '5678', 10);
-
-function proxyToPostgREST(req, res) {
-  // Strip /rest/v1 prefix — PostgREST serves at /
-  const targetPath = req.url.replace(/^\/rest\/v1/, '') || '/';
-
-  // Forward only safe headers (skip hop-by-hop and TLS-specific)
-  const fwdHeaders = {};
-  for (const [key, val] of Object.entries(req.headers)) {
-    if (['host', 'connection', 'transfer-encoding', 'upgrade', 'http2-settings'].includes(key)) continue;
-    fwdHeaders[key] = val;
-  }
-  fwdHeaders['host'] = `${POSTGREST_HOST}:${POSTGREST_PORT}`;
-
-  const proxyReq = http.request({
-    hostname: POSTGREST_HOST,
-    port: POSTGREST_PORT,
-    path: targetPath,
-    method: req.method,
-    headers: fwdHeaders,
-  }, (proxyRes) => {
-    // Remove hop-by-hop headers from response
-    const resHeaders = { ...proxyRes.headers };
-    delete resHeaders['transfer-encoding'];
-    res.writeHead(proxyRes.statusCode, resHeaders);
-    proxyRes.pipe(res, { end: true });
-  });
-
-  proxyReq.on('error', (err) => {
-    console.error('PostgREST proxy error:', err.message);
-    res.writeHead(502);
-    res.end('Bad Gateway');
-  });
-
-  req.pipe(proxyReq, { end: true });
-}
 
 app.prepare().then(() => {
   const server = createServer(httpsOptions, async (req, res) => {
@@ -79,9 +40,11 @@ app.prepare().then(() => {
       return;
     }
 
-    // Proxy /rest/v1/* to PostgREST on DB VPS
+    // /rest/v1 — blocked, use /api/db/ proxy with auth
     if (req.url.startsWith('/rest/v1')) {
-      return proxyToPostgREST(req, res);
+      res.writeHead(404);
+      res.end('Not Found');
+      return;
     }
 
     // Proxy /n8n/* to local n8n instance

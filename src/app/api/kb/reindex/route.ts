@@ -56,8 +56,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Get category names
-  const { data: categories } = await db.from('kb_categories').select('id, name');
+  const { data: categories } = await db.from('kb_categories').select('id, name, slug');
   const catMap = new Map((categories ?? []).map(c => [c.id, c.name]));
+  const catSlugMap = new Map((categories ?? []).map(c => [c.id, c.slug as string || 'general']));
 
   logger.prod('[kb/reindex] started by', userId, '— documents:', documents.length);
 
@@ -91,15 +92,18 @@ export async function POST(req: NextRequest) {
       const categoryName = catMap.get(doc.category_id) || 'Загальне';
       const tocSummary = buildTocSummary(chunks.map(c => ({ heading: c.heading || '', content: c.content })));
 
+      const domain = catSlugMap.get(doc.category_id) || 'general';
+
       // Generate contextual prefixes only for chunks missing them
-      const prefixes: Array<{ prefixText: string; scope: string; searchTerms: string[]; semanticSummary: string }> = [];
+      const prefixes: Array<{ prefixText: string; scope: string; searchTerms: string[]; semanticSummary: string; existing?: boolean }> = [];
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         if (chunk.contextual_prefix) {
-          prefixes.push({ prefixText: chunk.contextual_prefix, scope: 'general', searchTerms: [], semanticSummary: '' });
+          // Keep existing signals intact — don't overwrite with empty values
+          prefixes.push({ prefixText: chunk.contextual_prefix, scope: '', searchTerms: [], semanticSummary: '', existing: true });
         } else {
           const result = await generateChunkPrefix(
-            doc.title, tocSummary, chunk.heading || '', chunk.content,
+            chunk.content, chunk.heading || '', doc.title, domain,
           );
           prefixes.push(result);
           if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 150));
@@ -123,15 +127,19 @@ export async function POST(req: NextRequest) {
         // Update each chunk with new embedding + prefix + scope
         for (let i = 0; i < batchChunks.length; i++) {
           const p = batchPrefixes[i];
+          // For chunks with existing prefix — only update embedding, preserve signals
+          const updatePayload = p?.existing
+            ? { embedding: JSON.stringify(embeddings[i]) }
+            : {
+                embedding: JSON.stringify(embeddings[i]),
+                contextual_prefix: p?.prefixText || null,
+                scope: p?.scope || 'general',
+                search_terms: p?.searchTerms || [],
+                semantic_summary: p?.semanticSummary || null,
+              };
           const { error: updateError } = await db
             .from('kb_chunks')
-            .update({
-              embedding: JSON.stringify(embeddings[i]),
-              contextual_prefix: p?.prefixText || null,
-              scope: p?.scope || 'general',
-              search_terms: p?.searchTerms || [],
-              semantic_summary: p?.semanticSummary || null,
-            })
+            .update(updatePayload)
             .eq('id', batchChunks[i].id);
 
           if (updateError) {

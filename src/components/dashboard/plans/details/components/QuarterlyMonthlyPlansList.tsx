@@ -41,7 +41,7 @@ export default function QuarterlyMonthlyPlansList({
       {relatedMonthly
         .sort((a, b) => a.month - b.month)
         .map(m => {
-          const isCompleted = m.status === 'completed';
+          const isCompleted = m.status === 'done';
           const stats = monthStats.get(m.monthly_plan_id);
           const spentHours = stats?.spentHours || m.total_spent_hours || 0;
           const isExpanded = expandedMonth === m.monthly_plan_id;

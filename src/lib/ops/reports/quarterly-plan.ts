@@ -190,7 +190,7 @@ export async function getQuarterlyReportData(
     `)
     .in('annual_plan_id', annualIds)
     .eq('quarter', quarter)
-    .in('status', ['completed', 'active', 'approved', 'failed'])
+    .in('status', ['done', 'active', 'pending'])
     .order('quarterly_id', { ascending: true });
 
   if (departmentId) {

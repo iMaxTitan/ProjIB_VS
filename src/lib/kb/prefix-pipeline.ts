@@ -22,6 +22,8 @@ export interface PrefixResult {
   scope: string;
   searchTerms: string[];
   semanticSummary: string;
+  /** Hypothetical questions this chunk answers (for HyDE embedding). */
+  hypotheticalQuestions: string[];
   status: 'ok' | 'needs_review' | 'fallback';
   cacheKey: string;
   failureReason?: string;
@@ -29,6 +31,8 @@ export interface PrefixResult {
   /** Which model produced the final result. */
   model: 'l1' | 'l2' | 'fallback';
   confidence: number;
+  /** Marks existing prefix — skip DB update for signals. */
+  existing?: boolean;
 }
 
 /** Safely coerce value to string array (AI may return string instead of array). */
@@ -125,6 +129,7 @@ function buildFallback(
     scope: ruleScope || 'general',
     searchTerms,
     semanticSummary: summary,
+    hypotheticalQuestions: [],
     status: 'fallback',
     cacheKey: '',
     failureReason: 'all_models_failed',
@@ -154,7 +159,7 @@ export async function generateChunkPrefix(
   const ruleScope = ruleBasedScope(docTitle, chunkText);
 
   // 2. L1 (Gemini Flash-Lite)
-  const l1 = await generateL1Prefix(chunkText, heading, docTitle, dictSynonyms);
+  const l1 = await generateL1Prefix(chunkText, heading, docTitle, dictSynonyms, undefined, domain);
 
   if (l1.json) {
     // Merge dict synonyms into AI result
@@ -172,6 +177,7 @@ export async function generateChunkPrefix(
         scope: l1.json.scope || 'general',
         searchTerms: [...new Set([...toArray(l1.json.search_terms), ...dictSynonyms])],
         semanticSummary: l1.json.semantic_summary || '',
+        hypotheticalQuestions: toArray(l1.json.hypothetical_questions),
         status: 'ok',
         cacheKey,
         model: 'l1',
@@ -181,7 +187,7 @@ export async function generateChunkPrefix(
 
     // 4. Retry L1 once with error hint (skip if forceL2)
     if (!v1.forceL2 && v1.retryHint) {
-      const l1retry = await generateL1Prefix(chunkText, heading, docTitle, dictSynonyms, v1.retryHint);
+      const l1retry = await generateL1Prefix(chunkText, heading, docTitle, dictSynonyms, v1.retryHint, domain);
       if (l1retry.json) {
         if (dictSynonyms.length > 0) {
           l1retry.json.colloquial_synonyms = [...new Set([...toArray(l1retry.json.colloquial_synonyms), ...dictSynonyms])];
@@ -193,6 +199,7 @@ export async function generateChunkPrefix(
             scope: l1retry.json.scope || 'general',
             searchTerms: [...new Set([...toArray(l1retry.json.search_terms), ...dictSynonyms])],
             semanticSummary: l1retry.json.semantic_summary || '',
+            hypotheticalQuestions: toArray(l1retry.json.hypothetical_questions),
             status: 'ok',
             cacheKey,
             model: 'l1',
@@ -216,6 +223,7 @@ export async function generateChunkPrefix(
           scope: l2.json.scope || 'general',
           searchTerms: [...new Set([...toArray(l2.json.search_terms), ...dictSynonyms])],
           semanticSummary: l2.json.semantic_summary || '',
+          hypotheticalQuestions: toArray(l2.json.hypothetical_questions),
           status: v3.valid ? 'ok' : 'needs_review',
           cacheKey,
           model: 'l2',
@@ -241,6 +249,7 @@ export async function generateChunkPrefix(
         scope: l2.json.scope || 'general',
         searchTerms: [...new Set([...toArray(l2.json.search_terms), ...dictSynonyms])],
         semanticSummary: l2.json.semantic_summary || '',
+        hypotheticalQuestions: toArray(l2.json.hypothetical_questions),
         status: v.valid ? 'ok' : 'needs_review',
         cacheKey,
         model: 'l2',

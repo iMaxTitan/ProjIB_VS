@@ -26,6 +26,19 @@ export interface LawDoc {
 /** Fetch update status for a single document. */
 export type UpdateStatus = 'current' | 'outdated' | 'unknown' | 'checking' | 'error';
 
+export interface MissingDoc {
+  title: string;
+  url: string;
+  docType: string;
+  docNumber: string;
+}
+
+export interface CompletenessResult {
+  total: number;
+  present: number;
+  missing: MissingDoc[];
+}
+
 async function fetchLaws(): Promise<LawDoc[]> {
   const res = await fetch('/api/kb/laws');
   if (!res.ok) throw new Error('Failed to fetch laws');
@@ -100,11 +113,33 @@ export function useLawLibrary() {
     await Promise.allSettled(results);
   }, [laws, checkUpdate]);
 
+  const [completeness, setCompleteness] = useState<Record<string, CompletenessResult | 'checking'>>({});
+
+  const checkCompleteness = useCallback(async (docId: string) => {
+    setCompleteness(prev => ({ ...prev, [docId]: 'checking' }));
+    try {
+      const res = await fetch('/api/kb/laws/completeness', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docId }),
+      });
+      if (!res.ok) throw new Error('Check failed');
+      const data = (await res.json()) as CompletenessResult;
+      setCompleteness(prev => ({ ...prev, [docId]: data }));
+    } catch {
+      setCompleteness(prev => {
+        const next = { ...prev };
+        delete next[docId];
+        return next;
+      });
+    }
+  }, []);
+
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['kb-laws'] });
   }, [queryClient]);
 
   const error = queryError ? (queryError instanceof Error ? queryError.message : String(queryError)) : null;
 
-  return { laws, isLoading, error, updateStatuses, checkUpdate, checkAllUpdates, refresh };
+  return { laws, isLoading, error, updateStatuses, completeness, checkUpdate, checkAllUpdates, checkCompleteness, refresh };
 }

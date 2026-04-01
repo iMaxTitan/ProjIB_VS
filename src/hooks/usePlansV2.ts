@@ -213,8 +213,13 @@ export function usePlansV2(user?: UserInfo) {
       templatesMap.set(t.procedure_id, list);
     }
 
+    // Filter processes by user's department (chief sees all)
+    const visibleProcesses = user?.role === 'chief'
+      ? processes
+      : processes.filter(p => p.department_id === user?.department_id);
+
     const tree: ProcessNode[] = [];
-    for (const proc of processes) {
+    for (const proc of visibleProcesses) {
       const procProcedures = procMap.get(proc.process_id) || [];
       const nodes: ProcedureNode[] = [];
 
@@ -249,14 +254,14 @@ export function usePlansV2(user?: UserInfo) {
         mission: proc.mission,
         expectedResult: proc.expected_result,
         departmentName: proc.department_name,
-        procedures: nodes,
+        procedures: nodes.sort((a, b) => a.name.localeCompare(b.name, 'uk')),
         totalPlanned,
         totalSpent,
       });
     }
 
-    return tree.sort((a, b) => b.totalPlanned - a.totalPlanned);
-  }, [processes, procedures, taskTemplates, scopedPlans, hoursMap]);
+    return tree.sort((a, b) => a.name.localeCompare(b.name, 'uk'));
+  }, [processes, procedures, taskTemplates, scopedPlans, hoursMap, user?.role, user?.department_id]);
 
   // Available years: current ± 1
   const availableYears = useMemo(() => {

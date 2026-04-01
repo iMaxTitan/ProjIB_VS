@@ -71,12 +71,7 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
   const justResized = useRef(false);
   const startY = useRef(0);
   const isOptimistic = entry.id.startsWith('_optimistic_');
-
-  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
-    id: `slot-${entry.id}`,
-    data: { type: 'slot', slotId: entry.id, procedureName: entry.procedure_name },
-    disabled: !isPlan || isOptimistic || !!readOnly,
-  });
+  const canDrag = isPlan && !isOptimistic && !readOnly;
 
   const startMin = timeToMinutes(entry.start_time);
   const maxDuration = MAX_MINUTES - (startMin - START_HOUR * 60);
@@ -118,9 +113,11 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
 
   return (
     <div
-      ref={isPlan ? setDragRef : undefined}
-      {...(isPlan ? listeners : {})}
-      {...(isPlan ? attributes : {})}
+      draggable={canDrag}
+      onDragStart={canDrag ? (e) => {
+        e.dataTransfer.setData('application/planner-slot', JSON.stringify({ id: entry.id }));
+        e.dataTransfer.effectAllowed = 'move';
+      } : undefined}
       onClick={(e) => {
         if (justResized.current) return;
         if ((e.target as HTMLElement).closest('[data-action]')) return;
@@ -136,12 +133,11 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
       ].filter(Boolean).join('\n')}
       className={cn(
         `data-cell cal-block st-${status}`,
-        isPlan && !readOnly && 'cursor-grab active:cursor-grabbing',
+        canDrag && 'cursor-grab active:cursor-grabbing',
         isPlan && readOnly && 'cursor-default',
         isExternal && onSelectEntry && 'cursor-pointer',
         isOptimistic && 'opacity-60',
-        isDragging && 'opacity-30 pointer-events-none',
-        dimmed && !isDragging && 'dimmed',
+        dimmed && 'dimmed',
         resizeDelta !== 0 && 'ring-2 ring-indigo-300/50',
       )}
       style={{
@@ -149,7 +145,6 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
         left: `calc(${colPct}% + 2px)`,
         width: `calc(${widthPct}% - 4px)`,
         height: displayHeight,
-        zIndex: isDragging ? 0 : undefined,
         transition: resizeDelta !== 0 ? 'none' : undefined,
       }}
     >

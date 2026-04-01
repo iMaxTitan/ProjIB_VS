@@ -6,7 +6,7 @@
  * Stage 3 (Render):  synth-render.ts — HTML with footnotes.
  */
 
-import { generateAITextWithUsage, type AIResult } from '@/lib/shared/ai/client';
+import { generateAITextWithUsage, type AIProvider, type AIResult } from '@/lib/shared/ai/client';
 import { config } from '@/lib/shared/config';
 import logger from '@/lib/shared/logger';
 import type { KBChunk } from './query-translator';
@@ -80,6 +80,12 @@ async function composeAnswer(
   factsText: string,
   domain: string,
   history?: ConversationTurn[],
+  overrides?: {
+    providerOverride?: AIProvider;
+    anthropicModel?: string;
+    openAIModel?: string;
+    apiKeyOverride?: string;
+  },
 ): Promise<AIResult> {
   const baseDomain = domain.replace('_caveat', '');
   const isCaveat = domain.endsWith('_caveat');
@@ -93,9 +99,10 @@ async function composeAnswer(
       { role: 'user', content: `Факти з документів:\n${factsText}\n\nЗапитання: ${query}` },
     ],
     systemPrompt,
-    providerOverride: 'anthropic',
-    anthropicModel: 'claude-sonnet-4-6',
-    apiKeyOverride: config.anthropic.apiKey!,
+    providerOverride: overrides?.providerOverride ?? 'anthropic',
+    anthropicModel: overrides?.anthropicModel ?? 'claude-sonnet-4-6',
+    openAIModel: overrides?.openAIModel,
+    apiKeyOverride: overrides?.apiKeyOverride ?? config.anthropic.apiKey!,
     maxTokens: 2400,
     temperature: 0,
     timeoutMs: 30_000,
@@ -169,11 +176,24 @@ export async function synthesizeAnswer(
     if (extraction.level === 'adjacent') {
       composeDomain = domain + '_caveat';
     }
-    const compRes = await composeAnswer(query, factsText, composeDomain, history);
+    let compRes: AIResult;
+    let composeModel = 'claude-sonnet-4.6';
+    try {
+      compRes = await composeAnswer(query, factsText, composeDomain, history);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.prod('[kb/synth] anthropic failed, falling back to openai:', message);
+      compRes = await composeAnswer(query, factsText, composeDomain, history, {
+        providerOverride: 'openai',
+        openAIModel: 'gpt-4.1',
+        apiKeyOverride: config.openai.apiKey,
+      });
+      composeModel = 'gpt-4.1';
+    }
     const cp = compRes.usage?.prompt_tokens || 0;
     const cc = compRes.usage?.completion_tokens || 0;
     const compCost = (cp * 3.00 + cc * 15.00) / 1_000_000;
-    stages.push({ model: 'claude-sonnet-4.6', promptTokens: cp, completionTokens: cc, cost: compCost });
+    stages.push({ model: composeModel, promptTokens: cp, completionTokens: cc, cost: compCost });
 
     // Stage 3: Code — render HTML with footnotes
     const html = renderWithFootnotes(compRes.text || '', sourceMap);
@@ -184,7 +204,7 @@ export async function synthesizeAnswer(
       cost: totalCost,
       promptTokens: extUsage.p + cp,
       completionTokens: extUsage.c + cc,
-      model: 'claude-sonnet-4.6',
+      model: composeModel,
       stages,
     };
   } catch (err) {

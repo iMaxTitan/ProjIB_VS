@@ -182,7 +182,7 @@ async function computeSimpleKPI(
       .select('monthly_plan_id, planned_hours')
       .eq('year', year)
       .in('month', months)
-      .in('status', ['active', 'completed']);
+      .in('status', ['active', 'done']);
 
     if (!plans || plans.length === 0) return 0;
 

@@ -523,3 +523,79 @@ ALTER TABLE daily_tasks ADD COLUMN task_type text NOT NULL DEFAULT 'incomplete'
 - law-fetcher в PM2 на DB VPS (порт 3100, внутрішня мережа 10.0.0.x)
 - Документи зберігаються в kb_documents з metadata: doc_type, doc_number, source_url, related_docs, fetched_at
 - Шапка з метаданними в markdown — чанкер зберігає зв'язки для RAG
+
+---
+
+### [31] Security headers + блокировка прямого PostgREST (2026-03-31)
+
+**Контекст:** PostgREST був доступний напряму через `/rest/v1` proxy в `server.js`. Debug endpoints (`/api/debug/graph-test`, `/api/debug/memory`) та `/env-check` page залишались у проді.
+
+**Рішення:**
+- Security headers в `next.config.js`: X-Frame-Options (DENY), X-Content-Type-Options (nosniff), HSTS (1 рік), CSP-Report-Only, Permissions-Policy
+- Cache-Control `private, no-store` для динамічних сторінок (запобігає кешуванню CDN/proxy)
+- Прямий `/rest/v1` доступ повертає 404 — весь трафік через `/api/db/[...path]` (authenticated proxy)
+- Видалено: `/api/debug/graph-test`, `/api/debug/memory`, `/env-check` page
+
+**Причина:** Захист від clickjacking, MIME sniffing. Прямий PostgREST bypass обходив auth — тепер заблоковано. Debug endpoints — зайві attack surface в проді.
+
+**Наслідок:** `server.js` тепер тільки проксирує n8n. Вся взаємодія з БД — через authenticated API routes.
+
+---
+
+### [32] KB Laws — файловий імпорт + child documents + completeness (2026-03-31)
+
+**Контекст:** Імпорт законів вимагав URL zakon.rada.gov.ua. Деякі підзаконні акти недоступні на сайті або потребують ручного завантаження. Не було способу перевірити чи всі зв'язані документи є в KB.
+
+**Рішення:**
+- `url` в import API став optional, додано `fileContent` + `fileName` — імпорт з файлу (.md, .docx)
+- Parent-child зв'язки: `parent_doc_id` → ланцюг батьків → header "На виконання: ..."
+- `/api/kb/laws/completeness` POST — порівнює зв'язані URL з source_url в KB, повертає `{ total, present, missing[] }`
+- UI: кнопка FilePlus (додати дочірній), Search (перевірити повноту), `LawChildUploadModal` для файлового завантаження
+- `lib/kb/search-locators.ts` — мета-запит (список документів по категорії) + legal locator (пошук по номеру статті)
+- `fetcher-client.ts` — `extractDocNumber()` парсить номер з URL
+
+**Причина:** Не всі документи є на zakon.rada.gov.ua. Child documents потребують parent context для RAG. Completeness checker — швидка перевірка прогалин.
+
+**Наслідок:** Новий API route `/api/kb/laws/completeness` (rate limit 10/min). Дерево бібліотеки коректно рендерить parent-child ієрархію.
+
+---
+
+### [33] Plan status rename: completed → done (2026-03-31)
+
+**Контекст:** Статус плану `'completed'` використовувався у ~15 файлах. Потрібна стандартизація.
+
+**Рішення:** Перейменування `'completed'` → `'done'` у всіх SQL-запитах, фільтрах, UI-маппінгах, бот-адаптерах, звітах. Display text ("Виконано"/"Выполнено") не змінено.
+
+**Файли:** `planning-utils.ts`, `bot-adapter.ts`, `cabinet/stats.ts`, `kpi/service.ts`, `calendar-entries.ts`, `reports/service.ts`, `reports/excel-data.ts`, `reports/quarterly-*.ts`, `month-summary/route.ts`, `types/planning.ts`
+
+**Причина:** Консистентність з коротшим enum. `'done'` відповідає конвенціям.
+
+**Наслідок:** БД значення в `monthly_plans.status` має бути `'done'`. UI текст не змінився.
+
+---
+
+### [34] Plans V2 — фільтрація по департаменту + алфавітне сортування (2026-03-31)
+
+**Контекст:** Всі користувачі бачили всі процеси незалежно від ролі. Процедури та виконавці відображались у довільному порядку.
+
+**Рішення:**
+- Не-chief бачать тільки процеси свого `department_id`
+- Процедури: `.sort((a,b) => a.name.localeCompare(b.name, 'uk'))`
+- Процеси: сортування за назвою (замість planned hours)
+- Виконавці: алфавітне сортування
+
+**Причина:** Релевантність даних для кожної ролі. Алфавітний порядок — передбачуваний і зручний.
+
+**Наслідок:** `usePlansV2.ts` використовує `user.role` та `user.department_id` для фільтрації. `usePlansV2Detail.ts` сортує assignees.
+
+---
+
+### [35] Planner — native HTML5 drag замість @dnd-kit (2026-03-31)
+
+**Контекст:** Planner використовував `@dnd-kit` для drag-and-drop блоків календаря. Бібліотека додавала складність (useDraggable hooks, listeners, attributes).
+
+**Рішення:** Замінити на нативний HTML5 drag API: `draggable`, `onDragStart`, `e.dataTransfer.setData('application/planner-slot', JSON.stringify({ id }))`.
+
+**Причина:** Спрощення коду, зменшення залежностей. Нативний API достатній для поточного use case.
+
+**Наслідок:** Прибрано залежність від `@dnd-kit`. Логіка canDrag збережена.

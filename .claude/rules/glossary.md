@@ -26,8 +26,10 @@
 | транслятор запросов | `lib/kb/query-translator.ts` |
 | DOCX-экспорт (БЗ) | `lib/kb/docx-builder.ts` |
 | бот + БЗ, kbSearchTool | `lib/kb/bot-adapter.ts` |
+| **локатори**, мета-запит, пошук по статті | `lib/kb/search-locators.ts` |
 | **законодавство**, закони, законы, law-fetcher | `lib/ops/laws/fetcher-client.ts`, `app/api/kb/laws/` |
-| законодавство UI | `components/dashboard/kb/KBLawsContent.tsx`, `LawSearchPanel.tsx`, `LawLibraryTable.tsx` |
+| законодавство UI | `components/dashboard/kb/KBLawsContent.tsx`, `LawSearchPanel.tsx`, `LawLibraryTable.tsx`, `LawChildUploadModal.tsx` |
+| повнота законів, completeness | `app/api/kb/laws/completeness/`, `hooks/useLawLibrary.ts:checkCompleteness` |
 | законодавство хуки | `hooks/useLawSearch.ts`, `hooks/useLawLibrary.ts`, `hooks/useLawImport.ts` |
 | law-fetcher мікросервіс | `law-fetcher/` (Express, DB VPS порт 3100, Playwright) |
 | контекстний префікс, contextual prefix | `lib/kb/contextual-prefix.ts` |

@@ -205,7 +205,7 @@ export default function QuarterlyRightPanel({
                       <td className="px-1 py-1.5 text-slate-700 whitespace-nowrap border-r border-slate-100 text-center">{deadline}</td>
                       <td className="px-1 py-1.5 text-center border-r border-slate-100">
                         <Badge variant={
-                          plan.status === 'completed' ? 'success' :
+                          plan.status === 'done' ? 'success' :
                           plan.status === 'failed' ? 'red' :
                           plan.status === 'active' ? 'violet' : 'slate'
                         } className="whitespace-nowrap">{statusUa[plan.status] || plan.status}</Badge>

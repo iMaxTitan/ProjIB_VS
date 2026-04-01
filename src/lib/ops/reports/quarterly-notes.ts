@@ -90,7 +90,7 @@ export async function collectTasksForQuarterlyPlans(
     .from('monthly_plans')
     .select('monthly_plan_id, quarterly_id, status')
     .in('quarterly_id', quarterlyIds)
-    .in('status', ['active', 'completed']);
+    .in('status', ['active', 'done']);
 
   if (mErr) {
     logger.error('[QuarterlyNotes] Ошибка загрузки monthly_plans:', mErr);
@@ -277,7 +277,7 @@ export function generateFallbackNote(ctx: QuarterlyPlanTasksContext): string {
       .join('. ');
     return `Виконано роботи${processLabel}. ${sampleDescs}.`;
   }
-  if (ctx.status === 'completed') {
+  if (ctx.status === 'done') {
     const goalLabel = ctx.goal ? ` Завдання: «${ctx.goal}».` : '';
     const processLabel = ctx.process_name ? ` Процес: «${ctx.process_name}».` : '';
     const resultLabel = ctx.expected_result ? ` Очікуваний результат досягнуто: ${ctx.expected_result}.` : '';

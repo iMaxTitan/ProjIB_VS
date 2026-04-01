@@ -167,7 +167,6 @@ export function MonthlyUsersView({ userProcHours, processTree, scopeLabel }: Mon
       else u.procedures.push({ name, hours: r.hours });
     }
     return Array.from(map.values())
-      .sort((a, b) => b.totalHours - a.totalHours)
       .map(u => ({
         ...u,
         totalHours: Math.round(u.totalHours * 10) / 10,
@@ -197,6 +196,15 @@ export function MonthlyUsersView({ userProcHours, processTree, scopeLabel }: Mon
     });
   }, [users]);
 
+  // Sort users alphabetically by name
+  const sortedUsers = React.useMemo(() =>
+    [...users].sort((a, b) => {
+      const na = userNames.get(a.userId)?.name ?? '';
+      const nb = userNames.get(b.userId)?.name ?? '';
+      return na.localeCompare(nb, 'uk');
+    }),
+  [users, userNames]);
+
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
       <div className="detail-hdr flex items-center gap-2 px-3 py-2">
@@ -211,7 +219,7 @@ export function MonthlyUsersView({ userProcHours, processTree, scopeLabel }: Mon
             Немає даних
           </div>
         ) : (
-          users.map((u, idx) => {
+          sortedUsers.map((u, idx) => {
             const info = userNames.get(u.userId);
             const name = info?.name || u.userId.slice(0, 8);
             const initials = name.split(' ').map(w => w[0] || '').slice(0, 2).join('').toUpperCase();

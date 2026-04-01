@@ -41,7 +41,7 @@ export interface ActivePlanForSlot {
   processName: string;
   departmentCode: string;
   plannedHours: number;
-  status: 'active' | 'completed';
+  status: 'active' | 'done';
 }
 
 export interface CreateEntryParams {
@@ -213,7 +213,7 @@ export async function getActivePlansForUser(
       .in('monthly_plan_id', planIds)
       .eq('year', year)
       .eq('month', month)
-      .in('status', ['active', 'completed']);
+      .in('status', ['active', 'done']);
     if (data) allPlans.push(...(data as PlanRow[]));
   }
 
@@ -246,7 +246,7 @@ export async function getActivePlansForUser(
       processName,
       departmentCode,
       plannedHours: Number(row.planned_hours) || 0,
-      status: row.status === 'completed' ? 'completed' as const : 'active' as const,
+      status: row.status === 'done' ? 'done' as const : 'active' as const,
     };
   });
 }

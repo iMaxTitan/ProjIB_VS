@@ -71,6 +71,7 @@ export interface LawRelatedResult {
   title: string;
   url: string;
   docType: string;
+  docNumber: string;
 }
 
 export interface LawCheckUpdateResult {
@@ -90,10 +91,19 @@ export async function fetchLaw(url: string): Promise<LawFetchResult> {
   return fetcherRequest<LawFetchResult>('/fetch', { url }, { timeout: 120_000 });
 }
 
+/** Extract doc number from zakon.rada.gov.ua URL, e.g. "76-2023-п" from ".../76-2023-%D0%BF" */
+function extractDocNumber(lawUrl: string): string {
+  try {
+    const decoded = decodeURIComponent(lawUrl);
+    const match = decoded.match(/\/show\/([^/#?]+)/);
+    return match?.[1] ?? '';
+  } catch { return ''; }
+}
+
 export async function getRelatedLaws(url: string): Promise<LawRelatedResult[]> {
   logger.info(`[laws/fetcher-client] related: ${url}`);
-  const data = await fetcherRequest<{ results: LawRelatedResult[] }>('/related', { url });
-  return data.results;
+  const data = await fetcherRequest<{ results: Omit<LawRelatedResult, 'docNumber'>[] }>('/related', { url });
+  return data.results.map(r => ({ ...r, docNumber: extractDocNumber(r.url) }));
 }
 
 export async function checkLawUpdate(url: string): Promise<LawCheckUpdateResult> {

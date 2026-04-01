@@ -143,7 +143,7 @@ export default function LawSearchPanel({ onImport, importing, canImport = true }
     ];
     related
       .filter(r => selectedRelated.has(r.url))
-      .forEach(r => items.push({ url: r.url, title: r.title, docType: r.docType, docNumber: '' }));
+      .forEach(r => items.push({ url: r.url, title: r.title, docType: r.docType, docNumber: r.docNumber || '' }));
     onImport(items);
     clear();
     setInput('');
@@ -185,7 +185,10 @@ export default function LawSearchPanel({ onImport, importing, canImport = true }
           {/* Main document */}
           <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200">
             <FileText className="h-4 w-4 text-blue-600 flex-shrink-0" />
-            <span className="flex-1 text-sm font-medium text-blue-900">{doc.title}</span>
+            <span className="flex-1 text-sm font-medium text-blue-900">
+              {doc.docId && <span className="font-mono text-blue-600 mr-1.5">{doc.docId}</span>}
+              {doc.title}
+            </span>
             <Badge variant="blue" size="sm">Основний</Badge>
           </div>
 
@@ -254,7 +257,10 @@ export default function LawSearchPanel({ onImport, importing, canImport = true }
                               onChange={() => toggleRelated(r.url)}
                               className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                             />
-                            <span className="flex-1 text-slate-700 line-clamp-2 text-xs leading-relaxed">{r.title}</span>
+                            <span className="flex-1 text-slate-700 line-clamp-2 text-xs leading-relaxed">
+                              {r.docNumber && <span className="font-mono text-slate-500 mr-1">{r.docNumber}</span>}
+                              {r.title}
+                            </span>
                           </label>
                         ))}
                       </div>

@@ -405,7 +405,11 @@ export default function KBSearchContent({ tabsSlot }: Props) {
         .kb-answer { white-space: pre-line; }
         .kb-answer b { font-weight: 600; color: #111827; }
         .kb-answer i { font-style: italic; color: #4b5563; }
+        .kb-answer a { color: #3b82f6; text-decoration: underline; text-underline-offset: 2px; }
+        .kb-answer a:hover { color: #2563eb; }
         .kb-sources { white-space: pre-line; }
+        .kb-sources a { color: #3b82f6; text-decoration: underline; text-underline-offset: 2px; }
+        .kb-sources a:hover { color: #2563eb; }
       `}</style>
     </div>
   );

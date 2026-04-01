@@ -7,6 +7,7 @@ import { config } from '@/lib/shared/config';
 import logger from '@/lib/shared/logger';
 import type { PrefixJson } from './prefix-validator';
 import { cleanJsonResponse } from './shared/json';
+import { HYDE_ANGLES } from './shared/hyde-angles';
 
 // Same JSON schema prompt but more detailed instructions for Haiku
 const SYSTEM_PROMPT =
@@ -23,8 +24,15 @@ const SYSTEM_PROMPT =
   '  "abbr": ["all abbreviations"],\n' +
   '  "semantic_summary": "1-2 sentences explaining this to a store employee",\n' +
   '  "search_terms": ["8-12 terms a retail employee would type"],\n' +
-  '  "subject": "specific WHO this applies to"\n' +
+  '  "subject": "specific WHO this applies to",\n' +
+  '  "hypothetical_questions": ["2-4 short questions this chunk answers"]\n' +
   '}\n\n' +
+  'HYPOTHETICAL_QUESTIONS:\n' +
+  '- 2-4 короткі питання, які працівник АТБ ввів би в пошук.\n' +
+  '- Простою українською, як запит працівника, а не юриста.\n' +
+  '- НЕ вигадуй те, чого немає у фрагменті.\n' +
+  '- НЕ став загальні питання. НЕ роби дублікати.\n' +
+  '- Дозволені кути вказані в user message (domain-specific).\n\n' +
   'RULES:\n' +
   '1. "scope: general" = default. "specific: X" ONLY for narrow professional groups.\n' +
   '2. EVERY formal term MUST have ≥2 colloquial synonyms.\n' +
@@ -82,7 +90,8 @@ export async function generateL2Prefix(
   const apiKey = config.anthropic.apiKey;
   if (!apiKey) return { json: null, raw: '' };
 
-  let userMsg = `Документ: «${docTitle}»\nРозділ: ${heading || '(без заголовку)'}\n\nТекст:\n${chunkText.slice(0, 1500)}`;
+  const angles = HYDE_ANGLES[domain] || HYDE_ANGLES.legal;
+  let userMsg = `Документ: «${docTitle}»\nРозділ: ${heading || '(без заголовку)'}\n\nТекст:\n${chunkText.slice(0, 1500)}\n\nDomain: ${domain}\nДозволені кути для hypothetical_questions:\n${angles}`;
 
   if (dictSynonyms.length > 0) {
     userMsg += `\n\nОбов'язкові синоніми зі словника: ${dictSynonyms.join(', ')}`;

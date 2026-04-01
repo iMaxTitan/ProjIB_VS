@@ -4,17 +4,20 @@ import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 export interface ImportItem {
-  url: string;
+  url?: string;
   title: string;
   docType: string;
   docNumber: string;
+  /** Markdown content for file-based import (no URL fetch). */
+  fileContent?: string;
+  fileName?: string;
 }
 
 export interface ImportProgress {
   total: number;
   done: number;
   current: string;
-  results: { url: string; title: string; documentId?: string; error?: string }[];
+  results: { url?: string; title: string; documentId?: string; error?: string }[];
 }
 
 /** Hook for importing law documents into KB. */
@@ -48,12 +51,14 @@ export function useLawImport() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              url: item.url,
+              url: item.url || undefined,
               title: item.title,
               docType: item.docType,
               docNumber: item.docNumber,
               categoryId,
-              parentDocId: idx === 0 ? undefined : resolvedParentId,
+              parentDocId: idx === 0 && !parentDocId ? undefined : resolvedParentId,
+              fileContent: item.fileContent,
+              fileName: item.fileName,
             }),
           });
 
@@ -71,7 +76,7 @@ export function useLawImport() {
           }
         } catch (e) {
           const msg = e instanceof Error ? e.message : 'Import failed';
-          prog.results.push({ url: item.url, title: item.title, error: msg });
+          prog.results.push({ url: item.url || '', title: item.title, error: msg });
         }
 
         prog.done++;

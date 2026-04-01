@@ -14,11 +14,34 @@ const httpsConfig = fs.existsSync(certPath) && fs.existsSync(keyPath)
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
   experimental: {
-    serverActions: {}, 
+    serverActions: {},
   },
-  // Убираем async headers, так как будем настраивать CORS в server.js
-  // async headers() { ... },
+  async headers() {
+    const securityHeaders = [
+      { key: 'X-Frame-Options', value: 'DENY' },
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+      { key: 'X-XSS-Protection', value: '1; mode=block' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=()' },
+      { key: 'Content-Security-Policy-Report-Only', value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" },
+    ];
+    return [
+      {
+        source: '/(.*)',
+        headers: securityHeaders,
+      },
+      {
+        // Dynamic pages — no CDN/proxy caching
+        source: '/((?!_next/static|_next/image|favicon.ico).*)',
+        headers: [
+          { key: 'Cache-Control', value: 'private, no-store' },
+        ],
+      },
+    ];
+  },
   allowedDevOrigins: [
     'https://maxtitan.me:3000',
     'https://localhost:3000',

@@ -130,45 +130,31 @@ export default function ProcessListPanel({
 
           return (
             <div key={proc.processId} className="border-b border-slate-100 last:border-b-0">
-              {/* Process header */}
-              <div className={cn(
-                'flex items-center bg-slate-50/80 hover:bg-slate-100/80 transition-colors',
-                (isProcessSelected || hasProcSelected) && 'bg-indigo-50/80 hover:bg-indigo-50',
-              )}>
-                <button
-                  type="button"
-                  onClick={() => toggleExpand(proc.processId)}
-                  className="flex-shrink-0 p-0.5 pl-1.5"
-                  aria-label={isExpanded ? 'Згорнути' : 'Розгорнути'}
-                >
-                  <ChevronRight className={cn(
-                    'w-3.5 h-3.5 text-slate-400 transition-transform duration-200',
-                    isExpanded && 'rotate-90',
-                  )} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => isProcessSelected ? onSelectProcess('') : onSelectProcess(proc.processId)}
-                  aria-label={`Процес: ${proc.name}`}
-                  className="flex-1 min-w-0 flex items-center gap-1.5 pr-2 py-1.5 text-left cursor-pointer"
-                >
-                  <span className="flex-shrink-0" title={stIcon.title}><stIcon.Icon className={cn('w-3.5 h-3.5', stIcon.cls)} /></span>
-                  <div className="flex-1 min-w-0">
-                    <div className={cn(
-                      'text-xs font-semibold line-clamp-2',
-                      isProcessSelected ? 'text-indigo-700' : 'text-slate-800',
-                    )}>
-                      {proc.name}
-                    </div>
+              {/* Process header — matches MonthlyUsersView employee row */}
+              <button
+                type="button"
+                onClick={() => {
+                  toggleExpand(proc.processId);
+                  if (!isProcessSelected) onSelectProcess(proc.processId);
+                }}
+                className={cn(
+                  'w-full flex items-center gap-2.5 px-4 py-2.5 transition-colors cursor-pointer text-left',
+                  (isProcessSelected || hasProcSelected) ? 'bg-indigo-50/80 hover:bg-indigo-50' : 'bg-slate-50/80 hover:bg-slate-100/80',
+                )}
+              >
+                <ChevronRight className={cn('w-3.5 h-3.5 text-slate-400 flex-shrink-0 transition-transform', isExpanded && 'rotate-90')} />
+                <span className="flex-shrink-0" title={stIcon.title}><stIcon.Icon className={cn('w-3.5 h-3.5', stIcon.cls)} /></span>
+                <div className="flex-1 min-w-0">
+                  <div className={cn('text-xs font-semibold truncate', isProcessSelected ? 'text-indigo-700' : 'text-slate-800')}>
+                    {proc.name}
                   </div>
-                  {/* Progress */}
-                  <span className={cn('text-[10px] font-bold min-w-[28px] text-right flex-shrink-0', pctColor(pct))}>
-                    {pct}%
-                  </span>
-                </button>
-              </div>
+                </div>
+                <span className={cn('text-[10px] font-bold min-w-[28px] text-right flex-shrink-0', pctColor(pct))}>
+                  {pct}%
+                </span>
+              </button>
 
-              {/* Procedure rows — collapsible */}
+              {/* Procedure rows — matches MonthlyUsersView child rows */}
               {isExpanded && proc.procedures.map(pr => {
                 const isProcSelected = selectedProcedureId === pr.procedureId;
                 const prPct = pr.plannedHours > 0 ? Math.round((pr.spentHours / pr.plannedHours) * 100) : 0;
@@ -183,35 +169,25 @@ export default function ProcessListPanel({
                   <div
                     key={pr.procedureId}
                     className={cn(
-                      'flex items-center gap-1 px-2 py-1.5 pl-5 border-t border-slate-100/80 transition-colors',
-                      isProcSelected
-                        ? 'bg-indigo-50 hover:bg-indigo-50'
-                        : 'hover:bg-slate-50',
+                      'flex items-center gap-2 px-4 py-1.5 pl-14 border-t border-slate-100/80 transition-colors',
+                      isProcSelected ? 'bg-indigo-50 hover:bg-indigo-50' : 'hover:bg-slate-50/50',
                     )}
                   >
-                    {/* Status icon (month only) */}
                     {prStIcon && (
                       <span className="flex-shrink-0" title={prStIcon.title}>
                         <prStIcon.Icon className={cn('w-3 h-3', prStIcon.cls)} />
                       </span>
                     )}
-                    {/* Procedure name */}
                     <button
                       type="button"
                       onClick={() => isProcSelected ? onSelectProcess(proc.processId) : onSelectProcedure(proc.processId, pr.procedureId)}
                       aria-label={`Процедура: ${pr.name}`}
                       className="flex-1 min-w-0 text-left cursor-pointer"
                     >
-                      <div
-                        className={cn(
-                          'text-[11px] font-medium truncate',
-                          isProcSelected ? 'text-indigo-700' : 'text-slate-700',
-                        )}
-                      >
+                      <div className={cn('text-[11px] font-medium truncate', isProcSelected ? 'text-indigo-700' : 'text-slate-600')}>
                         {pr.name}
                       </div>
                     </button>
-                    {/* Status change button (month only) */}
                     {nextAction && planId && (
                       <button
                         type="button"
@@ -224,7 +200,7 @@ export default function ProcessListPanel({
                         <nextAction.icon className="w-3 h-3" />
                       </button>
                     )}
-                    <span className={cn('text-[10px] font-bold min-w-[28px] text-right flex-shrink-0', pctColor(prPct))}>
+                    <span className={cn('text-[11px] font-bold text-slate-700 min-w-[40px] text-right flex-shrink-0')}>
                       {prPct}%
                     </span>
                   </div>

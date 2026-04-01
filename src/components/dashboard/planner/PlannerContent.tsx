@@ -79,12 +79,14 @@ export default function PlannerContent() {
   const [selectedProcedureId, setSelectedProcedureId] = useState<string | null>(null);
   const [selectedMeeting, setSelectedMeeting] = useState<CalendarEntry | null>(null);
 
-  // ─── PULL on week change
+  // ─── PULL on week change (background, no spinner)
   const lastPulledWeek = useRef<string>('');
+  const manualPull = useRef(false);
   useEffect(() => {
     if (weekStartStr && weekStartStr !== lastPulledWeek.current) {
       lastPulledWeek.current = weekStartStr;
       const we = getWeekEnd(weekStart);
+      manualPull.current = false;
       pullCalendar.mutate({ weekStart: toLocalDateStr(weekStart), weekEnd: toLocalDateStr(we) });
     }
   }, [weekStartStr]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -95,13 +97,10 @@ export default function PlannerContent() {
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const d = event.active.data.current;
     if (d?.type === 'procedure') setDragLabel(d.procedureName as string);
-    else if (d?.type === 'slot') {
-      const entry = entries.find(e => e.id === d.slotId);
-      setDragLabel(entry?.procedure_name || entry?.subject || '');
-    } else if (d?.type === 'suggestion') {
+    else if (d?.type === 'suggestion') {
       setDragLabel(d.procedureName as string || '');
     }
-  }, [entries]);
+  }, []);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setDragLabel(null);
@@ -115,7 +114,7 @@ export default function PlannerContent() {
 
     if (activeData?.type === 'procedure') {
       const droppedPlan = activePlans.find(p => p.monthlyPlanId === activeData.monthlyPlanId);
-      if (droppedPlan?.status === 'completed') return;
+      if (droppedPlan?.status === 'done') return;
 
       // Drop procedure onto external event → assign monthly_plan_id
       const externalAtSlot = entries.find(e =>
@@ -157,18 +156,6 @@ export default function PlannerContent() {
       return;
     }
 
-    if (activeData?.type === 'slot') {
-      const entryId = activeData.slotId as string;
-      const currentEntry = entries.find((e) => e.id === entryId);
-      if (currentEntry && currentEntry.date === targetDate && currentEntry.start_time.slice(0, 5) === targetTime) return;
-      const virtualEntries = entries.map((e) => e.id === entryId ? { ...e, date: targetDate, start_time: targetTime } : e);
-      const shifts = resolveOverlaps(entryId, virtualEntries, targetDate);
-      const hasCascade = shifts.length > 0;
-      updateEntry.mutate({ id: entryId, date: targetDate, start_time: targetTime, ...(hasCascade ? { cascade: true } : {}) });
-      for (const sh of shifts) updateEntry.mutate({ id: sh.id, start_time: sh.newStartTime, cascade: true });
-      return;
-    }
-
     if (activeData?.type === 'suggestion') {
       const sgId = activeData.suggestionId as string;
       setSuggestions((prev) => prev.map((s) => s._id === sgId ? { ...s, date: targetDate, start_time: targetTime } : s));
@@ -192,7 +179,7 @@ export default function PlannerContent() {
 
   const handleProcedureDrop = useCallback((date: string, startTime: string, data: ProcedureDragData) => {
     const droppedPlan = activePlans.find(p => p.monthlyPlanId === data.monthlyPlanId);
-    if (droppedPlan?.status === 'completed') return;
+    if (droppedPlan?.status === 'done') return;
 
     // Drop onto external event → assign procedure
     const externalAtSlot = entries.find(e =>
@@ -226,6 +213,17 @@ export default function PlannerContent() {
     for (const sh of shifts) updateEntry.mutate({ id: sh.id, start_time: sh.newStartTime, cascade: true });
   }, [createEntry, updateEntry, entries, activePlans]);
 
+  // ─── Native slot drop (CalendarBlock drag within grid)
+  const handleSlotDrop = useCallback((date: string, startTime: string, entryId: string) => {
+    const currentEntry = entries.find((e) => e.id === entryId);
+    if (currentEntry && currentEntry.date === date && currentEntry.start_time.slice(0, 5) === startTime) return;
+    const virtualEntries = entries.map((e) => e.id === entryId ? { ...e, date, start_time: startTime } : e);
+    const shifts = resolveOverlaps(entryId, virtualEntries, date);
+    const hasCascade = shifts.length > 0;
+    updateEntry.mutate({ id: entryId, date, start_time: startTime, ...(hasCascade ? { cascade: true } : {}) });
+    for (const sh of shifts) updateEntry.mutate({ id: sh.id, start_time: sh.newStartTime, cascade: true });
+  }, [entries, updateEntry]);
+
   const handleResizeEntry = useCallback((id: string, newDurationMin: number) => {
     const entry = entries.find((e) => e.id === id);
     if (!entry) { updateEntry.mutate({ id, duration_minutes: newDurationMin }); return; }
@@ -246,7 +244,7 @@ export default function PlannerContent() {
   const collectTasks = useCollectTasks();
   const handleCollectTasks = useCallback((procedureId: string) => {
     const plan = activePlans.find(p => p.procedureId === procedureId);
-    if (!plan || plan.status === 'completed') return;
+    if (!plan || plan.status === 'done') return;
     const planToProcedure = new Map(activePlans.map(p => [p.monthlyPlanId, p.procedureId]));
     // Only entries with template but no task yet
     // Plan entries with template (no task yet)
@@ -526,13 +524,14 @@ export default function PlannerContent() {
                 hasSuggestions={suggestions.length > 0}
                 suggestPending={suggestMutation.isPending} copyPending={copyWeek.isPending}
                 lunchStart={lunchStart} lunchPending={updateLunch.isPending}
-                pushPending={pushCalendar.isPending} pullPending={pullCalendar.isPending}
+                pushPending={pushCalendar.isPending} pullPending={pullCalendar.isPending && manualPull.current}
                 hasUnsynced={entries.some(e => e.source === 'plan' && !e.outlook_event_id)}
                 hasNeedsPush={entries.some(e => e.source === 'plan' && e.needs_push)}
                 unsyncedCount={entries.filter(e => e.source === 'plan' && (!e.outlook_event_id || e.needs_push)).length}
                 hasOutlookModified={entries.some(e => e.outlook_modified)}
                 onPushSync={() => pushCalendar.mutate(weekStartStr)}
                 onPullSync={() => {
+                  manualPull.current = true;
                   const we = getWeekEnd(weekStart);
                   pullCalendar.mutate({ weekStart: toLocalDateStr(weekStart), weekEnd: toLocalDateStr(we) });
                 }}
@@ -556,6 +555,7 @@ export default function PlannerContent() {
                   onResizeSuggestion={handleResizeSuggestion}
                   onTemplateDrop={handleTemplateDrop}
                   onProcedureDrop={handleProcedureDrop}
+                  onSlotDrop={handleSlotDrop}
                 />
               )}
 
@@ -593,7 +593,7 @@ export default function PlannerContent() {
               return (
                 <div className="element-card cal-table" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }} data-el="L2 element-card · tasks-detail" data-el-cat="base">
                   <PlannerTasksDetail plan={selectedPlan} onClose={() => setSelectedProcedureId(null)}
-                    readOnly={selectedPlan.status === 'completed'}
+                    readOnly={selectedPlan.status === 'done'}
                     onAddTask={() => setTaskModalState({ mode: 'create', plan: selectedPlan })}
                     onEditTask={(task) => setTaskModalState({ mode: 'edit', plan: selectedPlan, task })}
                   />
@@ -612,13 +612,14 @@ export default function PlannerContent() {
               hasSuggestions={suggestions.length > 0}
               suggestPending={suggestMutation.isPending} copyPending={copyWeek.isPending}
               lunchStart={lunchStart} lunchPending={updateLunch.isPending}
-              pushPending={pushCalendar.isPending} pullPending={pullCalendar.isPending}
+              pushPending={pushCalendar.isPending} pullPending={pullCalendar.isPending && manualPull.current}
               hasUnsynced={entries.some(e => e.source === 'plan' && !e.outlook_event_id)}
               hasNeedsPush={entries.some(e => e.source === 'plan' && e.needs_push)}
               unsyncedCount={entries.filter(e => e.source === 'plan' && (!e.outlook_event_id || e.needs_push)).length}
               hasOutlookModified={entries.some(e => e.outlook_modified)}
               onPushSync={() => pushCalendar.mutate(weekStartStr)}
               onPullSync={() => {
+                manualPull.current = true;
                 const we = getWeekEnd(weekStart);
                 pullCalendar.mutate({ weekStart: toLocalDateStr(weekStart), weekEnd: toLocalDateStr(we) });
               }}
@@ -706,7 +707,7 @@ export default function PlannerContent() {
             if (!selectedPlan) return <div className="p-4 text-slate-400 text-xs">Оберіть процедуру</div>;
             return (
               <PlannerTasksDetail plan={selectedPlan} onClose={() => setMobilePanel(null)}
-                readOnly={selectedPlan.status === 'completed'}
+                readOnly={selectedPlan.status === 'done'}
                 onAddTask={() => { setTaskModalState({ mode: 'create', plan: selectedPlan }); setMobilePanel(null); }}
                 onEditTask={(task) => { setTaskModalState({ mode: 'edit', plan: selectedPlan, task }); setMobilePanel(null); }}
               />

@@ -28,7 +28,7 @@ function DraggableProcedure({ plan, syncedHours, unsyncedHours, suggestedHours, 
   onCollectTasks?: (procedureId: string) => void;
   totalSlotHours: number;
 }) {
-  const isCompleted = plan.status === 'completed';
+  const isCompleted = plan.status === 'done';
   const [isDragging, setIsDragging] = useState(false);
 
   const totalDist = syncedHours + unsyncedHours + suggestedHours;

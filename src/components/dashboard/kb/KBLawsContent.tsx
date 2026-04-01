@@ -1,12 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { UserInfo } from '@/types/azure';
 import { useLawImport, type ImportItem } from '@/hooks/useLawImport';
 import LawSearchPanel from './LawSearchPanel';
 import LawLibraryTable from './LawLibraryTable';
 import LawImportProgress from './LawImportProgress';
+import LawChildUploadModal from './LawChildUploadModal';
 
 interface Props {
   user: UserInfo;
@@ -26,6 +27,7 @@ async function fetchLawsCategoryId(): Promise<string | null> {
 
 export default function KBLawsContent({ user, tabsSlot }: Props) {
   const { importing, progress, importDocuments, reset } = useLawImport();
+  const [childUploadParent, setChildUploadParent] = useState<{ id: string; title: string } | null>(null);
 
   const { data: categoryId } = useQuery({
     queryKey: ['kb-laws-category'],
@@ -40,6 +42,24 @@ export default function KBLawsContent({ user, tabsSlot }: Props) {
     importDocuments(items, categoryId);
   };
 
+  const handleChildImport = (item: {
+    title: string;
+    docType: string;
+    docNumber: string;
+    fileContent: string;
+    fileName: string;
+  }) => {
+    if (!categoryId || !childUploadParent) return;
+    importDocuments([{
+      title: item.title,
+      docType: item.docType,
+      docNumber: item.docNumber,
+      fileContent: item.fileContent,
+      fileName: item.fileName,
+    }], categoryId, childUploadParent.id);
+    setChildUploadParent(null);
+  };
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex-shrink-0">{tabsSlot}</div>
@@ -52,7 +72,16 @@ export default function KBLawsContent({ user, tabsSlot }: Props) {
           {progress && <LawImportProgress progress={progress} onClose={reset} />}
 
           {/* Library table */}
-          <LawLibraryTable />
+          <LawLibraryTable onAddChild={canImport ? setChildUploadParent : undefined} />
+
+          {/* Child document upload modal */}
+          <LawChildUploadModal
+            isOpen={!!childUploadParent}
+            onClose={() => setChildUploadParent(null)}
+            parentDoc={childUploadParent}
+            onImport={handleChildImport}
+            importing={importing}
+          />
         </div>
       </div>
     </div>

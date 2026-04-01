@@ -16,6 +16,7 @@ export function usePullCalendar() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
+        signal: AbortSignal.timeout(30_000),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Failed' }));
@@ -39,6 +40,7 @@ export function usePushCalendar() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ weekStart }),
+        signal: AbortSignal.timeout(30_000),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Failed' }));

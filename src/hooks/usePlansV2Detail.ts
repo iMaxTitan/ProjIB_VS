@@ -243,7 +243,7 @@ export function usePlansV2Detail(plans: MonthlyPlan[], month: number | null) {
     for (const a of assignees) {
       if (!map.has(a.user_id)) map.set(a.user_id, a);
     }
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? '', 'uk'));
   }, [assignees]);
 
   return {

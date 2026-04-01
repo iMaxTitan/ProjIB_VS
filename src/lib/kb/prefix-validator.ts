@@ -17,6 +17,8 @@ export interface PrefixJson {
   semantic_summary: string;
   search_terms: string[];
   subject?: string;
+  /** Hypothetical questions this chunk answers (HyDE at index time). */
+  hypothetical_questions?: string[];
 }
 
 export interface ValidationResult {

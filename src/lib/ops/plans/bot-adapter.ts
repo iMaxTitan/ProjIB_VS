@@ -44,7 +44,7 @@ export const getPlansTool: BotTool = {
       `)
       .eq('year', year)
       .eq('month', month)
-      .in('status', ['active', 'completed']);
+      .in('status', ['active', 'done']);
 
     if (plansError) throw plansError;
     if (!plansRaw?.length) {
@@ -150,7 +150,7 @@ export const getHoursTool: BotTool = {
       .select(`monthly_plan_id, procedures(process_id, processes(process_name))`)
       .eq('year', year)
       .eq('month', month)
-      .in('status', ['active', 'completed']);
+      .in('status', ['active', 'done']);
 
     const planIds = (plans || []).map(p => p.monthly_plan_id);
     if (planIds.length === 0) {

@@ -58,7 +58,7 @@ src/
 │   │   ├── telegram/             #   Webhook + notify/* + verify-code + permissions
 │   │   ├── teams/                #   Webhook + link
 │   │   ├── kb/                   #   Categories, documents, [id]/process, query-log
-│   │   │   └── laws/             #   Законодавство: search, fetch, related, check-update, import
+│   │   │   └── laws/             #   Законодавство: search, fetch, related, check-update, import, completeness
 │   │   ├── reports/              #   generate, monthly, pivot, month-summary, company-notes
 │   │   ├── kpi/                  #   KPI calculation endpoint
 │   │   ├── plans/                #   Plans count
@@ -71,7 +71,7 @@ src/
 │   │   ├── bot/                  #   notification-channel
 │   │   ├── files/                #   extract-text
 │   │   ├── build/                #   changelog
-│   │   └── debug/                #   graph-test, memory
+│   │   └── db/                   #   Authenticated PostgREST proxy ([...path])
 │   ├── dashboard/                # Main SPA page
 │   ├── login/                    # Azure AD login
 │   ├── plans/                    # Plans page
@@ -132,9 +132,9 @@ src/
 │   ├── useAbsences.ts            #   Vacation requests (planned_absences)
 │   ├── useWorkCalendar.ts        #   Working days calendar
 │   ├── useInfrastructure.ts      #   Company infrastructure
-│   ├── useLawSearch.ts           #   Law search (URL/number) + related acts
-│   ├── useLawLibrary.ts          #   Laws table + update check (3 workers parallel)
-│   ├── useLawImport.ts           #   Law import with progress tracking
+│   ├── useLawSearch.ts           #   Law search (URL/number) + related acts + docNumber
+│   ├── useLawLibrary.ts          #   Laws table + update check + completeness checker
+│   ├── useLawImport.ts           #   Law import (URL or file) with progress tracking
 │   └── planning/                 #   Plan-specific hooks
 │       ├── usePlanFilters.ts     #     Plan tree filtering
 │       ├── usePlanNavigation.ts  #     Year/quarter/month navigation
@@ -193,12 +193,13 @@ src/
 │   │   ├── embedder.ts           #   Voyage multilingual-2 (1024d), batch 100
 │   │   ├── table-converter.ts    #   Table → Markdown serialization
 │   │   ├── contextual-prefix.ts   #   AI-generated chunk context (Claude Haiku)
+│   │   ├── search-locators.ts     #   Meta-query handler + legal article locator (deterministic)
 │   │   └── bot-adapter.ts        #   Bot integration (kbSearchTool)
 │   │
 │   ├── ops/
 │   │   ├── laws/                  # ═══ LAWS MODULE (Законодавство) ═══
 │   │   │   └── fetcher-client.ts  #   Proxy to law-fetcher microservice on DB VPS
-│   │   │                          #   search (by URL/number), fetch, related, check-update
+│   │   │                          #   search (by URL/number), fetch, related, check-update, extractDocNumber
 │   │
 │   ├── ops/                      # ═══ OPS MODULE ═══ (Operations: планування, звіти, KPI, активність)
 │   │   │                         #   Відповідає за: бізнес-логіка, розрахунки
@@ -423,18 +424,18 @@ UI: MonthlyPlanDetails → usePlans.createPlan()
 ### Потік 3a — Життєвий цикл задачі (daily_tasks)
 
 ```
-task_type: draft → incomplete → completed
+task_type: draft → incomplete → done
 source: manual | template | chief | head | manager | calendar
 
 Completion rules:
   manual/template: auto-completed коли hours > 0 AND description filled
-  chief/head:      completed ТІЛЬКИ через accept від керівника
+  chief/head:      done ТІЛЬКИ через accept від керівника
   calendar:        auto-completed на основі годин
 
 Chief/Head flow:
   Керівник створює задачу (source='chief'|'head', task_type='draft')
   → Співробітник заповнює (hours, description) → task_type='incomplete'
-  → Керівник accept ✓ → task_type='completed'
+  → Керівник accept ✓ → task_type='done'
   → Керівник reject ✗ → task_type='draft' (повернення)
 ```
 
@@ -575,4 +576,11 @@ interface BotTool {
 | 2026-03 | **Planner v2 — tasks UI:** TasksModal (create/edit/collect), PlannerTasksDetail (confirm delete, edit button, task statuses via CSS classes .done/.draft/.approval/.rejected), PlannerSidebar (ClipboardCheck collect icon). API planner/tasks extended: planInfo returns companyIds, planProjects, planDocuments; tasks return project_id, document_number. PATCH entries now passes daily_task_id. Calendar entryStatus decoupled from tasks (calendar = planning only, tasks = separate). |
 | 2026-03 | **Hetzner VPS migration:** Synology DS920+ → Hetzner Cloud CAX11 (ARM, Ubuntu 24.04). IP: 91.99.156.163. Порт змінено з 3000 на 443 (стандартний HTTPS). URL: `https://maxtitan.me` (без :3000). server.js обслуговує HTTPS напряму (без nginx). Hetzner Cloud Firewall: inbound TCP 22/443/3000 + ICMP, outbound TCP/UDP any. GRE тунель до MikroTik (10.77.0.0/24). Telegram webhook з явним ip_address. deploy.sh оновлено на Hetzner. |
 | 2026-03 | **KB Laws module (Законодавство):** Мікросервіс `law-fetcher` на DB VPS (Express, порт 3100, PM2) — fetch законів з zakon.rada.gov.ua через Playwright, пошук по номеру/URL, парсинг зв'язків, перевірка оновлень. API routes `/api/kb/laws/` (search, fetch, related, check-update, import, GET list). UI вкладка "Законодавство" в KB — ввід URL/номера, групування зв'язків (Основні/Зміни/Усі), імпорт з прогресом, таблиця-дерево бібліотеки. Промпт бота — ієрархія юридичних документів. Contextual prefix — skip на rate limit замість 70s retry. |
+| 2026-03 | **Security headers:** X-Frame-Options (DENY), X-Content-Type-Options (nosniff), HSTS, CSP-Report-Only, Permissions-Policy додані в `next.config.js`. Кеш-контроль `private, no-store` для динамічних сторінок. Прямий доступ до `/rest/v1` заблоковано (404 в `server.js`) — тільки через `/api/db/` authenticated proxy. Debug routes (`/api/debug/`) та `/env-check` видалені. |
+| 2026-03 | **KB Laws v2 — file import + child documents:** Імпорт законів з файлу (fileContent замість URL). Parent-child зв'язки з metadata injection ("На виконання: ..."). Completeness checker API (`/api/kb/laws/completeness`) — перевірка відсутніх зв'язаних документів. UI: кнопка додавання дочірніх документів, індикатор повноти (missing count). `LawChildUploadModal` для файлового завантаження. `search-locators.ts` — детерміністичний пошук по номеру статті/пункту. |
+| 2026-03 | **Plan status rename:** `'completed'` → `'done'` у всіх сервісах, запитах, UI, бот-адаптерах, звітах. Display text не змінився ("Виконано"). Зачіпає ~15 файлів: planning-utils, bot-adapter, cabinet/stats, kpi/service, reports/*, month-summary route. |
+| 2026-03 | **Plans V2 — department filtering + sorting:** Не-chief користувачі бачать тільки процеси свого департаменту. Процедури і процеси відсортовані за алфавітом (Ukrainian `localeCompare('uk')`). Виконавці відсортовані за алфавітом. |
+| 2026-03 | **Planner — native HTML5 drag:** `@dnd-kit` замінено на нативний HTML5 drag API (`draggable`, `onDragStart`, `dataTransfer`). Тип даних: `application/planner-slot`. |
+| 2026-03 | **Planner sync timeout:** `usePlannerSync` — 30s AbortSignal.timeout для PULL/PUSH запитів. |
+| 2026-03 | **PostgREST proxy config:** `/api/db/[...path]` підтримує config-based prefix (`config.db.direct ? '' : '/rest/v1'`). |
 | 2026-03 | **Planner v3 — calendar flow redesign:** Design doc: `docs/plans/2026-03-20-planner-calendar-flow.md`. New column `needs_push` (boolean) on `weekly_calendar_entries` — tracks local changes needing Outlook sync. 7 tile statuses: distributed (blue), synced (green), modified (cyan, needs_push), returned (red, outlook_modified), templated (amber, task_template_id set), collected (purple, daily_task_id set), external (gray). Push now updates existing Outlook events (PATCH) instead of delete+create — `outlook_event_id` never cleared on edits. Pull detects deleted plan events in Outlook (clears outlook_event_id). Template picker writes `task_template_id` on entry (no daily_task creation). Collect without modal: groups entries by template, creates daily_tasks per group. Tile text shows template_title when set. Resize/drag on synced entries sets needs_push=true. Returned entries become editable on drag/resize (clears outlook_modified). ReadOnly: collected + external (without template). |

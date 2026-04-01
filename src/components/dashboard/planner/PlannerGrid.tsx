@@ -38,10 +38,11 @@ export interface ProcedureDragData {
   procedureName: string;
 }
 
-function GridCell({ rowIdx, dateStr, lunchStartHour, onTemplateDrop, onProcedureDrop }: {
+function GridCell({ rowIdx, dateStr, lunchStartHour, onTemplateDrop, onProcedureDrop, onSlotDrop }: {
   rowIdx: number; dateStr: string; lunchStartHour: number;
   onTemplateDrop?: (date: string, startTime: string, data: TemplateDragData) => void;
   onProcedureDrop?: (date: string, startTime: string, data: ProcedureDragData) => void;
+  onSlotDrop?: (date: string, startTime: string, entryId: string) => void;
 }) {
   const time = timeLabel(rowIdx);
   const { setNodeRef, isOver } = useDroppable({
@@ -66,15 +67,22 @@ function GridCell({ rowIdx, dateStr, lunchStartHour, onTemplateDrop, onProcedure
       }}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes('application/planner-template') ||
-            e.dataTransfer.types.includes('application/planner-procedure')) {
+            e.dataTransfer.types.includes('application/planner-procedure') ||
+            e.dataTransfer.types.includes('application/planner-slot')) {
           e.preventDefault();
-          e.dataTransfer.dropEffect = 'copy';
+          e.dataTransfer.dropEffect = e.dataTransfer.types.includes('application/planner-slot') ? 'move' : 'copy';
           setNativeOver(true);
         }
       }}
       onDragLeave={() => setNativeOver(false)}
       onDrop={(e) => {
         setNativeOver(false);
+        const slotRaw = e.dataTransfer.getData('application/planner-slot');
+        if (slotRaw) {
+          e.preventDefault();
+          try { const d = JSON.parse(slotRaw); onSlotDrop?.(dateStr, time, d.id); } catch { /* ignore */ }
+          return;
+        }
         const tplRaw = e.dataTransfer.getData('application/planner-template');
         if (tplRaw) {
           e.preventDefault();
@@ -127,6 +135,7 @@ interface Props {
   onClearProcedure?: (entryId: string) => void;
   onTemplateDrop?: (date: string, startTime: string, data: TemplateDragData) => void;
   onProcedureDrop?: (date: string, startTime: string, data: ProcedureDragData) => void;
+  onSlotDrop?: (date: string, startTime: string, entryId: string) => void;
 }
 
 export default function PlannerGrid({
@@ -134,7 +143,7 @@ export default function PlannerGrid({
   selectedProcedureId, vacationDays,
   onDeleteEntry, onResizeEntry,
   onAcceptSuggestion, onDismissSuggestion, onResizeSuggestion,
-  onSelectEntry, onLinkTask, onClearTemplate, onClearProcedure, onTemplateDrop, onProcedureDrop,
+  onSelectEntry, onLinkTask, onClearTemplate, onClearProcedure, onTemplateDrop, onProcedureDrop, onSlotDrop,
 }: Props) {
   const [pickerEntry, setPickerEntry] = useState<CalendarEntry | null>(null);
   const [pickerRect, setPickerRect] = useState<DOMRect | null>(null);
@@ -147,7 +156,7 @@ export default function PlannerGrid({
 
   const completedPlanIds = useMemo(() => {
     const set = new Set<string>();
-    for (const p of activePlans) if (p.status === 'completed') set.add(p.monthlyPlanId);
+    for (const p of activePlans) if (p.status === 'done') set.add(p.monthlyPlanId);
     return set;
   }, [activePlans]);
 
@@ -262,7 +271,7 @@ export default function PlannerGrid({
               background: vacationDays?.has(dateStr) ? 'rgba(251,191,36,0.04)' : undefined,
             }}>
               {Array.from({ length: ROWS }, (_, r) => (
-                <GridCell key={r} rowIdx={r} dateStr={dateStr} lunchStartHour={lunchStartHour} onTemplateDrop={onTemplateDrop} onProcedureDrop={onProcedureDrop} />
+                <GridCell key={r} rowIdx={r} dateStr={dateStr} lunchStartHour={lunchStartHour} onTemplateDrop={onTemplateDrop} onProcedureDrop={onProcedureDrop} onSlotDrop={onSlotDrop} />
               ))}
               {dateStr === today && <NowLine />}
               {(entriesByDate.get(dateStr) || []).map((entry) => {

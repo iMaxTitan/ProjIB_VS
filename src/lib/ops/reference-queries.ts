@@ -21,7 +21,7 @@ export const processesQueryOptions = queryOptions({
       .select('process_id, process_name, description, mission, expected_result, department_id')
       .order('process_name', { ascending: true });
     if (error) throw error;
-    const rows = (data ?? []) as (Process & { department_id?: string })[];
+    const rows = (data ?? []) as Process[];
     // Fetch department names
     const deptIds = [...new Set(rows.map(r => r.department_id).filter(Boolean))] as string[];
     if (deptIds.length > 0) {

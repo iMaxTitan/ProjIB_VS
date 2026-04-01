@@ -80,7 +80,8 @@ async function proxyRequest(
   // Build target URL — pass raw query string to preserve PostgREST filter syntax
   const base = getPostgrestUrl().replace(/\/$/, '');
   const rawQs = request.nextUrl.search; // includes leading '?'
-  const targetUrl = `${base}/rest/v1/${pathStr}${rawQs}`;
+  const prefix = config.db.direct ? '' : '/rest/v1';
+  const targetUrl = `${base}${prefix}/${pathStr}${rawQs}`;
 
   const headers = buildHeaders(request);
 

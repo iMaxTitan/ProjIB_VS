@@ -28,8 +28,17 @@ const SYSTEM_PROMPT =
   '  "abbr": ["abbreviations: ТЦК, ВЛК, КМУ, ЄДРПОУ, etc."],\n' +
   '  "semantic_summary": "1-2 sentences in simple Ukrainian — what this chunk says, as if explaining to a store employee",\n' +
   '  "search_terms": ["8-12 terms a retail employee would type to find this"],\n' +
-  '  "subject": "WHO this applies to"\n' +
+  '  "subject": "WHO this applies to",\n' +
+  '  "hypothetical_questions": ["2-4 short questions this chunk answers"]\n' +
   '}\n\n' +
+  'HYPOTHETICAL_QUESTIONS:\n' +
+  '- 2-4 короткі питання, які працівник АТБ міг би ввести в пошук, щоб знайти цей фрагмент.\n' +
+  '- Простою природною українською, як запит працівника магазину, а не юриста.\n' +
+  '- Одне питання = один намір. Коротко.\n' +
+  '- НЕ вигадуй те, чого немає у фрагменті.\n' +
+  '- НЕ став загальні питання типу "Що це означає?".\n' +
+  '- НЕ роби майже однакові питання.\n' +
+  '- Дозволені кути вказані нижче у user message (domain-specific).\n\n' +
   'SCOPE: "general" for most norms. "specific: <group>" ONLY for narrow professional groups ' +
   '(священнослужителі, моряки, авіаційний персонал, спортсмени, культурні діячі).\n\n' +
   'CRITICAL: Every formal_term MUST have ≥1 colloquial equivalent.\n' +
@@ -41,12 +50,15 @@ const SYSTEM_PROMPT =
 /**
  * Call L1 model via OpenRouter to generate prefix JSON.
  */
+import { HYDE_ANGLES } from './shared/hyde-angles';
+
 export async function generateL1Prefix(
   chunkText: string,
   heading: string,
   docTitle: string,
   dictSynonyms: string[],
   retryHint?: string,
+  domain?: string,
 ): Promise<{ json: PrefixJson | null; raw: string }> {
   const apiKey = config.openrouter.apiKey;
   if (!apiKey) {
@@ -54,7 +66,8 @@ export async function generateL1Prefix(
     return { json: null, raw: '' };
   }
 
-  let userMsg = `Документ: «${docTitle}»\nРозділ: ${heading || '(без заголовку)'}\n\nТекст:\n${chunkText.slice(0, 1500)}`;
+  const angles = HYDE_ANGLES[domain || ''] || HYDE_ANGLES.legal;
+  let userMsg = `Документ: «${docTitle}»\nРозділ: ${heading || '(без заголовку)'}\n\nТекст:\n${chunkText.slice(0, 1500)}\n\nDomain: ${domain || 'general'}\nДозволені кути для hypothetical_questions:\n${angles}`;
 
   if (dictSynonyms.length > 0) {
     userMsg += `\n\nВідомі синоніми з словника (обов'язково включити): ${dictSynonyms.join(', ')}`;

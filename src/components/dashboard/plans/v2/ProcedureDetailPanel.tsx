@@ -395,21 +395,29 @@ function ProcedureView({
           </div>
         )}
 
-        {/* ── Шаблони задач (month only) ── */}
-        {isMonth && (
+        {/* ── Ініціативи (quarter + month — після компаній) ── */}
+        {showInitiatives && (
           <div className="px-4 py-2.5 border-b border-slate-100">
-            <div className={META_LABEL}><ClipboardList className="w-3 h-3" />Шаблони задач ({pr.taskTemplates.length})</div>
-            {pr.taskTemplates.length > 0 ? (
-              <div className="flex flex-col gap-1.5">
-                {pr.taskTemplates.map(t => (
-                  <div key={t.id} className="px-2.5 py-1.5 rounded-lg bg-slate-50/80 border border-slate-100">
-                    <div className="text-[11px] font-medium text-slate-700">{t.title}</div>
-                    {t.content && <div className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{t.content}</div>}
-                  </div>
-                ))}
+            <div className={META_LABEL}><Lightbulb className="w-3 h-3" />Ініціативи ({visibleInitiatives.length})</div>
+            {visibleInitiatives.length > 0 ? (
+              <div className="flex flex-col gap-1">
+                {visibleInitiatives.map(init => {
+                  const stMap: Record<string, { cls: string; label: string }> = {
+                    planned: { cls: 'bg-blue-400', label: 'Заплановано' },
+                    in_progress: { cls: 'bg-amber-400', label: 'В роботі' },
+                    completed: { cls: 'bg-emerald-400', label: 'Завершено' },
+                  };
+                  const st = stMap[init.status] || stMap.planned;
+                  return (
+                    <div key={init.id} className="flex items-center gap-2">
+                      <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', st.cls)} title={st.label} />
+                      <span className="text-[11px] text-slate-700 line-clamp-2">{init.title}</span>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
-              <span className="text-[10px] text-slate-300 italic">немає шаблонів</span>
+              <span className="text-[10px] text-slate-300 italic">немає ініціатив</span>
             )}
           </div>
         )}
@@ -438,29 +446,21 @@ function ProcedureView({
           )}
         </div>
 
-        {/* ── Ініціативи (quarter + month — після документів) ── */}
-        {showInitiatives && (
+        {/* ── Шаблони задач (month only — після документів) ── */}
+        {isMonth && (
           <div className="px-4 py-2.5 border-b border-slate-100">
-            <div className={META_LABEL}><Lightbulb className="w-3 h-3" />Ініціативи ({visibleInitiatives.length})</div>
-            {visibleInitiatives.length > 0 ? (
-              <div className="flex flex-col gap-1">
-                {visibleInitiatives.map(init => {
-                  const stMap: Record<string, { cls: string; label: string }> = {
-                    planned: { cls: 'bg-blue-400', label: 'Заплановано' },
-                    in_progress: { cls: 'bg-amber-400', label: 'В роботі' },
-                    completed: { cls: 'bg-emerald-400', label: 'Завершено' },
-                  };
-                  const st = stMap[init.status] || stMap.planned;
-                  return (
-                    <div key={init.id} className="flex items-center gap-2">
-                      <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', st.cls)} title={st.label} />
-                      <span className="text-[11px] text-slate-700 line-clamp-2">{init.title}</span>
-                    </div>
-                  );
-                })}
+            <div className={META_LABEL}><ClipboardList className="w-3 h-3" />Шаблони задач ({pr.taskTemplates.length})</div>
+            {pr.taskTemplates.length > 0 ? (
+              <div className="flex flex-col gap-1.5">
+                {pr.taskTemplates.map(t => (
+                  <div key={t.id} className="px-2.5 py-1.5 rounded-lg bg-slate-50/80 border border-slate-100">
+                    <div className="text-[11px] font-medium text-slate-700">{t.title}</div>
+                    {t.content && <div className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{t.content}</div>}
+                  </div>
+                ))}
               </div>
             ) : (
-              <span className="text-[10px] text-slate-300 italic">немає ініціатив</span>
+              <span className="text-[10px] text-slate-300 italic">немає шаблонів</span>
             )}
           </div>
         )}

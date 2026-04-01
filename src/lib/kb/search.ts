@@ -30,7 +30,7 @@ import {
   expandWithNeighbors,
 } from './search-helpers';
 import { handleMetaQuery, legalLocator } from './search-locators';
-import { applyScopeBoost, keywordRescue } from './search-ranking-policy';
+import { applyScopeBoost, applyEntityBoost, keywordRescue } from './search-ranking-policy';
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -255,6 +255,9 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
   // 4.3. Keyword rescue — ensure chunks with exact entity matches aren't lost
   keywordRescue(query, subjectFiltered, reranked);
 
+  // 4.4. Entity boost — reward chunks containing query entities
+  applyEntityBoost(query, subQueries, reranked);
+
   // Re-sort after all adjustments and trim to KEEP_K
   reranked.sort((a, b) => ((b as KBChunk & { _rerank_score?: number })._rerank_score ?? 0) - ((a as KBChunk & { _rerank_score?: number })._rerank_score ?? 0));
   reranked.splice(RERANK_KEEP_K);
@@ -262,17 +265,49 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
   const rerankTopScore = (reranked[0] as KBChunk & { _rerank_score?: number })?._rerank_score ?? null;
 
   // 5. Single quality gate — after rerank
+  const RETRY_THRESHOLD = 0.20;
   if (rerankTopScore !== null && rerankTopScore < RERANK_REFUSE_THRESHOLD) {
-    logger.prod('[kb/search] quality gate: rerank', rerankTopScore.toFixed(3), '→ refuse');
-    if (source) logKBQuery({
-      user_id: userId || null, user_role: role, source,
-      query_original: query, query_translated: queryTranslatedLog,
-      category_hint: categorySlug, category_detected: detectedDomain || null,
-      top_score: topScore, chunks_found: mergedChunks.length, search_attempt: successAttempt,
-      ai_refused: true, synthesis_cost: 0, rerank_top_score: rerankTopScore,
-      anonymous_name: anonymousName || null,
-    });
-    return { text: NO_RESULTS_TEXT, parseMode: 'HTML' };
+    // 5.1. Deterministic retry: if score is very low, try broader search
+    if (categorySlug && rerankTopScore < RETRY_THRESHOLD) {
+      logger.prod('[kb/search] deterministic retry: dropping category filter, score', rerankTopScore.toFixed(3));
+      const retryResult = await runMultiSearch(subQueries, embeddings, db, null);
+      if (retryResult.chunks.length > 0) {
+        const retryReranked = await rerankChunks(query, retryResult.chunks, RERANK_FETCH_K, undefined);
+        const retryTop = (retryReranked[0] as KBChunk & { _rerank_score?: number })?._rerank_score ?? 0;
+        if (retryTop >= RERANK_REFUSE_THRESHOLD) {
+          logger.prod('[kb/search] retry succeeded: score', retryTop.toFixed(3));
+          // Use retry results — continue to diversity+synthesis
+          reranked.length = 0;
+          reranked.push(...retryReranked);
+          reranked.sort((a, b) => ((b as KBChunk & { _rerank_score?: number })._rerank_score ?? 0) - ((a as KBChunk & { _rerank_score?: number })._rerank_score ?? 0));
+          reranked.splice(RERANK_KEEP_K);
+          // Skip refuse, fall through to diversity
+        } else {
+          // Retry also failed — refuse
+          logger.prod('[kb/search] retry also failed:', retryTop.toFixed(3), '→ refuse');
+          if (source) logKBQuery({
+            user_id: userId || null, user_role: role, source,
+            query_original: query, query_translated: queryTranslatedLog,
+            category_hint: categorySlug, category_detected: detectedDomain || null,
+            top_score: topScore, chunks_found: mergedChunks.length, search_attempt: 'retry_failed',
+            ai_refused: true, synthesis_cost: 0, rerank_top_score: rerankTopScore,
+            anonymous_name: anonymousName || null,
+          });
+          return { text: NO_RESULTS_TEXT, parseMode: 'HTML' };
+        }
+      }
+    } else {
+      logger.prod('[kb/search] quality gate: rerank', rerankTopScore.toFixed(3), '→ refuse');
+      if (source) logKBQuery({
+        user_id: userId || null, user_role: role, source,
+        query_original: query, query_translated: queryTranslatedLog,
+        category_hint: categorySlug, category_detected: detectedDomain || null,
+        top_score: topScore, chunks_found: mergedChunks.length, search_attempt: successAttempt,
+        ai_refused: true, synthesis_cost: 0, rerank_top_score: rerankTopScore,
+        anonymous_name: anonymousName || null,
+      });
+      return { text: NO_RESULTS_TEXT, parseMode: 'HTML' };
+    }
   }
 
   // 6. Diversity + logging

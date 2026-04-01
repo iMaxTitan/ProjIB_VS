@@ -12,6 +12,7 @@ export interface LawRelatedResult {
   title: string;
   url: string;
   docType: string;
+  docNumber: string;
 }
 
 /** Hook for searching laws on zakon.rada.gov.ua and getting related documents. */

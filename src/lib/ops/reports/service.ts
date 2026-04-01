@@ -21,7 +21,7 @@ export async function getAvailableQuarterlyYears(): Promise<number[]> {
   const { data: qData, error: qErr } = await supabase
     .from('quarterly_plans')
     .select('annual_plan_id')
-    .in('status', ['active', 'completed']);
+    .in('status', ['active', 'done']);
   if (qErr) throw qErr;
 
   const annualIds = Array.from(new Set(
@@ -71,7 +71,7 @@ export async function getQuarterlyReports(year?: number) {
       departments (department_name),
       processes (process_name)
     `)
-    .in('status', ['active', 'completed']);
+    .in('status', ['active', 'done']);
 
   if (annualIdsFilter) {
     query = query.in('annual_plan_id', annualIdsFilter);
@@ -104,7 +104,7 @@ export async function getQuarterlyReports(year?: number) {
       .from('monthly_plans')
       .select('monthly_plan_id, quarterly_id, planned_hours, status')
       .in('quarterly_id', quarterlyIds)
-      .in('status', ['active', 'completed']);
+      .in('status', ['active', 'done']);
 
     if (monthlyError) throw monthlyError;
 

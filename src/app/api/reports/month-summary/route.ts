@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
       `)
       .eq('year', year)
       .eq('month', month)
-      .in('status', ['active', 'completed']);
+      .in('status', ['active', 'done']);
 
     if (plansError) throw plansError;
 
@@ -188,7 +188,7 @@ export async function GET(req: NextRequest) {
         activeCount: 0, completedCount: 0, tasksCount: 0, totalHours: 0,
       };
       if (plan.status === 'active') empCurrent.activeCount += 1;
-      if (plan.status === 'completed') empCurrent.completedCount += 1;
+      if (plan.status === 'done') empCurrent.completedCount += 1;
       empCurrent.tasksCount += tasks;
       empCurrent.totalHours += hours;
       employeeAggMap.set(uid, empCurrent);
@@ -200,7 +200,7 @@ export async function GET(req: NextRequest) {
         activeCount: 0, completedCount: 0, tasksCount: 0, totalHours: 0,
       };
       if (plan.status === 'active') deptCurrent.activeCount += 1;
-      if (plan.status === 'completed') deptCurrent.completedCount += 1;
+      if (plan.status === 'done') deptCurrent.completedCount += 1;
       deptCurrent.tasksCount += tasks;
       deptCurrent.totalHours += hours;
       departmentSummaryMap.set(deptId, deptCurrent);
@@ -249,7 +249,7 @@ export async function GET(req: NextRequest) {
         activeCount: 0, completedCount: 0, tasksCount: 0, totalHours: 0,
       };
       if (plan.status === 'active') current.activeCount += 1;
-      if (plan.status === 'completed') current.completedCount += 1;
+      if (plan.status === 'done') current.completedCount += 1;
       current.totalHours += stats?.hours || 0;
       current.tasksCount += stats?.tasks || 0;
       processAggMap.set(key, current);
@@ -264,7 +264,7 @@ export async function GET(req: NextRequest) {
         activeCount: 0, completedCount: 0, tasksCount: 0, totalHours: 0,
       };
       if (plan.status === 'active') procedureCurrent.activeCount += 1;
-      if (plan.status === 'completed') procedureCurrent.completedCount += 1;
+      if (plan.status === 'done') procedureCurrent.completedCount += 1;
       procedureCurrent.totalHours += stats?.hours || 0;
       procedureCurrent.tasksCount += stats?.tasks || 0;
       procedureAggMap.set(procedureKey, procedureCurrent);
@@ -289,7 +289,7 @@ export async function GET(req: NextRequest) {
         activeCount: 0, completedCount: 0, tasksCount: 0, totalHours: 0,
       };
       if (plan.status === 'active') companyCurrent.activeCount += 1;
-      if (plan.status === 'completed') companyCurrent.completedCount += 1;
+      if (plan.status === 'done') companyCurrent.completedCount += 1;
       companyCurrent.totalHours += adjustedHours;
       companyCurrent.tasksCount += tasksCnt;
       companyAggMap.set(companyKey, companyCurrent);

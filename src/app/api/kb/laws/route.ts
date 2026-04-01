@@ -48,20 +48,26 @@ export async function GET(req: NextRequest) {
     }
 
     const allDocs = (docs || []) as LawDoc[];
-    const parentDocs = allDocs.filter(d => !d.metadata?.parent_doc_id);
-    const childDocs = allDocs.filter(d => d.metadata?.parent_doc_id);
 
-    const tree = parentDocs.map(parent => ({
-      ...parent,
-      children: childDocs.filter(c => c.metadata?.parent_doc_id === parent.id),
-    }));
+    // Build nested tree: each doc under its direct parent
+    type TreeNode = LawDoc & { children: TreeNode[] };
+    const nodeMap = new Map<string, TreeNode>();
+    for (const doc of allDocs) {
+      nodeMap.set(doc.id, { ...doc, children: [] });
+    }
 
-    // Orphan children (parent not in KB)
-    const parentIds = new Set(parentDocs.map(p => p.id));
-    const orphans = childDocs.filter(c => !parentIds.has(c.metadata?.parent_doc_id || ''));
-    orphans.forEach(o => tree.push({ ...o, children: [] }));
+    const roots: TreeNode[] = [];
+    for (const node of nodeMap.values()) {
+      const parentId = node.metadata?.parent_doc_id;
+      const parent = parentId ? nodeMap.get(parentId) : null;
+      if (parent) {
+        parent.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
 
-    return NextResponse.json({ laws: tree });
+    return NextResponse.json({ laws: roots });
   } catch (error: unknown) {
     logger.error('[kb/laws/GET] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

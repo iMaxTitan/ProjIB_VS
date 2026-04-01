@@ -39,16 +39,21 @@ interface EvalResult {
   chunksFound: number; topVectorScore: number; topRerankScore: number;
   keywordHit: number; negativeHit: boolean; refused: boolean;
   answerLen: number; answerPreview: string; cost: number;
+  // Stage-level diagnostics
+  goldInRaw: number; goldInRerank: number; goldInDiverse: number; goldInFinal: number;
+  goldTotal: number;
 }
 
 async function main() {
-  const { generateMultiQueries } = await import('../src/lib/kb/query-translator');
+  const { generateMultiQueries, dominantCategorySlug } = await import('../src/lib/kb/query-translator');
   const { embedBatchQueries } = await import('../src/lib/kb/embedder');
   const { rerankChunks } = await import('../src/lib/kb/reranker');
   const { synthesizeAnswer } = await import('../src/lib/kb/synthesizer');
   const { config } = await import('../src/lib/shared/config');
   const { createPostgrestClient } = await import('../src/lib/shared/postgrest-client');
   const { expandQueryWithSynonyms } = await import('../src/lib/kb/synonym-lookup');
+  const { diversifyByDocument, expandWithNeighbors, expandWithRelatedDocs } = await import('../src/lib/kb/search-helpers');
+  const { applyScopeBoost, applyEntityBoost, keywordRescue } = await import('../src/lib/kb/search-ranking-policy');
 
   const db = createPostgrestClient(config.db.serverUrl, config.db.serviceRoleKey);
   const testCases: TestCase[] = JSON.parse(
@@ -102,19 +107,46 @@ async function main() {
       const rerankIds = reranked.map((c: any) => c.chunk_id);
       const goldInRerank = tc.gold_chunk_ids.filter(id => rerankIds.includes(id));
 
-      // 4. Metrics
-      const top10ids = reranked.slice(0, 10).map((c: any) => c.chunk_id);
+      // 3.5. Post-rerank pipeline (mirrors search.ts stages 4.2-6)
+      // Demote fallback chunks
+      for (const chunk of reranked) {
+        const status = (chunk as any).prefix_status;
+        if (status === 'fallback' || status === 'needs_review') {
+          const score = (chunk as any)._rerank_score;
+          if (typeof score === 'number') (chunk as any)._rerank_score = score * 0.7;
+        }
+      }
+      keywordRescue(tc.query, allChunks, reranked);
+      applyEntityBoost(tc.query, subQueries, reranked);
+      reranked.sort((a: any, b: any) => ((b as any)._rerank_score ?? 0) - ((a as any)._rerank_score ?? 0));
+      reranked.splice(30); // RERANK_KEEP_K
+
+      // Diversity (maxPerDoc = 2, same as search.ts POST_RERANK_MAX_PER_DOC)
+      const diversified = diversifyByDocument(reranked as any, 2) as any[];
+      const diverseIds = diversified.map((c: any) => c.chunk_id);
+      const goldInDiverse = tc.gold_chunk_ids.filter(id => diverseIds.includes(id));
+
+      // Expansion (neighbors + cross-ref)
+      const expanded = await expandWithNeighbors(diversified as any, db) as any[];
+      const crossExpanded = await expandWithRelatedDocs(expanded as any, tc.query, db) as any[];
+      const finalChunks = applyScopeBoost(tc.query, crossExpanded as any) as any[];
+      const finalIds = finalChunks.map((c: any) => c.chunk_id);
+      const goldInFinal = tc.gold_chunk_ids.filter(id => finalIds.includes(id));
+
+      // 4. Metrics (on diversified top 10, as that's what synthesis sees)
+      const top10ids = diversified.slice(0, 10).map((c: any) => c.chunk_id);
       const goldFound = tc.gold_chunk_ids.filter(id => top10ids.includes(id));
       const recall10 = tc.gold_chunk_ids.length > 0 ? goldFound.length / tc.gold_chunk_ids.length : -1;
 
       let mrr10 = tc.gold_chunk_ids.length > 0 ? 0 : -1;
-      for (let i = 0; i < Math.min(reranked.length, 10); i++) {
-        if (tc.gold_chunk_ids.includes((reranked[i] as any).chunk_id)) { mrr10 = 1 / (i + 1); break; }
+      for (let i = 0; i < Math.min(diversified.length, 10); i++) {
+        if (tc.gold_chunk_ids.includes((diversified[i] as any).chunk_id)) { mrr10 = 1 / (i + 1); break; }
       }
 
-      // Stage diagnostics log (only for cases with gold chunks)
-      if (tc.gold_chunk_ids.length > 0 && VERBOSE) {
-        console.log(`    [stage] candidates=${allChunks.length} gold_in_raw=${goldInCandidates.length}/${tc.gold_chunk_ids.length} gold_in_rerank=${goldInRerank.length}/${tc.gold_chunk_ids.length} gold_in_top10=${goldFound.length}/${tc.gold_chunk_ids.length}`);
+      // Stage diagnostics log (always for gold cases, compact in non-verbose)
+      if (tc.gold_chunk_ids.length > 0) {
+        const stageInfo = `[stage] raw=${goldInCandidates.length} rerank=${goldInRerank.length} diverse=${goldInDiverse.length} final=${goldInFinal.length} /${tc.gold_chunk_ids.length}`;
+        if (VERBOSE) console.log(`    ${stageInfo} candidates=${allChunks.length}`);
       }
 
       const top3text = reranked.slice(0, 3)
@@ -122,8 +154,8 @@ async function main() {
       const wsCount = tc.wrong_scope_markers.filter(m => top3text.includes(m.toLowerCase())).length;
       const wrongScope3 = tc.wrong_scope_markers.length > 0 ? wsCount / tc.wrong_scope_markers.length : 0;
 
-      // 5. Synthesis
-      const synthesis = await synthesizeAnswer(tc.query, reranked.slice(0, 6) as any);
+      // 5. Synthesis (using diversified chunks, same as prod)
+      const synthesis = await synthesizeAnswer(tc.query, diversified.slice(0, 6) as any);
       const answer = synthesis.text || '';
       const answerLower = answer.toLowerCase();
       const kwFound = tc.expected_keywords.filter(k => answerLower.includes(k.toLowerCase()));
@@ -140,6 +172,9 @@ async function main() {
         answerLen: answer.length,
         answerPreview: answer.replace(/<[^>]*>/g, '').slice(0, 120),
         cost: synthesis.cost,
+        goldInRaw: goldInCandidates.length, goldInRerank: goldInRerank.length,
+        goldInDiverse: goldInDiverse.length, goldInFinal: goldInFinal.length,
+        goldTotal: tc.gold_chunk_ids.length,
       };
       results.push(r);
 
@@ -151,7 +186,7 @@ async function main() {
       if (VERBOSE) console.log(`    ${r.answerPreview}`);
     } catch (err) {
       console.log(`❌ ERR: ${(err instanceof Error ? err.message : String(err)).slice(0, 60)}`);
-      results.push({ id: tc.id, query: tc.query, difficulty: tc.difficulty, recall10: 0, mrr10: 0, wrongScope3: 0, chunksFound: 0, topVectorScore: 0, topRerankScore: 0, keywordHit: 0, negativeHit: false, refused: true, answerLen: 0, answerPreview: '', cost: 0 });
+      results.push({ id: tc.id, query: tc.query, difficulty: tc.difficulty, recall10: 0, mrr10: 0, wrongScope3: 0, chunksFound: 0, topVectorScore: 0, topRerankScore: 0, keywordHit: 0, negativeHit: false, refused: true, answerLen: 0, answerPreview: '', cost: 0, goldInRaw: 0, goldInRerank: 0, goldInDiverse: 0, goldInFinal: 0, goldTotal: tc.gold_chunk_ids.length });
     }
   }
 
@@ -167,8 +202,19 @@ async function main() {
   const refN = results.filter(r => r.refused).length;
   const cost = results.reduce((s, r) => s + r.cost, 0);
 
+  // Stage-level gold retention rates
+  const stageRaw = wG.reduce((s, r) => s + (r.goldTotal > 0 ? r.goldInRaw / r.goldTotal : 0), 0) / (wG.length || 1);
+  const stageRerank = wG.reduce((s, r) => s + (r.goldTotal > 0 ? r.goldInRerank / r.goldTotal : 0), 0) / (wG.length || 1);
+  const stageDiverse = wG.reduce((s, r) => s + (r.goldTotal > 0 ? r.goldInDiverse / r.goldTotal : 0), 0) / (wG.length || 1);
+  const stageFinal = wG.reduce((s, r) => s + (r.goldTotal > 0 ? r.goldInFinal / r.goldTotal : 0), 0) / (wG.length || 1);
+
   console.log(`\n  ${'═'.repeat(60)}`);
-  console.log(`  RETRIEVAL  (${wG.length} with gold chunks)`);
+  console.log(`  STAGE GOLD RETENTION  (${wG.length} cases with gold chunks)`);
+  console.log(`    Raw candidates: ${stageRaw.toFixed(3)}`);
+  console.log(`    After rerank:   ${stageRerank.toFixed(3)}`);
+  console.log(`    After diverse:  ${stageDiverse.toFixed(3)}`);
+  console.log(`    After final:    ${stageFinal.toFixed(3)}`);
+  console.log(`  RETRIEVAL`);
   console.log(`    Recall@10:      ${avgR.toFixed(3)}`);
   console.log(`    MRR@10:         ${avgM.toFixed(3)}`);
   console.log(`    WrongScope@3:   ${wsN}/${n}`);

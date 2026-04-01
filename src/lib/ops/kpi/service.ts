@@ -62,7 +62,7 @@ export async function computeKPI(
   const [plansRes, qpRes, assigneesRes, proceduresRes, processesRes, deptsRes, usersRes, wdRes, tsRes] = await Promise.all([
     db.from('monthly_plans')
       .select('monthly_plan_id, year, month, planned_hours, procedure_id, quarterly_id')
-      .eq('year', year).in('month', allMonths).in('status', ['active', 'completed']),
+      .eq('year', year).in('month', allMonths).in('status', ['active', 'done']),
     db.from('quarterly_plans').select('quarterly_id, department_id, process_id, quarter'),
     db.from('monthly_plan_assignees').select('monthly_plan_id, user_id'),
     db.from('procedures').select('procedure_id, name, process_id').eq('is_active', true),

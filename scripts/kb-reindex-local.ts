@@ -14,6 +14,7 @@ async function main() {
   const { buildContextualContent } = await import('../src/lib/kb/chunker');
   const { embedBatch } = await import('../src/lib/kb/embedder');
   const { generateChunkPrefix } = await import('../src/lib/kb/prefix-pipeline');
+  const { generateHydeForBatch } = await import('../src/lib/kb/hyde-generator');
   const { config } = await import('../src/lib/shared/config');
   const { createPostgrestClient } = await import('../src/lib/shared/postgrest-client');
 
@@ -107,20 +108,27 @@ async function main() {
           batch.map(c => generateChunkPrefix(c.content, c.heading || '', doc.title, domain))
         );
 
-        // Embed
+        // Embed content
         const contents = batch.map((c, j) =>
           buildContextualContent(cat.name, doc.title, c.heading || '', c.content, prefixes[j]?.prefixText || undefined));
         const embeddings = await embedBatch(contents);
 
+        // HyDE: embed hypothetical questions
+        const batchQuestions = prefixes.map(p => p?.hypotheticalQuestions || []);
+        const questionEmbeddings = await generateHydeForBatch(batchQuestions);
+
         // Update
         for (let j = 0; j < batch.length; j++) {
           const p = prefixes[j];
+          const qEmb = questionEmbeddings[j] ? JSON.stringify(questionEmbeddings[j]) : null;
           const { error: upErr } = await db.from('kb_chunks').update({
             embedding: JSON.stringify(embeddings[j]),
+            question_embedding: qEmb,
             contextual_prefix: p?.prefixText || null,
             scope: p?.scope || 'general',
             search_terms: p?.searchTerms || [],
             semantic_summary: p?.semanticSummary || null,
+            hypothetical_questions: p?.hypotheticalQuestions?.length ? p.hypotheticalQuestions : null,
             prefix_status: p?.status || 'ok',
             prefix_cache_key: p?.cacheKey || null,
           }).eq('id', batch[j].id);

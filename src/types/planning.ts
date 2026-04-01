@@ -143,6 +143,7 @@ export interface Process {
   description?: string | null;
   mission?: string | null;
   expected_result?: string | null;
+  department_id?: string | null;
   department_name?: string | null;
 }
 
@@ -190,6 +191,7 @@ export const getPlanStatusText = (status: PlanStatus): string => {
     case 'submitted': return 'На рассмотрении';
     case 'approved': return 'Утвержден';
     case 'active': return 'В работе';
+    case 'done':
     case 'completed': return 'Выполнен';
     case 'failed': return 'Не выполнен';
     case 'returned': return 'Возвращен';
@@ -204,6 +206,7 @@ export const getPlanStatusColor = (status: PlanStatus): string => {
     case 'submitted': return 'blue';
     case 'approved': return 'emerald';
     case 'active': return 'violet';
+    case 'done':
     case 'completed': return 'green';
     case 'failed': return 'red';
     case 'returned': return 'amber';
@@ -218,6 +221,7 @@ export function getPlanStatusGradient(status: PlanStatus): string {
     case 'submitted': return 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)';
     case 'approved': return 'linear-gradient(135deg, #34d399 0%, #10b981 100%)';
     case 'active': return 'linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)';
+    case 'done':
     case 'completed': return 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
     case 'failed': return 'linear-gradient(135deg, #f87171 0%, #ef4444 100%)';
     case 'returned': return 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)';
