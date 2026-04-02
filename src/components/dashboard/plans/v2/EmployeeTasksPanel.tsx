@@ -3,11 +3,13 @@
 import React from 'react';
 import { cn } from '@/lib/shared/utils';
 import type { DailyTask, MonthlyPlan, MonthlyPlanAssignee } from '@/types/planning';
-import type { ProcessNode, ProcedureNode } from '@/hooks/usePlansV2';
+import type { ProcessNode, ProcedureNode, ViewLevel } from '@/hooks/usePlansV2';
 import EmptyState from '@/components/ui/EmptyState';
 import { Spinner } from '@/components/ui/Spinner';
 import { Users, ChevronRight } from 'lucide-react';
 import { SummaryBox, pctColor, SourceBadge, UserAvatar, getInitials } from '@/components/dashboard/shared';
+import { usePlanAssignees } from '@/hooks/usePlanRelations';
+import { usePlansV2Ctx } from './PlansV2Context';
 
 interface EmployeeTasksPanelProps {
   selectedProcess: ProcessNode | null;
@@ -21,6 +23,7 @@ interface EmployeeTasksPanelProps {
   scopeMonths: number[];
   month: number | null;
   resourceHours: number;
+  viewLevel?: ViewLevel;
 }
 
 // ── Types for grouped data ──────────────────────────────────
@@ -60,7 +63,23 @@ export default function EmployeeTasksPanel({
   assigneesLoading,
   scopeLabel,
   resourceHours,
+  viewLevel,
 }: EmployeeTasksPanelProps) {
+  const { canEdit, onRefresh } = usePlansV2Ctx();
+  // Editing: month + procedure + pending
+  const isMonth = viewLevel === 'month';
+  const monthlyPlan = isMonth && selectedProcedure ? selectedProcedure.plans[0] : null;
+  const monthlyPlanId = monthlyPlan?.monthly_plan_id ?? null;
+  const editing = isMonth && !!canEdit && monthlyPlan?.status === 'pending';
+  const departmentId = selectedProcess?.departmentId;
+
+  // Assignees hook
+  const { deptEmployees, toggleAssignee: toggleAssigneeFn } = usePlanAssignees(monthlyPlanId, departmentId, editing);
+  const toggleAssignee = React.useCallback(async (userId: string, assigned: boolean) => {
+    await toggleAssigneeFn(userId, assigned);
+    onRefresh?.();
+  }, [toggleAssigneeFn, onRefresh]);
+
   // Build planId → procedureId + procedureName map
   const planProcMap = React.useMemo(() => {
     const m = new Map<string, { procedureId: string; procedureName: string }>();
@@ -171,7 +190,35 @@ export default function EmployeeTasksPanel({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
-        {tasksLoading || assigneesLoading ? (
+        {editing ? (() => {
+          if (deptEmployees.length === 0) return (
+            <div className="flex items-center justify-center py-12"><Spinner size="md" /></div>
+          );
+          const assignedIds = new Set(assignees.map(a => a.user_id));
+          return (
+            <div className="py-1">
+              {deptEmployees.map((emp, idx) => {
+                const assigned = assignedIds.has(emp.id);
+                return (
+                  <button key={emp.id} type="button"
+                    onClick={() => toggleAssignee(emp.id, assigned)}
+                    className={cn(
+                      'w-full flex items-center gap-2.5 px-4 py-2.5 transition-colors text-left border-b border-slate-100/80 last:border-b-0',
+                      assigned ? 'bg-slate-50/80 hover:bg-slate-100/80' : 'hover:bg-slate-50/30',
+                    )}>
+                    <UserAvatar name={emp.name} initials={getInitials(emp.name)} idx={idx} />
+                    <div className="flex-1 min-w-0">
+                      <div className={cn('text-xs font-semibold truncate', assigned ? 'text-slate-800' : 'text-slate-300 line-through')}>
+                        {emp.name}
+                      </div>
+                    </div>
+                    {assigned && <span className="text-[9px] font-semibold text-emerald-500 flex-shrink-0">✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })() : (tasksLoading || assigneesLoading) ? (
           <div className="flex items-center justify-center py-12">
             <Spinner size="md" />
           </div>

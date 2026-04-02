@@ -105,6 +105,7 @@ export function buildProcessTree(
       description: proc.description,
       mission: proc.mission,
       expectedResult: proc.expected_result,
+      departmentId: proc.department_id,
       departmentName: proc.department_name,
       procedures: nodes,
       totalPlanned: nodes.reduce((s, n) => s + n.plannedHours, 0),

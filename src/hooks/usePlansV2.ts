@@ -106,10 +106,10 @@ export function usePlansV2(user?: UserInfo) {
     return processTree.flatMap(p => p.procedures.flatMap(pr => pr.plans));
   }, [selectedProcess, selectedProcedure, processTree]);
 
-  const selectedQuarterlyPlan = useMemo(
-    () => quarter ? quarterlyPlans.find(q => q.process_id === selectedProcessId && q.quarter === quarter) ?? null : null,
-    [quarterlyPlans, selectedProcessId, quarter],
-  );
+  const selectedQuarterlyPlan = useMemo(() => {
+    const q = quarter ?? (month ? Math.ceil(month / 3) : null);
+    return q ? quarterlyPlans.find(qp => qp.process_id === selectedProcessId && qp.quarter === q) ?? null : null;
+  }, [quarterlyPlans, selectedProcessId, quarter, month]);
   const quarterlyInitiatives = useMemo(
     () => selectedQuarterlyPlan ? (quarterlyInitiativesMap.get(selectedQuarterlyPlan.quarterly_id) || []) : [],
     [selectedQuarterlyPlan, quarterlyInitiativesMap],
@@ -125,8 +125,8 @@ export function usePlansV2(user?: UserInfo) {
 
   // ── Handlers ─────────────────────────────────────────────────
   const handleYearChange = useCallback((y: number) => { setYear(y); setQuarter(null); setMonth(null); }, []);
-  const handleQuarterChange = useCallback((q: number | null) => { setQuarter(q); setMonth(null); }, []);
-  const handleMonthChange = useCallback((m: number | null) => { setMonth(m); }, []);
+  const handleQuarterChange = useCallback((q: number | null) => { setQuarter(q); setMonth(null); setSelectedProcedureId(null); }, []);
+  const handleMonthChange = useCallback((m: number | null) => { setMonth(m); if (!m) setSelectedProcedureId(null); }, []);
   const handleSelectProcess = useCallback((id: string) => { setSelectedProcessId(id || null); setSelectedProcedureId(null); }, []);
   const handleSelectProcedure = useCallback((processId: string, procedureId: string) => { setSelectedProcessId(processId); setSelectedProcedureId(procedureId); }, []);
 

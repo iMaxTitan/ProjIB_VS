@@ -6,6 +6,7 @@ import { MONTH_NAMES_UK } from '@/types/planning';
 import { usePlansV2 } from '@/hooks/usePlansV2';
 import { usePlansV2Detail } from '@/hooks/usePlansV2Detail';
 import { cn } from '@/lib/shared/utils';
+import { PlansV2Provider } from './PlansV2Context';
 import { Spinner } from '@/components/ui/Spinner';
 import EmptyState from '@/components/ui/EmptyState';
 import { Network, ListTree, Users } from 'lucide-react';
@@ -49,9 +50,9 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
   } = data;
 
   const detail = usePlansV2Detail(detailPlans, month);
+  const { refreshData } = data;
   const canEdit = user.role === 'chief' || user.role === 'head';
   const isChief = user.role === 'chief';
-  const { refreshData } = data;
 
   const [mobilePanel, setMobilePanel] = useState<string | null>(null);
 
@@ -85,10 +86,11 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
       {selectedProcedure && (
         <ProcedureDetailPanel
           selectedProcess={selectedProcess} selectedProcedure={selectedProcedure} viewLevel={viewLevel}
-          scopeLabel={scopeLabel} scopeMonths={scopeMonths}
+          year={year} month={month} scopeLabel={scopeLabel} scopeMonths={scopeMonths}
           companies={detail.companies} projects={detail.projects} kbDocs={detail.kbDocs}
           assignees={detail.assignees} rawAssignees={detail.rawAssignees}
-          hoursMap={hoursMap} processGoals={processGoals} initiatives={quarterlyInitiatives} onClose={() => selectProcess('')}
+          hoursMap={hoursMap} processGoals={processGoals} initiatives={quarterlyInitiatives}
+          onClose={() => selectProcess('')}
         />
       )}
     </>
@@ -102,6 +104,7 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
       dailyTasks={detail.dailyTasks} tasksLoading={detail.tasksLoading}
       assignees={detail.assignees} assigneesLoading={detail.assigneesLoading}
       scopeLabel={scopeLabel} scopeMonths={scopeMonths} month={month} resourceHours={resourceHours}
+      viewLevel={viewLevel}
     />
   );
 
@@ -163,6 +166,7 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
   );
 
   return (
+    <PlansV2Provider user={user} onRefresh={refreshData}>
     <div className="px-1 lg:px-2 pt-1 lg:pt-2 pb-2 min-h-full bg-slate-200">
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -191,5 +195,6 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
         />
       )}
     </div>
+    </PlansV2Provider>
   );
 }

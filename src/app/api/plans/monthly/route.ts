@@ -12,7 +12,7 @@ import { isRequestAuthorized, getRequesterKey, getDbUserId, checkRateLimit } fro
 import { getServerDb as getDb } from '@/lib/shared/db-server';
 import { hasRole, ROLE_GROUPS } from '@/lib/shared/auth/role-groups';
 
-const RATE_WRITE = 10;
+const RATE_WRITE = 30;
 const RATE_WINDOW_MS = 60_000;
 
 function guard(req: NextRequest) {

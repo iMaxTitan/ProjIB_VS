@@ -8,6 +8,7 @@ import {
   Ellipsis,
 } from 'lucide-react';
 import { SummaryBox, pctColor, barBg } from '@/components/dashboard/shared';
+import { MONTH_NAMES_UK } from '@/types/planning';
 import type { ProcessNode } from '@/hooks/usePlansV2';
 import type { AnnualPlanRow, AnnualBudgetRow, QuarterlyPlanRow, QuarterlyInitiativeRow, ViewLevel } from '@/hooks/usePlansV2';
 import type { DailyTask } from '@/types/planning';
@@ -40,6 +41,12 @@ interface ProcessDetailViewProps {
 // ── Helpers ──
 
 const META_LABEL = 'flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1';
+
+function scopeHeaderLabel(viewLevel: ViewLevel, year: number, quarter: number | null, month: number | null): string {
+  if (viewLevel === 'month' && month) return `Звіт по процесу · ${MONTH_NAMES_UK[month - 1]} ${year}`;
+  if (viewLevel === 'quarter' && quarter) return `Квартальний план · Q${quarter} ${year}`;
+  return `Річний план · ${year}`;
+}
 
 const INIT_STATUS: Record<string, { cls: string; label: string }> = {
   planned: { cls: 'bg-blue-400', label: 'Заплановано' },
@@ -74,10 +81,12 @@ export default function ProcessDetailView({
   annualPlan, annualBudgetItems, availableBudgetItems = [],
   quarterlyPlan, initiatives,
   hoursMap, dailyTasks,
-  canEdit, onRefresh, onClose,
+  canEdit: canEditProp, onRefresh, onClose,
 }: ProcessDetailViewProps) {
   const showQuarterly = viewLevel === 'quarter' || viewLevel === 'month';
   const showMonthly = viewLevel === 'month';
+  const canEdit = showMonthly ? false : canEditProp;
+  const canEditInitiatives = canEditProp && showQuarterly;
 
   // ── Budget filtering by scope ──
   const filteredBudgetItems = React.useMemo(() => {
@@ -105,8 +114,7 @@ export default function ProcessDetailView({
 
   const totalBudget = filteredBudgetItems.reduce((s, b) => s + Number(b.amount), 0);
 
-  // ── Edit mode ──
-  const [editing, setEditing] = useState(false);
+  // ── Edit mode — auto-enabled when plan is pending ──
 
   // ── Budget CRUD (annual level) ──
   const [saving, setSaving] = useState(false);
@@ -228,6 +236,18 @@ export default function ProcessDetailView({
     onRefresh?.();
   };
 
+  const INIT_STATUSES = ['planned', 'in_progress', 'completed'] as const;
+  const cycleInitStatus = async (init: QuarterlyInitiativeRow) => {
+    const idx = INIT_STATUSES.indexOf(init.status as typeof INIT_STATUSES[number]);
+    const next = INIT_STATUSES[(idx + 1) % INIT_STATUSES.length];
+    await fetchApi('/api/plans/quarterly/initiatives', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: init.id, status: next }),
+    });
+    onRefresh?.();
+  };
+
   const pct = process.totalPlanned > 0 ? Math.round((process.totalSpent / process.totalPlanned) * 100) : 0;
 
   // Plan status for current scope
@@ -243,6 +263,7 @@ export default function ProcessDetailView({
   }, [viewLevel, annualPlan, quarterlyPlan, process.procedures]);
 
   const isPending = scopePlanStatus === 'pending';
+  const editing = canEdit && isPending;
 
   const approvePlan = async () => {
     setSaving(true);
@@ -272,18 +293,8 @@ export default function ProcessDetailView({
       <div className="detail-hdr flex items-center gap-2 px-3 py-2">
         <div className="w-1 h-5 rounded-sm bg-indigo-500 flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold text-slate-700 line-clamp-2">{process.name}</div>
+          <div className="text-xs font-semibold text-slate-700 line-clamp-1">{scopeHeaderLabel(viewLevel, year, quarter, month)}</div>
         </div>
-        {canEdit && annualPlan && !editing && (
-          <button onClick={() => setEditing(true)} className="cal-action-btn flex-shrink-0" title="Редагувати" aria-label="Редагувати" style={{ color: '#6366f1' }}>
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-        )}
-        {editing && (
-          <button onClick={() => { setEditing(false); setAddingBudget(false); }} className="cal-action-btn flex-shrink-0" title="Завершити редагування" aria-label="Завершити" style={{ color: '#10b981' }}>
-            <Check className="w-3.5 h-3.5" />
-          </button>
-        )}
         {onClose && (
           <button onClick={onClose} className="cal-action-btn flex-shrink-0" title="Закрити" aria-label="Закрити">
             <X className="w-3.5 h-3.5" />
@@ -291,6 +302,11 @@ export default function ProcessDetailView({
         )}
       </div>
       <div className="hdr-sep" />
+
+      {/* Process name */}
+      <div className="flex-shrink-0 px-4 py-2 border-b border-slate-100">
+        <div className="text-sm font-semibold text-slate-800">{process.name}</div>
+      </div>
 
       {/* Confirm delete */}
       {confirmDelete && (
@@ -439,17 +455,14 @@ export default function ProcessDetailView({
 
         {/* ── Initiatives (quarter+) ── */}
         {showQuarterly && (() => {
-          const visibleInitiatives = showMonthly
-            ? initiatives.filter(i => i.status === 'in_progress' || i.status === 'completed')
-            : initiatives;
           return (
           <div className="px-4 py-2.5 border-b border-slate-100">
             <div className="flex items-center gap-1.5 mb-2">
               <Lightbulb className="w-3.5 h-3.5 text-indigo-500" />
               <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide">
-                Ініціативи ({visibleInitiatives.length})
+                Ініціативи ({initiatives.length})
               </span>
-              {editing && quarterlyPlan && (
+              {canEditInitiatives && quarterlyPlan && (
                 <button onClick={() => setAddingInit(true)} className="cal-action-btn ml-1" title="Додати" aria-label="Додати ініціативу">
                   <Plus className="w-3.5 h-3.5" />
                 </button>
@@ -464,18 +477,18 @@ export default function ProcessDetailView({
                 <button onClick={() => { setAddingInit(false); setNewInitTitle(''); }} className="cal-action-btn" aria-label="Скасувати"><X className="w-3.5 h-3.5" /></button>
               </div>
             )}
-            {visibleInitiatives.length > 0 ? (
+            {initiatives.length > 0 ? (
               <div className="flex flex-col gap-1">
-                {visibleInitiatives.map(init => {
+                {initiatives.map(init => {
                   const st = INIT_STATUS[init.status] || INIT_STATUS.planned;
                   return (
                     <div key={init.id} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-slate-50/80 border border-slate-100 group/init">
-                      <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5', st.cls)} title={st.label} />
+                      <button type="button" onClick={() => canEditInitiatives && cycleInitStatus(init)} className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5', st.cls, canEditInitiatives && 'cursor-pointer')} title={st.label} />
                       <div className="flex-1 min-w-0">
                         <div className="text-[11px] font-medium text-slate-700 line-clamp-2">{init.title}</div>
                         {init.description && <div className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{init.description}</div>}
                       </div>
-                      {editing && (
+                      {canEditInitiatives && (
                         <button onClick={() => deleteInitiative(init.id)} className="cal-action-btn opacity-0 group-hover/init:opacity-100" title="Видалити" aria-label="Видалити" style={{ color: '#ef4444' }}>
                           <Trash2 className="w-3 h-3" />
                         </button>

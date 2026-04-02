@@ -72,6 +72,7 @@ export interface ProcessNode {
   description?: string | null;
   mission?: string | null;
   expectedResult?: string | null;
+  departmentId?: string | null;
   departmentName?: string | null;
   procedures: ProcedureNode[];
   totalPlanned: number;

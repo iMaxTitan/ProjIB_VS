@@ -184,7 +184,8 @@ interface AnnualDetailViewProps {
   onClose?: () => void;
 }
 
-export function AnnualDetailView({ process, plan, budgetItems, year, canEdit, onRefresh, onClose, availableBudgetItems = [] }: AnnualDetailViewProps) {
+export function AnnualDetailView({ process, plan, budgetItems, year, canEdit: canEditProp, onRefresh, onClose, availableBudgetItems = [] }: AnnualDetailViewProps) {
+  const canEdit = canEditProp && plan?.status === 'pending';
   const totalBudget = budgetItems.reduce((s, b) => s + Number(b.amount), 0);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -250,16 +251,6 @@ export function AnnualDetailView({ process, plan, budgetItems, year, canEdit, on
         <div className="flex-1 min-w-0">
           <div className="text-xs font-semibold text-slate-700 line-clamp-2">{process.name}</div>
         </div>
-        {plan && canEdit && (
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={toggleApprove} className="cal-action-btn accent" title={plan.status === 'active' ? 'Повернути' : 'Затвердити'} aria-label="Затвердити" disabled={saving}>
-              <ShieldCheck className="w-3.5 h-3.5" />
-            </button>
-            <button onClick={() => setConfirmDelete(true)} className="cal-action-btn" title="Видалити" aria-label="Видалити" style={{ color: '#ef4444' }}>
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
         {plan && statusBadge(plan.status)}
         {onClose && (
           <button onClick={onClose} className="cal-action-btn flex-shrink-0" title="Закрити" aria-label="Закрити">

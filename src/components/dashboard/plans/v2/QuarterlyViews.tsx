@@ -214,17 +214,12 @@ export function QuarterlyDetailView({ process, plan, initiatives, quarter, year,
   });
   const noDateBudgetItems = annualBudgetItems.filter(b => !b.payment_date);
 
-  const [editing, setEditing] = useState(false);
+  const editing = canEdit && plan?.status === 'pending';
   const [editNote, setEditNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [newInitTitle, setNewInitTitle] = useState('');
   const [addingInit, setAddingInit] = useState(false);
-
-  const startEdit = () => {
-    setEditNote(plan?.note || '');
-    setEditing(true);
-  };
 
   const saveEdit = async () => {
     if (!plan) return;
@@ -235,7 +230,6 @@ export function QuarterlyDetailView({ process, plan, initiatives, quarter, year,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: plan.quarterly_id, note: editNote }),
       });
-      setEditing(false);
       onRefresh?.();
     } finally { setSaving(false); }
   };
@@ -301,19 +295,6 @@ export function QuarterlyDetailView({ process, plan, initiatives, quarter, year,
         <div className="flex-1 min-w-0">
           <div className="text-xs font-semibold text-slate-700 line-clamp-2">{process.name}</div>
         </div>
-        {plan && canEdit && !editing && (
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={startEdit} className="cal-action-btn" title="Редагувати" aria-label="Редагувати">
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button onClick={toggleApprove} className="cal-action-btn accent" title={plan.status === 'active' ? 'Повернути' : 'Затвердити'} aria-label="Затвердити" disabled={saving}>
-              <ShieldCheck className="w-3.5 h-3.5" />
-            </button>
-            <button onClick={() => setConfirmDelete(true)} className="cal-action-btn" title="Видалити" aria-label="Видалити" style={{ color: '#ef4444' }}>
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
         {plan && statusBadge(plan.status)}
         {onClose && (
           <button onClick={onClose} className="cal-action-btn flex-shrink-0" title="Закрити" aria-label="Закрити">
@@ -412,7 +393,6 @@ export function QuarterlyDetailView({ process, plan, initiatives, quarter, year,
                 rows={2} aria-label="Примітки кварталу" placeholder="Примітки кварталу" />
               <div className="flex gap-1.5 justify-end">
                 <button onClick={saveEdit} disabled={saving} className="cal-action-btn accent" title="Зберегти" aria-label="Зберегти"><Check className="w-3.5 h-3.5" /></button>
-                <button onClick={() => setEditing(false)} className="cal-action-btn" title="Скасувати" aria-label="Скасувати"><X className="w-3.5 h-3.5" /></button>
               </div>
             </div>
           ) : (

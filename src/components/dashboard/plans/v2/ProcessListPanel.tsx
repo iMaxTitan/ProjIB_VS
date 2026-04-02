@@ -171,9 +171,12 @@ export default function ProcessListPanel({
                     )}
                     <button
                       type="button"
-                      onClick={() => isProcSelected ? onSelectProcess(proc.processId) : onSelectProcedure(proc.processId, pr.procedureId)}
+                      onClick={() => {
+                        if (viewLevel !== 'month') return;
+                        isProcSelected ? onSelectProcess(proc.processId) : onSelectProcedure(proc.processId, pr.procedureId);
+                      }}
                       aria-label={`Процедура: ${pr.name}`}
-                      className="flex-1 min-w-0 text-left cursor-pointer"
+                      className={cn('flex-1 min-w-0 text-left', viewLevel === 'month' ? 'cursor-pointer' : 'cursor-default')}
                     >
                       <div className={cn('text-[11px] font-medium truncate', isProcSelected ? 'text-indigo-700' : 'text-slate-600')}>
                         {pr.name}
