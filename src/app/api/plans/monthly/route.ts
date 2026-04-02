@@ -40,23 +40,25 @@ export async function POST(req: NextRequest) {
 
   try {
     const db = getDb();
-    const { procedure_id, year, month, quarterly_id, copy_from_month, planned_hours } = (await req.json()) as {
-      procedure_id: string; year: number; month: number;
+    const { procedure_id, initiative_id, year, month, quarterly_id, copy_from_month, planned_hours } = (await req.json()) as {
+      procedure_id?: string; initiative_id?: string; year: number; month: number;
       quarterly_id?: string; copy_from_month?: number; planned_hours?: number;
     };
-    if (!procedure_id || !year || !month) {
-      return NextResponse.json({ error: 'procedure_id, year, month required' }, { status: 400 });
+    if ((!procedure_id && !initiative_id) || !year || !month) {
+      return NextResponse.json({ error: 'procedure_id or initiative_id, year, month required' }, { status: 400 });
     }
-
-    // Check if already exists
-    const { data: existing } = await db.from('monthly_plans')
-      .select('monthly_plan_id')
-      .eq('procedure_id', procedure_id).eq('year', year).eq('month', month)
-      .maybeSingle();
-    if (existing) return NextResponse.json({ error: 'Plan already exists' }, { status: 409 });
 
     // Resolve quarterly_id if not provided
     let qId = quarterly_id || null;
+
+    // Check if already exists
+    if (procedure_id) {
+      const { data: existing } = await db.from('monthly_plans')
+        .select('monthly_plan_id')
+        .eq('procedure_id', procedure_id).eq('year', year).eq('month', month)
+        .maybeSingle();
+      if (existing) return NextResponse.json({ error: 'Plan already exists' }, { status: 409 });
+    }
     if (!qId) {
       const q = Math.ceil(month / 3);
       const { data: qp } = await db.from('quarterly_plans')
@@ -65,6 +67,15 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .maybeSingle();
       qId = (qp as Record<string, string>)?.quarterly_id || null;
+    }
+
+    // Check initiative uniqueness per process+month
+    if (initiative_id && qId) {
+      const { data: existing } = await db.from('monthly_plans')
+        .select('monthly_plan_id')
+        .eq('initiative_id', initiative_id).eq('quarterly_id', qId).eq('year', year).eq('month', month)
+        .maybeSingle();
+      if (existing) return NextResponse.json({ error: 'Initiative plan already exists for this month in this process' }, { status: 409 });
     }
 
     // Base plan data
@@ -119,11 +130,12 @@ export async function POST(req: NextRequest) {
     // Create plan
     const { data: plan, error } = await db.from('monthly_plans')
       .insert({
-        procedure_id, year, month, quarterly_id: qId,
+        procedure_id: procedure_id || null, initiative_id: initiative_id || null,
+        year, month, quarterly_id: qId,
         planned_hours: hours, description, distribution_type: distributionType,
         status: 'pending', created_by: auth.userId,
       })
-      .select('monthly_plan_id, year, month, procedure_id, status, planned_hours')
+      .select('monthly_plan_id, year, month, procedure_id, initiative_id, status, planned_hours')
       .single();
 
     if (error) throw error;

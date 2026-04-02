@@ -6,7 +6,7 @@ import { supabase as db } from '@/lib/shared/db-client';
 import type { MonthlyPlan } from '@/types/planning';
 import type {
   AnnualPlanRow, QuarterlyPlanRow, AnnualBudgetRow,
-  QuarterlyInitiativeRow,
+  PlanInitiativeRow,
 } from './plans.types';
 
 // ─── Reference / Static ────────────────────────────────────────
@@ -48,7 +48,7 @@ export async function fetchActiveEmployees(role?: string, departmentId?: string,
 export async function fetchMonthlyPlans(year: number) {
   const { data, error } = await db
     .from('monthly_plans')
-    .select('monthly_plan_id, quarterly_id, procedure_id, year, month, status, planned_hours, distribution_type')
+    .select('monthly_plan_id, quarterly_id, procedure_id, initiative_id, year, month, status, planned_hours, distribution_type')
     .eq('year', year)
     .order('month');
   if (error) throw error;
@@ -106,14 +106,60 @@ export async function fetchQuarterlyPlans(year: number) {
   return (data || []) as QuarterlyPlanRow[];
 }
 
-export async function fetchQuarterlyInitiatives(quarterlyIds: string[]) {
+export async function fetchQuarterlyInitiatives(quarterlyIds: string[]): Promise<PlanInitiativeRow[]> {
   if (quarterlyIds.length === 0) return [];
   const { data, error } = await db
-    .from('quarterly_plan_initiatives')
-    .select('id, quarterly_plan_id, title, description, status')
+    .from('plan_initiatives')
+    .select('id, initiative_id, quarterly_plan_id, annual_plan_id, monthly_plan_id, status, initiatives(id, title, description, source, is_active)')
     .in('quarterly_plan_id', quarterlyIds);
   if (error) throw error;
-  return (data || []) as QuarterlyInitiativeRow[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data || []).map((r: any) => ({
+    plan_initiative_id: r.id,
+    initiative_id: r.initiatives?.id ?? r.initiative_id,
+    annual_plan_id: r.annual_plan_id,
+    quarterly_plan_id: r.quarterly_plan_id,
+    monthly_plan_id: r.monthly_plan_id,
+    title: r.initiatives?.title ?? '',
+    description: r.initiatives?.description ?? null,
+    source: r.initiatives?.source ?? 'planned',
+    is_active: r.initiatives?.is_active ?? true,
+    status: r.status ?? 'planned',
+  }));
+}
+
+export interface InitiativeCatalogRow {
+  id: string;
+  title: string;
+  description: string | null;
+  source: string;
+  is_active: boolean;
+  /** IDs of annual plans this initiative is linked to */
+  annualPlanIds: string[];
+  /** IDs of quarterly plans this initiative is linked to */
+  quarterlyPlanIds: string[];
+}
+
+export async function fetchAllInitiatives(): Promise<InitiativeCatalogRow[]> {
+  const { data, error } = await db
+    .from('initiatives')
+    .select('id, title, description, source, is_active, plan_initiatives(annual_plan_id, quarterly_plan_id)')
+    .eq('is_active', true)
+    .order('title');
+  if (error) throw error;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data || []).map((r: any) => {
+    const links = (r.plan_initiatives || []) as { annual_plan_id: string | null; quarterly_plan_id: string | null }[];
+    return {
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      source: r.source,
+      is_active: r.is_active,
+      annualPlanIds: links.filter(l => l.annual_plan_id).map(l => l.annual_plan_id!),
+      quarterlyPlanIds: links.filter(l => l.quarterly_plan_id).map(l => l.quarterly_plan_id!),
+    };
+  });
 }
 
 export async function fetchProcessGoals(processId: string, year: number) {
@@ -141,6 +187,25 @@ export async function fetchProcessGoals(processId: string, year: number) {
     annualGoal: annualMap.get(r.annual_plan_id)?.goal ?? null,
     annualBudget: annualMap.get(r.annual_plan_id)?.budget ?? 0,
   }));
+}
+
+// ─── Monthly Assignees (all assignees for month's plans) ──────
+
+export interface MonthlyAssigneeRow {
+  user_id: string;
+  monthly_plan_id: string;
+  procedure_id: string | null;
+  initiative_id: string | null;
+}
+
+export async function fetchMonthlyAssignees(planIds: string[]): Promise<MonthlyAssigneeRow[]> {
+  if (planIds.length === 0) return [];
+  const { data, error } = await db
+    .from('monthly_plan_assignees')
+    .select('user_id, monthly_plan_id')
+    .in('monthly_plan_id', planIds);
+  if (error) throw error;
+  return (data || []) as MonthlyAssigneeRow[];
 }
 
 // ─── Monthly Overview (single query, split on client) ─────────

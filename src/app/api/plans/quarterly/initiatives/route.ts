@@ -1,7 +1,7 @@
 /**
- * POST   /api/plans/quarterly/initiatives — create initiative
- * PATCH  /api/plans/quarterly/initiatives — update initiative (title, description, status)
- * DELETE /api/plans/quarterly/initiatives?id=uuid — delete initiative
+ * POST   /api/plans/quarterly/initiatives — create or link initiative to a plan
+ * PATCH  /api/plans/quarterly/initiatives — update plan_initiative status or initiative fields
+ * DELETE /api/plans/quarterly/initiatives?id=uuid — unlink initiative from plan
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -39,23 +39,49 @@ export async function POST(req: NextRequest) {
   try {
     const db = getDb();
     const body = await req.json();
-    const { quarterly_plan_id, title, description } = body as {
-      quarterly_plan_id?: string; title?: string; description?: string;
+    const {
+      initiative_id, title, description, source,
+      quarterly_plan_id, annual_plan_id, monthly_plan_id,
+    } = body as {
+      initiative_id?: string; title?: string; description?: string; source?: string;
+      quarterly_plan_id?: string; annual_plan_id?: string; monthly_plan_id?: string;
     };
 
-    if (!quarterly_plan_id) return NextResponse.json({ error: 'quarterly_plan_id required' }, { status: 400 });
-    if (!title?.trim()) return NextResponse.json({ error: 'title required' }, { status: 400 });
+    // At least one plan FK required
+    if (!quarterly_plan_id && !annual_plan_id && !monthly_plan_id) {
+      return NextResponse.json({ error: 'plan id required' }, { status: 400 });
+    }
 
+    let initId = initiative_id;
+
+    // If no existing initiative — create new one
+    if (!initId) {
+      if (!title?.trim()) return NextResponse.json({ error: 'title required' }, { status: 400 });
+      const { data: newInit, error: initErr } = await db
+        .from('initiatives')
+        .insert({ title: title.trim(), description: description?.trim() || null, source: source || 'planned' })
+        .select('id')
+        .single();
+      if (initErr) throw initErr;
+      initId = (newInit as unknown as { id: string }).id;
+    }
+
+    // Link initiative to plan
     const { data, error } = await db
-      .from('quarterly_plan_initiatives')
-      .insert({ quarterly_plan_id, title: title.trim(), description: description?.trim() || null })
-      .select()
+      .from('plan_initiatives')
+      .insert({
+        initiative_id: initId,
+        quarterly_plan_id: quarterly_plan_id || null,
+        annual_plan_id: annual_plan_id || null,
+        monthly_plan_id: monthly_plan_id || null,
+      })
+      .select('id, initiative_id, quarterly_plan_id, annual_plan_id, monthly_plan_id, status')
       .single();
 
     if (error) throw error;
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
-    logger.error('[plans/quarterly/initiatives] POST error:', err);
+    logger.error('[plans/initiatives] POST error:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
@@ -70,35 +96,47 @@ export async function PATCH(req: NextRequest) {
   try {
     const db = getDb();
     const body = await req.json();
-    const { id, title, description, status } = body as {
-      id?: string; title?: string; description?: string; status?: string;
+    const { id, status, title, description } = body as {
+      id?: string; status?: string; title?: string; description?: string;
     };
 
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
-    const updates: Record<string, unknown> = {};
-    if (title !== undefined) updates.title = title.trim();
-    if (description !== undefined) updates.description = description.trim() || null;
+    // Update status on plan_initiatives link
     if (status !== undefined) {
       if (!['planned', 'in_progress', 'completed'].includes(status)) {
         return NextResponse.json({ error: 'invalid status' }, { status: 400 });
       }
-      updates.status = status;
+      const { error } = await db
+        .from('plan_initiatives')
+        .update({ status })
+        .eq('id', id);
+      if (error) throw error;
     }
 
-    if (Object.keys(updates).length === 0) return NextResponse.json({ error: 'No fields' }, { status: 400 });
+    // Update initiative fields (title/description) on initiatives table
+    if (title !== undefined || description !== undefined) {
+      // Get initiative_id from plan_initiatives
+      const { data: link } = await db
+        .from('plan_initiatives')
+        .select('initiative_id')
+        .eq('id', id)
+        .single();
+      if (link) {
+        const updates: Record<string, unknown> = {};
+        if (title !== undefined) updates.title = title.trim();
+        if (description !== undefined) updates.description = description.trim() || null;
+        if (Object.keys(updates).length > 0) {
+          updates.updated_at = new Date().toISOString();
+          const { error } = await db.from('initiatives').update(updates).eq('id', (link as unknown as { initiative_id: string }).initiative_id);
+          if (error) throw error;
+        }
+      }
+    }
 
-    const { data, error } = await db
-      .from('quarterly_plan_initiatives')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return NextResponse.json(data);
+    return NextResponse.json({ ok: true });
   } catch (err) {
-    logger.error('[plans/quarterly/initiatives] PATCH error:', err);
+    logger.error('[plans/initiatives] PATCH error:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
@@ -115,11 +153,12 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const db = getDb();
-    const { error } = await db.from('quarterly_plan_initiatives').delete().eq('id', id);
+    // Delete link only, initiative stays in справочник
+    const { error } = await db.from('plan_initiatives').delete().eq('id', id);
     if (error) throw error;
     return NextResponse.json({ ok: true });
   } catch (err) {
-    logger.error('[plans/quarterly/initiatives] DELETE error:', err);
+    logger.error('[plans/initiatives] DELETE error:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

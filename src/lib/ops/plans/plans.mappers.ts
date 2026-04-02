@@ -3,7 +3,7 @@
  */
 import type { MonthlyPlan } from '@/types/planning';
 import type { ProcedureKpiRow } from '@/lib/ops/reference-queries';
-import type { ProcessNode, TaskTemplate, QuarterlyInitiativeRow } from './plans.types';
+import type { ProcessNode, TaskTemplate, PlanInitiativeRow } from './plans.types';
 import { countNaiveWorkingDays } from '@/lib/ops/working-days';
 
 // ─── Hours map ─────────────────────────────────────────────────
@@ -181,9 +181,10 @@ export function buildQuarterlyBudgetItemsMap(budgets: BudgetEntry[], quarter: nu
 
 // ─── Quarterly initiatives map ─────────────────────────────────
 
-export function buildQuarterlyInitiativesMap(initiatives: QuarterlyInitiativeRow[]) {
-  const m = new Map<string, QuarterlyInitiativeRow[]>();
+export function buildQuarterlyInitiativesMap(initiatives: PlanInitiativeRow[]) {
+  const m = new Map<string, PlanInitiativeRow[]>();
   for (const init of initiatives) {
+    if (!init.quarterly_plan_id) continue;
     const list = m.get(init.quarterly_plan_id) || [];
     list.push(init);
     m.set(init.quarterly_plan_id, list);

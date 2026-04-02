@@ -8,8 +8,8 @@ import {
   budgetItemsOptions, taskTemplatesOptions, monthlyPlansOptions,
   monthlyPlanHoursOptions, activeEmployeesOptions, annualPlansOptions,
   annualBudgetsAllOptions, annualBudgetItemsOptions, quarterlyPlansOptions,
-  quarterlyInitiativesAllOptions, processGoalsOptions,
-  monthlyOverviewRawOptions,
+  quarterlyInitiativesAllOptions, allInitiativesOptions, processGoalsOptions,
+  monthlyAssigneesOptions, monthlyOverviewRawOptions,
 } from '@/lib/ops/plans/plans.query-options';
 import {
   buildHoursMap, getScopeMonths, buildProcessTree, calcResourceHours,
@@ -25,7 +25,7 @@ import type { ViewLevel } from '@/lib/ops/plans/plans.types';
 // Re-export types for consumers
 export type {
   ViewLevel, AnnualPlanRow, QuarterlyPlanRow, AnnualBudgetRow,
-  QuarterlyInitiativeRow, TaskTemplate, ProcedureNode, ProcessNode, PlanStatusV2,
+  QuarterlyInitiativeRow, TaskTemplate, PlanNode, ProcessNode, PlanStatusV2,
 } from '@/lib/ops/plans/plans.types';
 
 export function usePlansV2(user?: UserInfo) {
@@ -59,12 +59,17 @@ export function usePlansV2(user?: UserInfo) {
   const { data: quarterlyPlans = [] } = useQuery(quarterlyPlansOptions(year));
   const quarterlyIds = useMemo(() => quarterlyPlans.map(q => q.quarterly_id), [quarterlyPlans]);
   const { data: allQuarterlyInitiatives = [] } = useQuery(quarterlyInitiativesAllOptions(quarterlyIds));
+  const { data: initiativesCatalog = [] } = useQuery(allInitiativesOptions);
 
   const selectedAnnualPlan = useMemo(() => annualPlans.find(a => a.process_id === selectedProcessId) ?? null, [annualPlans, selectedProcessId]);
   const { data: annualBudgetItems = [] } = useQuery(annualBudgetItemsOptions(selectedAnnualPlan?.annual_id));
 
   const { data: processGoals = [] } = useQuery(processGoalsOptions(selectedProcessId ?? undefined, year));
   const { data: overviewRaw = [] } = useQuery(monthlyOverviewRawOptions(year, month));
+
+  // Assignees for all monthly plans in current month
+  const monthPlanIds = useMemo(() => monthlyPlans.filter(p => month && p.month === month).map(p => p.monthly_plan_id), [monthlyPlans, month]);
+  const { data: monthlyAssignees = [] } = useQuery(monthlyAssigneesOptions(monthPlanIds));
 
   // Company names for overview (fetched once, cached via useMemo dep)
   const overviewCompanyIds = useMemo(() => [...new Set(overviewRaw.map(r => r.company_id))].sort(), [overviewRaw]);
@@ -98,7 +103,34 @@ export function usePlansV2(user?: UserInfo) {
 
   // ── Selection helpers ────────────────────────────────────────
   const selectedProcess = useMemo(() => processTree.find(p => p.processId === selectedProcessId) ?? null, [processTree, selectedProcessId]);
-  const selectedProcedure = useMemo(() => selectedProcess?.procedures.find(p => p.procedureId === selectedProcedureId) ?? null, [selectedProcess, selectedProcedureId]);
+
+  const selectedProcedure = useMemo((): import('@/lib/ops/plans/plans.types').PlanNode | null => {
+    if (!selectedProcedureId) return null;
+    // 1. Try procedure in selected process
+    if (selectedProcess) {
+      const pr = selectedProcess.procedures.find(p => p.procedureId === selectedProcedureId);
+      if (pr) return pr;
+    }
+    // 2. Try monthly_plan_id (for initiative plans)
+    const plan = monthlyPlans.find(p => p.monthly_plan_id === selectedProcedureId);
+    if (plan?.initiative_id) {
+      const cat = initiativesCatalog.find(i => i.id === plan.initiative_id);
+      return {
+        procedureId: selectedProcedureId,
+        name: cat?.title || 'Ініціатива',
+        processId: selectedProcessId || '',
+        description: cat?.description,
+        taskTemplates: [],
+        plannedHours: plan.planned_hours || 0,
+        spentHours: 0,
+        plans: [plan],
+        isInitiative: true,
+        initiativeId: plan.initiative_id,
+      };
+    }
+    return null;
+  }, [selectedProcess, selectedProcedureId, selectedProcessId, monthlyPlans, initiativesCatalog]);
+
   const detailPlans = useMemo(() => {
     if (selectedProcedure) return selectedProcedure.plans;
     if (selectedProcess) return selectedProcess.procedures.flatMap(p => p.plans);
@@ -138,8 +170,8 @@ export function usePlansV2(user?: UserInfo) {
     processTree, selectedProcess, selectedProcedure, detailPlans, scopeMonths, hoursMap, resourceHours, processGoals,
     viewLevel, annualPlans, quarterlyPlans, selectedAnnualPlan, selectedQuarterlyPlan,
     annualBudgetItems, annualBudgetSumMap, annualBudgetNamesMap,
-    quarterlyBudgetItemsMap, quarterlyBudgetSumMap, quarterlyInitiatives, quarterlyInitiativesMap,
-    monthlyPlans, monthlyCompanyHours, monthlyUserProcHours,
+    quarterlyBudgetItemsMap, quarterlyBudgetSumMap, quarterlyInitiatives, quarterlyInitiativesMap, initiativesCatalog,
+    monthlyPlans, monthlyCompanyHours, monthlyUserProcHours, monthlyAssignees,
     availableBudgetItems: allBudgetItems
       .filter(bi => bi.process_id === selectedProcessId)
       .map(bi => ({ id: bi.id, name: bi.name, category_name: bi.budget_categories?.name || null })),

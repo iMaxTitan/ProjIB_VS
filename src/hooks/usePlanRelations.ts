@@ -63,16 +63,21 @@ export function usePlanRelations(monthlyPlanId: string | null, editing: boolean)
 /**
  * Hook for department employees (from global cache) and toggling assignees.
  */
-export function usePlanAssignees(monthlyPlanId: string | null, departmentId: string | null | undefined, editing: boolean) {
+export function usePlanAssignees(monthlyPlanId: string | null, departmentId: string | null | undefined, editing: boolean, userRole?: string, userId?: string) {
   const { employees } = useAllEmployees();
 
   const deptEmployees = useMemo(() => {
     if (!editing || !departmentId) return [];
-    return employees
+    const list = employees
       .filter(e => e.department_id === departmentId && e.status === 'active' && e.user_id)
-      .map(e => ({ id: e.user_id!, name: e.full_name || '—' }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'uk'));
-  }, [editing, departmentId, employees]);
+      .map(e => ({ id: e.user_id!, name: e.full_name || '—' }));
+    // Chief can add themselves even if they're in a different department
+    if (userRole === 'chief' && userId && !list.some(e => e.id === userId)) {
+      const me = employees.find(e => e.user_id === userId);
+      if (me) list.push({ id: me.user_id!, name: me.full_name || '—' });
+    }
+    return list.sort((a, b) => a.name.localeCompare(b.name, 'uk'));
+  }, [editing, departmentId, employees, userRole, userId]);
 
   const toggleAssignee = useCallback(async (userId: string, assigned: boolean) => {
     if (!monthlyPlanId) return;

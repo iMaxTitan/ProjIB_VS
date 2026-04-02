@@ -12,12 +12,12 @@ import EmptyState from '@/components/ui/EmptyState';
 import { Network, ListTree, Users } from 'lucide-react';
 import { ThreePanelLayout } from '@/components/dashboard/shared';
 import ProcessListPanel from './ProcessListPanel';
-import ProcedureDetailPanel from './ProcedureDetailPanel';
+import PlanDetailPanel from './PlanDetailPanel';
 import EmployeeTasksPanel from './EmployeeTasksPanel';
-import { AnnualListView } from './AnnualViews';
-import { QuarterlyListView } from './QuarterlyViews';
-import { MonthlyCompaniesView, MonthlyUsersView, MonthlyPlansListView } from './MonthlyOverviewView';
-import ProcessDetailView from './ProcessDetailView';
+import { AnnualListView } from './AnnualPlanViews';
+import { QuarterlyListView } from './QuarterlyPlanViews';
+import { MonthlyCompaniesView, MonthlyUsersView, MonthlyPlansListView } from './MonthlyPlanViews';
+import ProcessReportView from './ProcessReportView';
 
 interface PlansV2ContentProps {
   user: UserInfo;
@@ -44,8 +44,8 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
     detailPlans, scopeMonths,
     viewLevel, annualPlans, quarterlyPlans,
     selectedAnnualPlan, selectedQuarterlyPlan,
-    annualBudgetItems, annualBudgetSumMap, annualBudgetNamesMap, quarterlyBudgetSumMap, quarterlyBudgetItemsMap, quarterlyInitiatives, quarterlyInitiativesMap,
-    monthlyPlans, monthlyCompanyHours, monthlyUserProcHours,
+    annualBudgetItems, annualBudgetSumMap, annualBudgetNamesMap, quarterlyBudgetSumMap, quarterlyBudgetItemsMap, quarterlyInitiatives, quarterlyInitiativesMap, initiativesCatalog,
+    monthlyPlans, monthlyCompanyHours, monthlyUserProcHours, monthlyAssignees,
     availableBudgetItems,
   } = data;
 
@@ -70,21 +70,21 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
         <AnnualListView annualPlans={annualPlans} processTree={processTree} year={year} annualBudgetSumMap={annualBudgetSumMap} annualBudgetNamesMap={annualBudgetNamesMap} canEdit={canEdit} isChief={isChief} onSelectProcess={selectProcess} onRefresh={refreshData} />
       )}
       {selectedProcess && !selectedProcedure && (
-        <ProcessDetailView
+        <ProcessReportView
           process={selectedProcess} viewLevel={viewLevel} year={year} quarter={quarter} month={month}
           annualPlan={selectedAnnualPlan} annualBudgetItems={annualBudgetItems} availableBudgetItems={availableBudgetItems}
-          quarterlyPlan={selectedQuarterlyPlan} initiatives={quarterlyInitiatives}
-          hoursMap={hoursMap} dailyTasks={detail.dailyTasks} canEdit={canEdit} onRefresh={refreshData} onClose={() => selectProcess('')}
+          quarterlyPlan={selectedQuarterlyPlan} initiatives={quarterlyInitiatives} initiativesCatalog={initiativesCatalog}
+          hoursMap={hoursMap} dailyTasks={detail.dailyTasks} monthlyPlans={monthlyPlans} canEdit={canEdit} onRefresh={refreshData} onClose={() => selectProcess('')}
         />
       )}
       {viewLevel === 'quarter' && !selectedProcess && quarter && (
         <QuarterlyListView quarterlyPlans={quarterlyPlans} processTree={processTree} annualPlans={annualPlans} quarterlyBudgetSumMap={quarterlyBudgetSumMap} quarterlyBudgetItemsMap={quarterlyBudgetItemsMap} quarterlyInitiativesMap={quarterlyInitiativesMap} quarter={quarter} year={year} canEdit={canEdit} isChief={isChief} onSelectProcess={selectProcess} onRefresh={refreshData} />
       )}
       {viewLevel === 'month' && !selectedProcess && month && (
-        <MonthlyPlansListView processTree={processTree} monthlyPlans={monthlyPlans} companyHours={monthlyCompanyHours} year={year} month={month} canEdit={canEdit} isChief={isChief} scopeLabel={scopeLabel} onRefresh={refreshData} onSelectProcedure={selectProcedure} />
+        <MonthlyPlansListView processTree={processTree} monthlyPlans={monthlyPlans} quarterlyPlans={quarterlyPlans} companyHours={monthlyCompanyHours} initiativesCatalog={initiativesCatalog} year={year} month={month} canEdit={canEdit} isChief={isChief} scopeLabel={scopeLabel} onRefresh={refreshData} onSelectProcedure={selectProcedure} />
       )}
       {selectedProcedure && (
-        <ProcedureDetailPanel
+        <PlanDetailPanel
           selectedProcess={selectedProcess} selectedProcedure={selectedProcedure} viewLevel={viewLevel}
           year={year} month={month} scopeLabel={scopeLabel} scopeMonths={scopeMonths}
           companies={detail.companies} projects={detail.projects} kbDocs={detail.kbDocs}
@@ -97,7 +97,7 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
   );
 
   const rightContent = viewLevel === 'month' && !selectedProcess ? (
-    <MonthlyUsersView userProcHours={monthlyUserProcHours} processTree={processTree} scopeLabel={scopeLabel} />
+    <MonthlyUsersView userProcHours={monthlyUserProcHours} processTree={processTree} monthlyAssignees={monthlyAssignees} scopeLabel={scopeLabel} />
   ) : (
     <EmployeeTasksPanel
       selectedProcess={selectedProcess} selectedProcedure={selectedProcedure} detailPlans={detailPlans}

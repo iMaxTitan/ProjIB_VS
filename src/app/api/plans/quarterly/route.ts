@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     const { data: proc } = await db.from('processes').select('mission').eq('process_id', process_id).single();
     let expected_result = (proc as { mission?: string } | null)?.mission || '';
     let note: string | null = null;
-    let initiativesToCopy: { title: string; description: string | null }[] = [];
+    let initiativesToCopy: string[] = []; // initiative_ids
 
     if (copy_from_year || copy_from_quarter) {
       const srcYear = copy_from_year || year;
@@ -60,8 +60,9 @@ export async function POST(req: NextRequest) {
         const p = prev as any;
         expected_result = p.expected_result || expected_result;
         note = p.note || null;
-        const { data: inits } = await db.from('quarterly_plan_initiatives').select('title, description').eq('quarterly_plan_id', p.quarterly_id);
-        initiativesToCopy = (inits || []) as typeof initiativesToCopy;
+        const { data: inits } = await db.from('plan_initiatives').select('initiative_id').eq('quarterly_plan_id', p.quarterly_id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        initiativesToCopy = ((inits || []) as any[]).map(i => i.initiative_id as string);
       }
     }
 
@@ -74,8 +75,8 @@ export async function POST(req: NextRequest) {
     if (initiativesToCopy.length > 0 && plan) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const planId = (plan as any).quarterly_id;
-      await db.from('quarterly_plan_initiatives').insert(
-        initiativesToCopy.map(i => ({ quarterly_plan_id: planId, title: i.title, description: i.description, status: 'planned' }))
+      await db.from('plan_initiatives').insert(
+        initiativesToCopy.map(initId => ({ initiative_id: initId, quarterly_plan_id: planId }))
       );
     }
 

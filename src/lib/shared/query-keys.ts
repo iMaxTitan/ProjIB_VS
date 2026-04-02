@@ -38,7 +38,9 @@ export const queryKeys = {
     annualBudget: (annualId?: string) => ['plans', 'annual-budget', annualId] as const,
     quarterly: (year: number) => ['plans', 'quarterly', year] as const,
     quarterlyInitiativesAll: (qIds: string[]) => ['plans', 'quarterly-initiatives-all', qIds] as const,
+    initiativesCatalog: ['plans', 'initiatives-catalog'] as const,
     processGoals: (processId?: string, year?: number) => ['plans', 'process-goals', processId, year] as const,
+    monthlyAssignees: (planIds: string[]) => ['plans', 'monthly-assignees', planIds] as const,
     monthlyOverview: (year: number, month: number) => ['plans', 'monthly-overview', year, month] as const,
     companyNames: (ids: string[]) => ['plans', 'company-names', ids] as const,
     // Detail (single RPC)

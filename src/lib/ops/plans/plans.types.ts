@@ -37,13 +37,31 @@ export interface AnnualBudgetRow {
   budget_items: { name: string; budget_categories: { name: string } | null } | null;
 }
 
-export interface QuarterlyInitiativeRow {
+/** Initiative from справочник `initiatives` */
+export interface InitiativeRow {
   id: string;
-  quarterly_plan_id: string;
   title: string;
   description: string | null;
-  status: string;
+  source: string; // 'planned' | 'unplanned'
+  is_active: boolean;
 }
+
+/** Joined plan_initiatives + initiatives — used by UI */
+export interface PlanInitiativeRow {
+  plan_initiative_id: string; // plan_initiatives.id
+  initiative_id: string;      // initiatives.id
+  annual_plan_id: string | null;
+  quarterly_plan_id: string | null;
+  monthly_plan_id: string | null;
+  title: string;
+  description: string | null;
+  source: string;
+  is_active: boolean;
+  status: string; // 'planned' | 'in_progress' | 'completed'
+}
+
+/** @deprecated Use PlanInitiativeRow instead */
+export type QuarterlyInitiativeRow = PlanInitiativeRow;
 
 export interface TaskTemplate {
   id: string;
@@ -51,7 +69,7 @@ export interface TaskTemplate {
   content?: string;
 }
 
-export interface ProcedureNode {
+export interface PlanNode {
   procedureId: string;
   name: string;
   processId: string;
@@ -64,6 +82,12 @@ export interface ProcedureNode {
   plannedHours: number;
   spentHours: number;
   plans: MonthlyPlan[];
+  /** True if this node represents an initiative, not a procedure */
+  isInitiative?: boolean;
+  /** Initiative ID (when isInitiative=true) */
+  initiativeId?: string;
+  /** Initiative source: 'planned' | 'unplanned' */
+  initiativeSource?: string;
 }
 
 export interface ProcessNode {
@@ -74,7 +98,7 @@ export interface ProcessNode {
   expectedResult?: string | null;
   departmentId?: string | null;
   departmentName?: string | null;
-  procedures: ProcedureNode[];
+  procedures: PlanNode[];
   totalPlanned: number;
   totalSpent: number;
 }

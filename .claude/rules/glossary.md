@@ -41,12 +41,12 @@
 | **планы** (общее) | `lib/ops/plans/` (service-core, read, write, delete, status) |
 | **план 2**, plans v2 | `components/dashboard/plans/v2/PlansV2Content.tsx` |
 | план 2 матрица | `docs/plans/plans-v2-matrix.md` |
-| план 2 деталі процесу | `components/dashboard/plans/v2/ProcessDetailView.tsx` |
-| план 2 деталі процедури | `components/dashboard/plans/v2/ProcedureDetailPanel.tsx` |
+| план 2 звіт по процесу | `components/dashboard/plans/v2/ProcessReportView.tsx` |
+| план 2 деталі плану | `components/dashboard/plans/v2/PlanDetailPanel.tsx`, `PlanDetailView.tsx` |
 | план 2 список процесів | `components/dashboard/plans/v2/ProcessListPanel.tsx` |
-| план 2 річні плани | `components/dashboard/plans/v2/AnnualViews.tsx` |
-| план 2 квартальні плани | `components/dashboard/plans/v2/QuarterlyViews.tsx` |
-| план 2 місячний огляд | `components/dashboard/plans/v2/MonthlyOverviewView.tsx` |
+| план 2 річні плани | `components/dashboard/plans/v2/AnnualPlanViews.tsx` |
+| план 2 квартальні плани | `components/dashboard/plans/v2/QuarterlyPlanViews.tsx` |
+| план 2 місячні плани | `components/dashboard/plans/v2/MonthlyPlanViews.tsx` |
 | план 2 співробітники | `components/dashboard/plans/v2/EmployeeTasksPanel.tsx` |
 | план 2 хуки | `hooks/usePlansV2.ts`, `hooks/usePlansV2Detail.ts` |
 | план 2 API статус | `app/api/plans/status/route.ts` |
@@ -181,7 +181,7 @@
 | **збір задач**, collect, ClipboardCheck | `lib/ops/planner/collect-tasks.ts`, `app/api/planner/entries/collect/` |
 | статуси плиток, entryStatus | `components/dashboard/planner/PlannerBlocks.tsx:entryStatus()` |
 | needs_push, синхронізація | колонка `weekly_calendar_entries.needs_push` — локальні зміни потребують Push |
-| **дизайн флоу календаря** | `docs/plans/2026-03-20-planner-calendar-flow.md` |
+
 | чернетки, drafts | `lib/ops/planner/drafts.ts` |
 | планувальник хуки | `hooks/usePlanner.ts`, `hooks/usePlannerSync.ts`, `hooks/usePlannerTasks.ts`, `hooks/usePlannerDrafts.ts`, `hooks/useTaskTemplates.ts` |
 | планувальник API | `app/api/planner/` (entries/, tasks/, drafts/, templates/, meetings/, sync/) |

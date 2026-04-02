@@ -167,7 +167,7 @@ export default function MonthlyProcessView({
               {initiatives.map(init => {
                 const st = INIT_STATUS[init.status] || INIT_STATUS.planned;
                 return (
-                  <div key={init.id} className="flex items-center gap-2">
+                  <div key={init.plan_initiative_id} className="flex items-center gap-2">
                     <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', st.cls)} title={st.label} />
                     <span className="text-[11px] text-slate-700 line-clamp-2">{init.title}</span>
                   </div>

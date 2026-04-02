@@ -11,8 +11,8 @@ import { SummaryBox, pctColor, barBg } from '@/components/dashboard/shared';
 import { MONTH_NAMES_UK } from '@/types/planning';
 import type { ProcessNode } from '@/hooks/usePlansV2';
 import type { AnnualPlanRow, AnnualBudgetRow, QuarterlyPlanRow, QuarterlyInitiativeRow, ViewLevel } from '@/hooks/usePlansV2';
-import type { DailyTask } from '@/types/planning';
-import type { BudgetItemOption } from './AnnualViews';
+import type { DailyTask, MonthlyPlan } from '@/types/planning';
+import type { BudgetItemOption } from './AnnualPlanViews';
 
 // ── Props ──
 
@@ -29,9 +29,11 @@ interface ProcessDetailViewProps {
   // Quarterly
   quarterlyPlan: QuarterlyPlanRow | null;
   initiatives: QuarterlyInitiativeRow[];
+  initiativesCatalog?: { id: string; title: string; description: string | null; source: string; is_active: boolean; annualPlanIds: string[]; quarterlyPlanIds: string[] }[];
   // Monthly
   hoursMap: Map<string, { spent: number; tasks: number }>;
   dailyTasks: DailyTask[];
+  monthlyPlans?: MonthlyPlan[];
   // Edit
   canEdit?: boolean;
   onRefresh?: () => void;
@@ -79,8 +81,8 @@ function statusBadge(status: string) {
 export default function ProcessDetailView({
   process, viewLevel, year, quarter, month,
   annualPlan, annualBudgetItems, availableBudgetItems = [],
-  quarterlyPlan, initiatives,
-  hoursMap, dailyTasks,
+  quarterlyPlan, initiatives, initiativesCatalog = [],
+  hoursMap, dailyTasks, monthlyPlans = [],
   canEdit: canEditProp, onRefresh, onClose,
 }: ProcessDetailViewProps) {
   const showQuarterly = viewLevel === 'quarter' || viewLevel === 'month';
@@ -131,6 +133,52 @@ export default function ProcessDetailView({
   // Initiative add
   const [addingInit, setAddingInit] = useState(false);
   const [newInitTitle, setNewInitTitle] = useState('');
+  const [initMode, setInitMode] = useState<'pick' | 'create'>('pick');
+
+  // Initiative monthly plans for this process (month level)
+  const [addingMonthInit, setAddingMonthInit] = useState(false);
+  const [monthInitMode, setMonthInitMode] = useState<'pick' | 'create'>('pick');
+  const [newMonthInitTitle, setNewMonthInitTitle] = useState('');
+
+  const initiativeMonthlyPlans = React.useMemo(() => {
+    if (!showMonthly || !month || !quarterlyPlan) return [];
+    // Only show initiative plans linked to THIS process (via quarterly_id)
+    return monthlyPlans.filter(p => p.initiative_id && !p.procedure_id && p.month === month && p.quarterly_id === quarterlyPlan.quarterly_id);
+  }, [monthlyPlans, showMonthly, month, quarterlyPlan]);
+
+  const initCatalogMap = React.useMemo(() => new Map(initiativesCatalog.map(i => [i.id, i])), [initiativesCatalog]);
+
+  // Available initiatives for month level (not yet linked to THIS process's monthly plan)
+  const availableMonthInitiatives = React.useMemo(() => {
+    const usedIds = new Set(initiativeMonthlyPlans.map(p => p.initiative_id!));
+    return initiativesCatalog.filter(i => !usedIds.has(i.id));
+  }, [initiativesCatalog, initiativeMonthlyPlans]);
+
+  const addMonthlyInitiative = async (initiativeId?: string) => {
+    if (!quarterlyPlan || !month) return;
+    setSaving(true);
+    try {
+      let initId = initiativeId;
+      if (!initId) {
+        if (!newMonthInitTitle.trim()) return;
+        // Create new initiative + get id
+        const res = await fetchApi('/api/plans/quarterly/initiatives', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quarterly_plan_id: quarterlyPlan.quarterly_id, title: newMonthInitTitle.trim() }),
+        });
+        initId = res.initiative_id;
+      }
+      // Create monthly plan for this initiative
+      await fetchApi('/api/plans/monthly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quarterly_id: quarterlyPlan.quarterly_id, initiative_id: initId, year, month, planned_hours: 0 }),
+      });
+      setNewMonthInitTitle(''); setAddingMonthInit(false);
+      onRefresh?.();
+    } finally { setSaving(false); }
+  };
 
   // Procedure expand (month level)
   const [expandedProcs, setExpandedProcs] = useState<Set<string>>(new Set());
@@ -146,12 +194,18 @@ export default function ProcessDetailView({
   // Tasks grouped by procedure → title+source
   const tasksByProc = React.useMemo(() => {
     if (!showMonthly) return new Map<string, { title: string; description?: string; hours: number; source?: string }[]>();
+    // Build set of initiative monthly plan IDs for this process
+    const initPlanIds = new Set(initiativeMonthlyPlans.map(p => p.monthly_plan_id));
     const m = new Map<string, Map<string, { title: string; description?: string; hours: number; source?: string }>>();
     for (const t of dailyTasks) {
-      const procId = process.procedures.find(pr => pr.plans.some(p => p.monthly_plan_id === t.monthly_plan_id))?.procedureId;
-      if (!procId) continue;
-      let procTasks = m.get(procId);
-      if (!procTasks) { procTasks = new Map(); m.set(procId, procTasks); }
+      // Group by procedure ID, or by monthly_plan_id for initiative plans
+      let groupKey = process.procedures.find(pr => pr.plans.some(p => p.monthly_plan_id === t.monthly_plan_id))?.procedureId;
+      if (!groupKey && t.monthly_plan_id && initPlanIds.has(t.monthly_plan_id)) {
+        groupKey = t.monthly_plan_id; // use plan id as key for initiatives
+      }
+      if (!groupKey) continue;
+      let procTasks = m.get(groupKey);
+      if (!procTasks) { procTasks = new Map(); m.set(groupKey, procTasks); }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tAny = t as any;
       const title = (tAny.title as string) || 'Без назви';
@@ -231,8 +285,28 @@ export default function ProcessDetailView({
     } finally { setSaving(false); }
   };
 
-  const deleteInitiative = async (id: string) => {
-    await fetchApi(`/api/plans/quarterly/initiatives?id=${id}`, { method: 'DELETE' });
+  const linkExistingInitiative = async (initiativeId: string) => {
+    if (!quarterlyPlan) return;
+    setSaving(true);
+    try {
+      await fetchApi('/api/plans/quarterly/initiatives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initiative_id: initiativeId, quarterly_plan_id: quarterlyPlan.quarterly_id }),
+      });
+      setAddingInit(false);
+      onRefresh?.();
+    } finally { setSaving(false); }
+  };
+
+  // Filter catalog: only active, not already linked to this plan
+  const availableInitiatives = React.useMemo(() => {
+    const linkedIds = new Set(initiatives.map(i => i.initiative_id));
+    return initiativesCatalog.filter(i => !linkedIds.has(i.id));
+  }, [initiativesCatalog, initiatives]);
+
+  const deleteInitiative = async (planInitiativeId: string) => {
+    await fetchApi(`/api/plans/quarterly/initiatives?id=${planInitiativeId}`, { method: 'DELETE' });
     onRefresh?.();
   };
 
@@ -243,7 +317,7 @@ export default function ProcessDetailView({
     await fetchApi('/api/plans/quarterly/initiatives', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: init.id, status: next }),
+      body: JSON.stringify({ id: init.plan_initiative_id, status: next }),
     });
     onRefresh?.();
   };
@@ -453,8 +527,8 @@ export default function ProcessDetailView({
           </div>
         )}
 
-        {/* ── Initiatives (quarter+) ── */}
-        {showQuarterly && (() => {
+        {/* ── Initiatives (quarter only — at month level they appear as monthly plan rows) ── */}
+        {showQuarterly && !showMonthly && (() => {
           return (
           <div className="px-4 py-2.5 border-b border-slate-100">
             <div className="flex items-center gap-1.5 mb-2">
@@ -469,12 +543,50 @@ export default function ProcessDetailView({
               )}
             </div>
             {addingInit && (
-              <div className="flex gap-1.5 mb-2">
-                <input value={newInitTitle} onChange={e => setNewInitTitle(e.target.value)}
-                  className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-[11px] focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Назва ініціативи" aria-label="Назва" onKeyDown={e => e.key === 'Enter' && addInitiative()} />
-                <button onClick={addInitiative} disabled={saving || !newInitTitle.trim()} className="cal-action-btn accent" aria-label="Зберегти"><Check className="w-3.5 h-3.5" /></button>
-                <button onClick={() => { setAddingInit(false); setNewInitTitle(''); }} className="cal-action-btn" aria-label="Скасувати"><X className="w-3.5 h-3.5" /></button>
+              <div className="mb-2 border border-slate-200 rounded-lg p-2">
+                {/* Toggle: pick existing / create new */}
+                <div className="flex gap-1 mb-2">
+                  <button onClick={() => setInitMode('pick')}
+                    className={cn('text-[10px] font-medium px-2.5 py-1 rounded-md transition-colors', initMode === 'pick' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-100')}
+                    aria-label="Обрати існуючу">Обрати</button>
+                  <button onClick={() => setInitMode('create')}
+                    className={cn('text-[10px] font-medium px-2.5 py-1 rounded-md transition-colors', initMode === 'create' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-100')}
+                    aria-label="Створити нову">Створити</button>
+                  <button onClick={() => { setAddingInit(false); setNewInitTitle(''); }} className="cal-action-btn ml-auto" aria-label="Скасувати"><X className="w-3.5 h-3.5" /></button>
+                </div>
+                {initMode === 'pick' ? (
+                  availableInitiatives.length > 0 ? (
+                    <div className="flex flex-col gap-0.5 max-h-40 overflow-y-auto">
+                      {availableInitiatives.map(cat => {
+                        const inAnnual = annualPlan ? cat.annualPlanIds.includes(annualPlan.annual_id) : false;
+                        const inQuarterly = quarterlyPlan ? cat.quarterlyPlanIds.includes(quarterlyPlan.quarterly_id) : false;
+                        const bulbCls = inAnnual ? 'text-amber-500' : inQuarterly ? 'text-indigo-500' : cat.quarterlyPlanIds.length > 0 ? 'text-indigo-300' : 'text-slate-400';
+                        const filled = inAnnual || inQuarterly;
+                        const bulbTitle = inAnnual ? 'Є в річному плані цього процесу' : inQuarterly ? 'Є в квартальному плані цього процесу' : cat.quarterlyPlanIds.length > 0 ? 'Є в іншому квартальному плані' : 'Нова';
+                        return (
+                        <button key={cat.id} onClick={() => linkExistingInitiative(cat.id)} disabled={saving}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded-md text-left hover:bg-indigo-50 transition-colors"
+                          aria-label={`Додати ${cat.title}`}>
+                          <span title={bulbTitle} className="flex-shrink-0"><Lightbulb className={cn('w-3 h-3', bulbCls)} fill={filled ? 'currentColor' : 'none'} /></span>
+                          <span className="text-[11px] text-slate-700 line-clamp-2">{cat.title}</span>
+                          <span className={cn('text-[9px] px-1.5 py-0.5 rounded-full ml-auto flex-shrink-0', cat.source === 'unplanned' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500')}>
+                            {cat.source === 'unplanned' ? 'Позапл.' : 'План.'}
+                          </span>
+                        </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-slate-400 italic py-2 text-center">Усі ініціативи вже додано</div>
+                  )
+                ) : (
+                  <div className="flex gap-1.5">
+                    <input value={newInitTitle} onChange={e => setNewInitTitle(e.target.value)}
+                      className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-[11px] focus:ring-2 focus:ring-indigo-500"
+                      placeholder="Назва нової ініціативи" aria-label="Назва" onKeyDown={e => e.key === 'Enter' && addInitiative()} />
+                    <button onClick={addInitiative} disabled={saving || !newInitTitle.trim()} className="cal-action-btn accent" aria-label="Зберегти"><Check className="w-3.5 h-3.5" /></button>
+                  </div>
+                )}
               </div>
             )}
             {initiatives.length > 0 ? (
@@ -482,14 +594,14 @@ export default function ProcessDetailView({
                 {initiatives.map(init => {
                   const st = INIT_STATUS[init.status] || INIT_STATUS.planned;
                   return (
-                    <div key={init.id} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-slate-50/80 border border-slate-100 group/init">
+                    <div key={init.plan_initiative_id} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-slate-50/80 border border-slate-100 group/init">
                       <button type="button" onClick={() => canEditInitiatives && cycleInitStatus(init)} className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5', st.cls, canEditInitiatives && 'cursor-pointer')} title={st.label} />
                       <div className="flex-1 min-w-0">
                         <div className="text-[11px] font-medium text-slate-700 line-clamp-2">{init.title}</div>
                         {init.description && <div className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{init.description}</div>}
                       </div>
                       {canEditInitiatives && (
-                        <button onClick={() => deleteInitiative(init.id)} className="cal-action-btn opacity-0 group-hover/init:opacity-100" title="Видалити" aria-label="Видалити" style={{ color: '#ef4444' }}>
+                        <button onClick={() => deleteInitiative(init.plan_initiative_id)} className="cal-action-btn opacity-0 group-hover/init:opacity-100" title="Видалити" aria-label="Видалити" style={{ color: '#ef4444' }}>
                           <Trash2 className="w-3 h-3" />
                         </button>
                       )}
@@ -565,6 +677,127 @@ export default function ProcessDetailView({
             </div>
           );
         })}
+
+        {/* ── Initiative monthly plans — same expandable rows as procedures ── */}
+        {showMonthly && (
+          <>
+            <div className="flex items-center gap-1.5 px-4 py-2 border-t border-slate-200">
+              <Lightbulb className="w-3.5 h-3.5 text-indigo-500" />
+              <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide">
+                Ініціативи ({initiativeMonthlyPlans.length})
+              </span>
+              {canEditProp && quarterlyPlan && (
+                <button onClick={() => setAddingMonthInit(true)} className="cal-action-btn ml-1" title="Додати ініціативу" aria-label="Додати ініціативу">
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {addingMonthInit && (
+              <div className="mx-4 mb-2 border border-slate-200 rounded-lg p-2">
+                <div className="flex gap-1 mb-2">
+                  <button onClick={() => setMonthInitMode('pick')}
+                    className={cn('text-[10px] font-medium px-2.5 py-1 rounded-md transition-colors', monthInitMode === 'pick' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-100')}
+                    aria-label="Обрати існуючу">Обрати</button>
+                  <button onClick={() => setMonthInitMode('create')}
+                    className={cn('text-[10px] font-medium px-2.5 py-1 rounded-md transition-colors', monthInitMode === 'create' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-100')}
+                    aria-label="Створити нову">Створити</button>
+                  <button onClick={() => { setAddingMonthInit(false); setNewMonthInitTitle(''); }} className="cal-action-btn ml-auto" aria-label="Скасувати"><X className="w-3.5 h-3.5" /></button>
+                </div>
+                {monthInitMode === 'pick' ? (
+                  availableMonthInitiatives.length > 0 ? (
+                    <div className="flex flex-col gap-0.5 max-h-40 overflow-y-auto">
+                      {availableMonthInitiatives.map(cat => {
+                        const inAnnual = annualPlan ? cat.annualPlanIds.includes(annualPlan.annual_id) : false;
+                        const inQuarterly = quarterlyPlan ? cat.quarterlyPlanIds.includes(quarterlyPlan.quarterly_id) : false;
+                        const bulbCls = inAnnual ? 'text-amber-500' : inQuarterly ? 'text-indigo-500' : cat.quarterlyPlanIds.length > 0 ? 'text-indigo-300' : 'text-slate-400';
+                        const filled = inAnnual || inQuarterly;
+                        return (
+                          <button key={cat.id} onClick={() => addMonthlyInitiative(cat.id)} disabled={saving}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded-md text-left hover:bg-indigo-50 transition-colors"
+                            aria-label={`Додати ${cat.title}`}>
+                            <span className="flex-shrink-0"><Lightbulb className={cn('w-3 h-3', bulbCls)} fill={filled ? 'currentColor' : 'none'} /></span>
+                            <span className="text-[11px] text-slate-700 line-clamp-2">{cat.title}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-slate-400 italic py-2 text-center">Немає доступних ініціатив</div>
+                  )
+                ) : (
+                  <div className="flex gap-1.5">
+                    <input value={newMonthInitTitle} onChange={e => setNewMonthInitTitle(e.target.value)}
+                      className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-[11px] focus:ring-2 focus:ring-indigo-500"
+                      placeholder="Назва нової ініціативи" aria-label="Назва" onKeyDown={e => e.key === 'Enter' && addMonthlyInitiative()} />
+                    <button onClick={() => addMonthlyInitiative()} disabled={saving || !newMonthInitTitle.trim()} className="cal-action-btn accent" aria-label="Зберегти"><Check className="w-3.5 h-3.5" /></button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {initiativeMonthlyPlans.map(plan => {
+              const cat = initCatalogMap.get(plan.initiative_id!);
+              const spent = hoursMap.get(plan.monthly_plan_id)?.spent || 0;
+              const iPct = plan.planned_hours > 0 ? Math.round((spent / plan.planned_hours) * 100) : 0;
+              const isExpanded = expandedProcs.has(plan.monthly_plan_id);
+              const taskList = tasksByProc.get(plan.monthly_plan_id) || [];
+              const isPlanPending = plan.status === 'pending';
+              return (
+                <div key={plan.monthly_plan_id} className="border-b border-slate-100 last:border-b-0">
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50/80">
+                    <button type="button" onClick={() => toggleProc(plan.monthly_plan_id)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                      <ChevronRight className={cn('w-3.5 h-3.5 text-slate-400 flex-shrink-0 transition-transform', isExpanded && 'rotate-90')} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-slate-800 truncate">{cat?.title || 'Ініціатива'}</div>
+                      </div>
+                    </button>
+                    <span className="text-xs font-bold text-slate-700">{spent}/{plan.planned_hours}</span>
+                    <span className={cn('text-[10px] font-bold min-w-[28px] text-right', pctColor(iPct))}>{iPct}%</span>
+                    {canEdit && isPlanPending && (
+                      <div className="flex items-center gap-0.5 flex-shrink-0">
+                        <button className="cal-action-btn" style={{ color: '#10b981' }} title="Затвердити" aria-label="Затвердити"
+                          onClick={async () => {
+                            await fetchApi('/api/plans/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: plan.monthly_plan_id, table: 'monthly_plans', status: 'active' }) });
+                            onRefresh?.();
+                          }}>
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button className="cal-action-btn" style={{ color: '#ef4444' }} title="Відхилити" aria-label="Відхилити" disabled>
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {isExpanded && (taskList.length > 0 ? (
+                    taskList.map((tg, i) => (
+                      <div key={i} className="flex items-start gap-2 px-4 py-1.5 pl-10 border-t border-slate-100/80 hover:bg-slate-50/50 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-medium text-slate-700 truncate">{tg.title}</div>
+                          {tg.description && <div className="text-[10px] text-slate-500 line-clamp-2">{tg.description}</div>}
+                        </div>
+                        {tg.source && tg.source !== 'manual' && (
+                          <span className={cn('px-1.5 py-0.5 text-[9px] font-bold rounded border flex-shrink-0',
+                            tg.source === 'chief' ? 'bg-red-50 text-red-600 border-red-200/60' :
+                            tg.source === 'head' ? 'bg-amber-50 text-amber-600 border-amber-200/60' :
+                            'bg-slate-100 text-slate-500 border-slate-200/60'
+                          )}>
+                            {tg.source === 'chief' ? 'ШЕФ' : tg.source === 'head' ? 'КЕР' : tg.source.toUpperCase()}
+                          </span>
+                        )}
+                        <span className="text-[11px] font-bold text-slate-700 min-w-[32px] text-right flex-shrink-0">
+                          {Math.round(tg.hours * 10) / 10} год
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="px-4 py-1.5 pl-10 text-[10px] text-slate-400 italic border-t border-slate-100/80">Немає задач</div>
+                  ))}
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
 
       {/* Approve/Reject bar */}

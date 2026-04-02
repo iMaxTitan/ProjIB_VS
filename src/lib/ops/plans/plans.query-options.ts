@@ -72,10 +72,23 @@ export const quarterlyInitiativesAllOptions = (quarterlyIds: string[]) => queryO
   staleTime: FRESH,
 });
 
+export const allInitiativesOptions = queryOptions({
+  queryKey: queryKeys.plans.initiativesCatalog,
+  queryFn: q.fetchAllInitiatives,
+  staleTime: FRESH,
+});
+
 export const processGoalsOptions = (processId?: string, year?: number) => queryOptions({
   queryKey: queryKeys.plans.processGoals(processId, year),
   queryFn: () => processId && year ? q.fetchProcessGoals(processId, year) : [],
   enabled: !!processId,
+  staleTime: FRESH,
+});
+
+export const monthlyAssigneesOptions = (planIds: string[]) => queryOptions({
+  queryKey: queryKeys.plans.monthlyAssignees(planIds),
+  queryFn: () => q.fetchMonthlyAssignees(planIds),
+  enabled: planIds.length > 0,
   staleTime: FRESH,
 });
 

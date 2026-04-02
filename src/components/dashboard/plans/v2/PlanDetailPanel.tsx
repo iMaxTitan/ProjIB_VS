@@ -8,10 +8,10 @@ import EmptyState from '@/components/ui/EmptyState';
 import { FileSearch, Building2, FolderKanban, BookOpen, ChevronRight, X, Target } from 'lucide-react';
 import { SummaryBox, pctColor, barBg } from '@/components/dashboard/shared';
 import { usePlansV2Ctx } from './PlansV2Context';
-import type { ProcessNode, ProcedureNode, QuarterlyInitiativeRow, ViewLevel } from '@/hooks/usePlansV2';
+import type { ProcessNode, PlanNode, QuarterlyInitiativeRow, ViewLevel } from '@/hooks/usePlansV2';
 import type { PlanCompanyInfo, PlanProjectInfo, PlanDocInfo } from '@/hooks/usePlansV2Detail';
-import ProcedureView from './ProcedureView';
-import { scopeHeaderLabel, DetailHeader, SummaryFooter, TAG_CLS, META_LABEL } from './ProcedureDetailShared';
+import PlanDetailView from './PlanDetailView';
+import { scopeHeaderLabel, DetailHeader, SummaryFooter, TAG_CLS, META_LABEL } from './PlanDetailShared';
 
 export interface ProcessGoal {
   quarter: number;
@@ -24,7 +24,7 @@ export interface ProcessGoal {
 
 interface ProcedureDetailPanelProps {
   selectedProcess: ProcessNode | null;
-  selectedProcedure: ProcedureNode | null;
+  selectedProcedure: PlanNode | null;
   viewLevel: ViewLevel;
   year: number;
   month: number | null;
@@ -81,7 +81,7 @@ export default function ProcedureDetailPanel({
   // Procedure selected → show months → employees breakdown
   if (selectedProcedure) {
     return (
-      <ProcedureView
+      <PlanDetailView
         proc={selectedProcess}
         pr={selectedProcedure}
         viewLevel={viewLevel}

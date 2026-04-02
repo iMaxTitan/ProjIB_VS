@@ -28,6 +28,7 @@ export interface MonthlyPlan {
   monthly_plan_id: string;
   quarterly_id: string | null;
   procedure_id: string | null;
+  initiative_id?: string | null;
   year: number;
   month: number; // 1-12
   month_number?: number; // Alias для month в AI-контексте

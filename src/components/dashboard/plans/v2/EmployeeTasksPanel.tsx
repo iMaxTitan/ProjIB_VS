@@ -3,7 +3,7 @@
 import React from 'react';
 import { cn } from '@/lib/shared/utils';
 import type { DailyTask, MonthlyPlan, MonthlyPlanAssignee } from '@/types/planning';
-import type { ProcessNode, ProcedureNode, ViewLevel } from '@/hooks/usePlansV2';
+import type { ProcessNode, PlanNode, ViewLevel } from '@/hooks/usePlansV2';
 import EmptyState from '@/components/ui/EmptyState';
 import { Spinner } from '@/components/ui/Spinner';
 import { Users, ChevronRight } from 'lucide-react';
@@ -13,7 +13,7 @@ import { usePlansV2Ctx } from './PlansV2Context';
 
 interface EmployeeTasksPanelProps {
   selectedProcess: ProcessNode | null;
-  selectedProcedure: ProcedureNode | null;
+  selectedProcedure: PlanNode | null;
   detailPlans: MonthlyPlan[];
   dailyTasks: DailyTask[];
   tasksLoading: boolean;
@@ -65,7 +65,7 @@ export default function EmployeeTasksPanel({
   resourceHours,
   viewLevel,
 }: EmployeeTasksPanelProps) {
-  const { canEdit, onRefresh } = usePlansV2Ctx();
+  const { canEdit, onRefresh, user } = usePlansV2Ctx();
   // Editing: month + procedure + pending
   const isMonth = viewLevel === 'month';
   const monthlyPlan = isMonth && selectedProcedure ? selectedProcedure.plans[0] : null;
@@ -74,7 +74,7 @@ export default function EmployeeTasksPanel({
   const departmentId = selectedProcess?.departmentId;
 
   // Assignees hook
-  const { deptEmployees, toggleAssignee: toggleAssigneeFn } = usePlanAssignees(monthlyPlanId, departmentId, editing);
+  const { deptEmployees, toggleAssignee: toggleAssigneeFn } = usePlanAssignees(monthlyPlanId, departmentId, editing, user.role ?? undefined, user.user_id ?? undefined);
   const toggleAssignee = React.useCallback(async (userId: string, assigned: boolean) => {
     await toggleAssigneeFn(userId, assigned);
     onRefresh?.();

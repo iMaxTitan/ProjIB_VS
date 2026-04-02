@@ -108,7 +108,7 @@ export function QuarterlyListView({ quarterlyPlans, processTree, annualPlans = [
                           {initiatives.map(init => {
                             const initSt = INIT_STATUS_ICON[init.status] || INIT_STATUS_ICON.planned;
                             return (
-                              <div key={init.id} className="flex items-center gap-1.5">
+                              <div key={init.plan_initiative_id} className="flex items-center gap-1.5">
                                 <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', initSt.cls)} title={initSt.label} />
                                 <span className="text-[10px] text-slate-600 line-clamp-2">{init.title}</span>
                               </div>
@@ -278,7 +278,7 @@ export function QuarterlyDetailView({ process, plan, initiatives, quarter, year,
     await fetchApi('/api/plans/quarterly/initiatives', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: init.id, status: next }),
+      body: JSON.stringify({ id: init.plan_initiative_id, status: next }),
     });
     onRefresh?.();
   };
@@ -430,7 +430,7 @@ export function QuarterlyDetailView({ process, plan, initiatives, quarter, year,
           ) : (
             <div className="space-y-1.5">
               {initiatives.map(init => (
-                <div key={init.id} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-slate-50/80 border border-slate-100 group/init">
+                <div key={init.plan_initiative_id} className="flex items-start gap-2 px-3 py-2 rounded-lg bg-slate-50/80 border border-slate-100 group/init">
                   <div className="flex-1 min-w-0">
                     <div className="text-[11px] font-medium text-slate-700">{init.title}</div>
                     {init.description && <div className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{init.description}</div>}
@@ -441,7 +441,7 @@ export function QuarterlyDetailView({ process, plan, initiatives, quarter, year,
                         <button onClick={() => cycleInitStatus(init)} className="cal-action-btn" title="Змінити статус" aria-label="Змінити статус">
                           {statusBadge(init.status)}
                         </button>
-                        <button onClick={() => deleteInitiative(init.id)}
+                        <button onClick={() => deleteInitiative(init.plan_initiative_id)}
                           className="cal-action-btn opacity-0 group-hover/init:opacity-100" title="Видалити" aria-label="Видалити ініціативу"
                           style={{ color: '#ef4444' }}>
                           <Trash2 className="w-3 h-3" />

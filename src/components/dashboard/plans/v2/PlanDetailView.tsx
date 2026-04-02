@@ -6,17 +6,17 @@ import { MONTH_NAMES_UK } from '@/types/planning';
 import type { MonthlyPlanAssignee } from '@/types/planning';
 import { FileSearch, Building2, FolderKanban, BookOpen, BookMarked, Lightbulb, Settings2, Target, ClipboardList, ChevronRight, X, Plus, Check, Ellipsis, Copy, Trash2 } from 'lucide-react';
 import { SummaryBox, pctColor, barBg } from '@/components/dashboard/shared';
-import type { ProcessNode, ProcedureNode, QuarterlyInitiativeRow, ViewLevel } from '@/hooks/usePlansV2';
+import type { ProcessNode, PlanNode, QuarterlyInitiativeRow, ViewLevel } from '@/hooks/usePlansV2';
 import type { PlanCompanyInfo, PlanProjectInfo, PlanDocInfo } from '@/hooks/usePlansV2Detail';
 import { usePlanRelations } from '@/hooks/usePlanRelations';
 import { usePlansV2Ctx } from './PlansV2Context';
-import { scopeHeaderLabel, DetailHeader, InlineDropdown, SummaryFooter, TAG_CLS, META_LABEL } from './ProcedureDetailShared';
+import { scopeHeaderLabel, DetailHeader, InlineDropdown, SummaryFooter, TAG_CLS, META_LABEL } from './PlanDetailShared';
 
 const PERIOD_LABELS: Record<string, string> = { month: 'місяць', quarter: 'квартал', year: 'рік' };
 
 export interface ProcedureViewProps {
   proc: ProcessNode;
-  pr: ProcedureNode;
+  pr: PlanNode;
   viewLevel: ViewLevel;
   year: number;
   month: number | null;
@@ -248,7 +248,7 @@ export default function ProcedureView({
                   const stMap: Record<string, { cls: string; label: string }> = { planned: { cls: 'bg-blue-400', label: 'Заплановано' }, in_progress: { cls: 'bg-amber-400', label: 'В роботі' }, completed: { cls: 'bg-emerald-400', label: 'Завершено' } };
                   const st = stMap[init.status] || stMap.planned;
                   return (
-                    <div key={init.id} className="flex items-center gap-2">
+                    <div key={init.plan_initiative_id} className="flex items-center gap-2">
                       <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', st.cls)} title={st.label} />
                       <span className="text-[11px] text-slate-700 line-clamp-2">{init.title}</span>
                     </div>
