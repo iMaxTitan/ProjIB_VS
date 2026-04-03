@@ -9,7 +9,7 @@ import CompaniesReferenceContent from './companies/CompaniesReferenceContent';
 import EmployeesReferenceContent from './employees/EmployeesReferenceContent';
 import ProceduresReferenceContent from './procedures/ProceduresReferenceContent';
 import ProjectsReferenceContent from './ProjectsReferenceContent';
-import MeetingsContent from './MeetingsContent';
+import InitiativesReferenceContent from './initiatives/InitiativesReferenceContent';
 import BudgetItemsReferenceContent from './budget/BudgetItemsReferenceContent';
 
 interface ReferencesContentProps {
@@ -23,7 +23,8 @@ export default function ReferencesContent({ user }: ReferencesContentProps) {
   const getContentBg = () => {
     if (selectedRef === 'procedures') return 'bg-purple-50/30';
     if (selectedRef === 'companies') return 'bg-blue-50/30';
-    if (selectedRef === 'calendar' || selectedRef === 'meetings') return 'bg-indigo-50/30';
+    if (selectedRef === 'calendar') return 'bg-indigo-50/30';
+    if (selectedRef === 'initiatives') return 'bg-amber-50/30';
     if (selectedRef === 'budget_items') return 'bg-emerald-50/30';
     return 'bg-emerald-50/30';
   };
@@ -40,8 +41,8 @@ export default function ReferencesContent({ user }: ReferencesContentProps) {
         return <ProceduresReferenceContent user={user} tabsSlot={tabs} />;
       case 'calendar':
         return <CalendarReferenceContent user={user} tabsSlot={tabs} />;
-      case 'meetings':
-        return <MeetingsContent user={user} tabsSlot={tabs} />;
+      case 'initiatives':
+        return <InitiativesReferenceContent user={user} tabsSlot={tabs} />;
       case 'budget_items':
         return <BudgetItemsReferenceContent user={user} tabsSlot={tabs} />;
       default:

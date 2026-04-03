@@ -29,20 +29,19 @@ export interface TemplateDragData {
   title: string;
   monthlyPlanId: string;
   durationMinutes: number;
-  procedureName?: string;
+  planName?: string;
 }
 
-export interface ProcedureDragData {
+export interface PlanDragData {
   type: 'procedure';
-  procedureId: string;
   monthlyPlanId: string;
-  procedureName: string;
+  planName: string;
 }
 
 function GridCell({ rowIdx, dateStr, lunchStartHour, onTemplateDrop, onProcedureDrop, onSlotDrop }: {
   rowIdx: number; dateStr: string; lunchStartHour: number;
   onTemplateDrop?: (date: string, startTime: string, data: TemplateDragData) => void;
-  onProcedureDrop?: (date: string, startTime: string, data: ProcedureDragData) => void;
+  onProcedureDrop?: (date: string, startTime: string, data: PlanDragData) => void;
   onSlotDrop?: (date: string, startTime: string, entryId: string) => void;
 }) {
   const time = timeLabel(rowIdx);
@@ -123,7 +122,7 @@ interface Props {
   activePlans: ActivePlanForSlot[];
   suggestions: SuggestedSlot[];
   lunchStart: string;
-  selectedProcedureId: string | null;
+  selectedPlanId: string | null;
   vacationDays?: Set<string>;
   onDeleteEntry: (id: string) => void;
   onResizeEntry: (id: string, newDurationMin: number) => void;
@@ -135,13 +134,13 @@ interface Props {
   onClearTemplate?: (entryId: string) => void;
   onClearProcedure?: (entryId: string) => void;
   onTemplateDrop?: (date: string, startTime: string, data: TemplateDragData) => void;
-  onProcedureDrop?: (date: string, startTime: string, data: ProcedureDragData) => void;
+  onProcedureDrop?: (date: string, startTime: string, data: PlanDragData) => void;
   onSlotDrop?: (date: string, startTime: string, entryId: string) => void;
 }
 
 export default function PlannerGrid({
   weekDates, entries, activePlans, suggestions, lunchStart,
-  selectedProcedureId, vacationDays,
+  selectedPlanId, vacationDays,
   onDeleteEntry, onResizeEntry,
   onAcceptSuggestion, onDismissSuggestion, onResizeSuggestion,
   onSelectEntry, onLinkTask, onClearTemplate, onClearProcedure, onTemplateDrop, onProcedureDrop, onSlotDrop,
@@ -161,11 +160,8 @@ export default function PlannerGrid({
     return set;
   }, [activePlans]);
 
-  const planToProcedure = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of activePlans) map.set(p.monthlyPlanId, p.procedureId);
-    return map;
-  }, [activePlans]);
+  // planId set for quick lookup
+  const activePlanIds = useMemo(() => new Set(activePlans.map(p => p.monthlyPlanId)), [activePlans]);
 
   const entriesByDate = useMemo(() => {
     const map = new Map<string, CalendarEntry[]>();
@@ -278,7 +274,7 @@ export default function PlannerGrid({
                 {dateStr === today && <NowLine />}
                 {(entriesByDate.get(dateStr) || []).map((entry) => {
                   const lay = layoutByDate.get(dateStr)?.get(entry.id);
-                  const isDimmed = !!selectedProcedureId && entry.source === 'plan' && (!entry.monthly_plan_id || planToProcedure.get(entry.monthly_plan_id) !== selectedProcedureId);
+                  const isDimmed = !!selectedPlanId && entry.source === 'plan' && entry.monthly_plan_id !== selectedPlanId;
                   return (
                     <CalendarBlock key={entry.id} entry={entry} dimmed={isDimmed}
                       readOnly={!!entry.daily_task_id || (entry.source === 'external' && !entry.monthly_plan_id && !entry.task_template_id) || (!!entry.monthly_plan_id && completedPlanIds.has(entry.monthly_plan_id))}
@@ -342,34 +338,23 @@ export default function PlannerGrid({
       })()}
 
       {pickerEntry && (() => {
-        const hasLinkedPlan = !!pickerEntry.monthly_plan_id;
-        let procId: string | undefined;
-        let planId: string | undefined;
+        const planId = pickerEntry.monthly_plan_id ?? selectedPlanId ?? undefined;
+        const plan = planId ? activePlans.find(p => p.monthlyPlanId === planId) : undefined;
+        const procId = plan?.procedureId ?? undefined;
 
-        if (hasLinkedPlan) {
-          procId = planToProcedure.get(pickerEntry.monthly_plan_id!);
-          planId = pickerEntry.monthly_plan_id!;
-        } else if (selectedProcedureId) {
-          const selectedPlan = activePlans.find(p => p.procedureId === selectedProcedureId);
-          if (selectedPlan) {
-            procId = selectedPlan.procedureId;
-            planId = selectedPlan.monthlyPlanId;
-          }
-        }
-
-        // No plan linked and no sidebar selection → show procedure list
-        const procedureList = !procId ? activePlans.map(p => ({
+        // No plan linked and no sidebar selection → show plan list
+        const planList = !planId ? activePlans.map(p => ({
           procedureId: p.procedureId, monthlyPlanId: p.monthlyPlanId,
-          procedureName: p.procedureName, processName: p.processName,
+          planName: p.planName, processName: p.processName,
         })) : undefined;
 
-        if (!procId && (!procedureList || procedureList.length === 0)) return null;
+        if (!planId && (!planList || planList.length === 0)) return null;
 
         return (
           <TaskPickerDropdown
-            procedureId={procId}
+            procedureId={procId ?? undefined}
             monthlyPlanId={planId}
-            procedures={procedureList}
+            procedures={planList}
             entryDate={pickerEntry.date} durationMinutes={pickerEntry.duration_minutes}
             anchorRect={pickerRect} onSelect={handlePickerSelect} onClose={handlePickerClose}
           />

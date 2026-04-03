@@ -15,7 +15,7 @@ export { type WeeklyPlannerData } from '@/lib/ops/planner/planner.optimistic';
 export const PLANNER_ENTRIES_KEY = ['planner', 'entries'] as const;
 
 interface CreateEntryWithMeta extends CreateEntryParams {
-  _procedureName?: string;
+  _planName?: string;
   _processName?: string;
   cascade?: boolean;
 }
@@ -38,6 +38,7 @@ export function useWeeklyEntries(weekStart: string) {
     queryKey: [...PLANNER_ENTRIES_KEY, weekStart],
     queryFn: () => plannerFetch(`/api/planner/entries?weekStart=${weekStart}`),
     staleTime: 30_000,
+    refetchOnMount: 'always',
   });
 }
 
@@ -49,7 +50,7 @@ export function useCreateEntry(weekStart: string) {
 
   return useMutation({
     mutationFn: async (params: CreateEntryWithMeta) => {
-      const { _procedureName: _, _processName: __, ...apiParams } = params;
+      const { _planName: _, _processName: __, ...apiParams } = params;
       return plannerFetch<{ id: string }>('/api/planner/entries', {
         method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(apiParams),
       });
@@ -191,7 +192,7 @@ export function useCollectTasks() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (params: {
-      procedureId: string; weekStart: string; monthlyPlanId: string;
+      monthlyPlanId: string; weekStart: string;
       entries: { id: string; task_template_id: string; duration_minutes: number; date: string }[];
       externalEntries?: { id: string; duration_minutes: number; date: string; subject: string | null; transcript_summary: string | null }[];
     }) => plannerFetch<{ tasksCreated: number; entriesLinked: number }>('/api/planner/entries/collect', {

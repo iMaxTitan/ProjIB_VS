@@ -39,12 +39,18 @@ export interface MonthlyPlan {
   created_by?: string;
   created_at?: string;
   updated_at?: string;
-  // Joined fields
-  procedure_name?: string;
+  // Joined fields (from v_monthly_plan_details)
+  plan_type?: 'procedure' | 'initiative';
+  plan_name?: string;
+  plan_description?: string;
   process_id?: string;
   process_name?: string;
   department_id?: string;
+  department_code?: string;
   department_name?: string;
+  /** @deprecated use plan_name */
+  procedure_name?: string;
+  initiative_title?: string;
   quarter?: number;
   assignees_count?: number;
   total_spent_hours?: number;

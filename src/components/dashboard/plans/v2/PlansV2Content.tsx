@@ -52,7 +52,7 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
   const detail = usePlansV2Detail(detailPlans, month);
   const { refreshData } = data;
   const canEdit = user.role === 'chief' || user.role === 'head';
-  const isChief = user.role === 'chief';
+  const isChief = user.role === 'chief' || user.role === 'head';
 
   const [mobilePanel, setMobilePanel] = useState<string | null>(null);
 
@@ -81,7 +81,7 @@ export default function PlansV2Content({ user }: PlansV2ContentProps) {
         <QuarterlyListView quarterlyPlans={quarterlyPlans} processTree={processTree} annualPlans={annualPlans} quarterlyBudgetSumMap={quarterlyBudgetSumMap} quarterlyBudgetItemsMap={quarterlyBudgetItemsMap} quarterlyInitiativesMap={quarterlyInitiativesMap} quarter={quarter} year={year} canEdit={canEdit} isChief={isChief} onSelectProcess={selectProcess} onRefresh={refreshData} />
       )}
       {viewLevel === 'month' && !selectedProcess && month && (
-        <MonthlyPlansListView processTree={processTree} monthlyPlans={monthlyPlans} quarterlyPlans={quarterlyPlans} companyHours={monthlyCompanyHours} initiativesCatalog={initiativesCatalog} year={year} month={month} canEdit={canEdit} isChief={isChief} scopeLabel={scopeLabel} onRefresh={refreshData} onSelectProcedure={selectProcedure} />
+        <MonthlyPlansListView processTree={processTree} monthlyPlans={monthlyPlans} quarterlyPlans={quarterlyPlans} companyHours={monthlyCompanyHours} hoursMap={hoursMap} year={year} month={month} canEdit={canEdit} isChief={isChief} scopeLabel={scopeLabel} onRefresh={refreshData} onSelectProcedure={selectProcedure} />
       )}
       {selectedProcedure && (
         <PlanDetailPanel

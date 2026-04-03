@@ -57,9 +57,9 @@ export async function GET(req: NextRequest) {
   // ─── Picker mode (default) ───
   const procedureId = url.searchParams.get('procedure_id');
 
-  if (!procedureId || !monthlyPlanId) {
+  if (!monthlyPlanId) {
     return NextResponse.json(
-      { error: 'procedure_id and monthly_plan_id are required' },
+      { error: 'monthly_plan_id is required' },
       { status: 400 },
     );
   }
@@ -78,15 +78,18 @@ export async function GET(req: NextRequest) {
       (linkedRows || []).map((r) => r.daily_task_id as string),
     );
 
-    // 1. Templates -- active templates for the procedure
-    const { data: tplRows, error: tplErr } = await db
-      .from('procedure_task_templates')
-      .select('id, title, content')
-      .eq('procedure_id', procedureId)
-      .eq('is_active', true)
-      .order('created_at');
-
-    if (tplErr) throw tplErr;
+    // 1. Templates -- active templates for the procedure (empty for initiatives)
+    let tplRows: { id: string; title: string; content: string }[] = [];
+    if (procedureId) {
+      const { data, error: tplErr } = await db
+        .from('procedure_task_templates')
+        .select('id, title, content')
+        .eq('procedure_id', procedureId)
+        .eq('is_active', true)
+        .order('created_at');
+      if (tplErr) throw tplErr;
+      tplRows = (data || []) as { id: string; title: string; content: string }[];
+    }
 
     // 2. Incomplete tasks -- task_type = 'incomplete', not yet linked, current user only
     const { data: incRows, error: incErr } = await db

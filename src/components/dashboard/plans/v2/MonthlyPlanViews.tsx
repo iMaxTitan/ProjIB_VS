@@ -293,7 +293,7 @@ interface MonthlyPlansListViewProps {
   monthlyPlans: MonthlyPlan[];
   quarterlyPlans?: { quarterly_id: string; process_id: string | null }[];
   companyHours?: CompanyHoursRow[];
-  initiativesCatalog?: { id: string; title: string }[];
+  hoursMap?: Map<string, { spent: number; tasks: number }>;
   year: number;
   month: number;
   canEdit?: boolean;
@@ -310,7 +310,7 @@ const STATUS_BADGE: Record<PlanStatus, { label: string; cls: string }> = {
   done: { label: 'Виконано', cls: 'bg-emerald-100 text-emerald-700' },
 };
 
-export function MonthlyPlansListView({ processTree, monthlyPlans, quarterlyPlans = [], companyHours, initiativesCatalog = [], year, month, canEdit, isChief, scopeLabel, onRefresh, onSelectProcedure }: MonthlyPlansListViewProps) {
+export function MonthlyPlansListView({ processTree, monthlyPlans, quarterlyPlans = [], companyHours, hoursMap, year, month, canEdit, isChief, scopeLabel, onRefresh, onSelectProcedure }: MonthlyPlansListViewProps) {
   // procedure → companies map
   const procCompanies = React.useMemo(() => {
     const m = new Map<string, { name: string; hours: number }[]>();
@@ -325,16 +325,15 @@ export function MonthlyPlansListView({ processTree, monthlyPlans, quarterlyPlans
     return m;
   }, [companyHours]);
 
-  const initCatalogMap = React.useMemo(() => new Map(initiativesCatalog.map(i => [i.id, i])), [initiativesCatalog]);
-
-  // Build flat list of procedure cards with their plans
-  type ListItem = { proc: ProcessNode; pr: typeof processTree[0]['procedures'][0]; plan: MonthlyPlan | null; status: PlanStatus; isInitiative?: boolean; initiativeTitle?: string };
+  // Build flat list of plan cards
+  type ListItem = { proc: ProcessNode; pr: typeof processTree[0]['procedures'][0]; plan: MonthlyPlan | null; status: PlanStatus; isInitiative?: boolean };
   const items = React.useMemo(() => {
     const planMap = new Map<string, MonthlyPlan>();
     for (const p of monthlyPlans.filter(p => p.month === month)) {
       if (p.procedure_id) planMap.set(p.procedure_id, p);
     }
     const result: ListItem[] = [];
+    // Procedure-based: from processTree (includes "none" cards for procedures without plans)
     for (const proc of processTree) {
       for (const pr of proc.procedures) {
         const plan = planMap.get(pr.procedureId) || null;
@@ -343,38 +342,30 @@ export function MonthlyPlansListView({ processTree, monthlyPlans, quarterlyPlans
       }
     }
 
-    // Initiative monthly plans (only those that have plans created)
-    // Map quarterly_id → process via quarterlyPlans
+    // Initiative-based: from monthlyPlans directly (plan_name, process_id come from view)
     const processMap = new Map(processTree.map(p => [p.processId, p]));
-    const qpMap = new Map<string, ProcessNode>();
-    for (const qp of quarterlyPlans) {
-      if (qp.process_id) {
-        const proc = processMap.get(qp.process_id);
-        if (proc) qpMap.set(qp.quarterly_id, proc);
-      }
-    }
     for (const p of monthlyPlans.filter(mp => mp.month === month && mp.initiative_id && !mp.procedure_id)) {
-      const proc = p.quarterly_id ? qpMap.get(p.quarterly_id) : undefined;
+      const proc = p.process_id ? processMap.get(p.process_id) : undefined;
       if (!proc) continue;
-      const cat = initCatalogMap.get(p.initiative_id!);
-      const spent = 0; // will be shown via hoursMap in parent
-      const dummyPr = {
+      const initHrs = hoursMap?.get(p.monthly_plan_id);
+      const initPr = {
         procedureId: p.initiative_id!,
-        name: cat?.title || 'Ініціатива',
+        name: p.plan_name || 'Ініціатива',
+        description: p.plan_description,
         processId: proc.processId,
         taskTemplates: [],
         plannedHours: p.planned_hours || 0,
-        spentHours: spent,
+        spentHours: initHrs?.spent ?? 0,
         plans: [p],
       };
-      result.push({ proc, pr: dummyPr, plan: p, status: (p.status as PlanStatus) || 'pending', isInitiative: true, initiativeTitle: cat?.title });
+      result.push({ proc, pr: initPr, plan: p, status: (p.status as PlanStatus) || 'pending', isInitiative: true });
     }
 
     // Plans first (by status: pending → active → done), then none
     const order: Record<PlanStatus, number> = { pending: 0, active: 1, done: 2, none: 3 };
     result.sort((a, b) => order[a.status] - order[b.status]);
     return result;
-  }, [processTree, monthlyPlans, month, initCatalogMap]);
+  }, [processTree, monthlyPlans, month]);
 
   const totalPlans = items.filter(i => i.plan).length;
   const totalHours = items.reduce((s, i) => s + (i.plan ? i.pr.plannedHours : 0), 0);
@@ -480,10 +471,15 @@ export function MonthlyPlansListView({ processTree, monthlyPlans, quarterlyPlans
                             <button className="cal-action-btn" style={{ color: '#ef4444' }}
                               title={status === 'pending' ? 'Видалити план' : 'Повернути'} aria-label={status === 'pending' ? 'Видалити' : 'Повернути'}
                               onClick={async () => {
-                                if (status === 'pending') {
+                                try {
                                   await fetchApi(`/api/plans/monthly?id=${plan.monthly_plan_id}`, { method: 'DELETE' });
-                                } else {
-                                  await fetchApi('/api/plans/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: plan.monthly_plan_id, table: 'monthly_plans', status: 'pending' }) });
+                                } catch (e: unknown) {
+                                  const err = e as { message?: string };
+                                  if (err.message?.includes('Підтвердіть видалення')) {
+                                    if (confirm(`${err.message}\nЗадачі будуть видалені. Продовжити?`)) {
+                                      await fetchApi(`/api/plans/monthly?id=${plan.monthly_plan_id}&force=true`, { method: 'DELETE' });
+                                    } else return;
+                                  } else throw e;
                                 }
                                 onRefresh?.();
                               }}>

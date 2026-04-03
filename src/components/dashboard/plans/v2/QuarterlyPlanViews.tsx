@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { cn } from '@/lib/shared/utils';
 import { Target, Lightbulb, FileCheck, FileText, Pencil, Check, X, Trash2, ShieldCheck, Plus, Copy, Banknote, CalendarDays } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
+import InitiativeForm from './InitiativeForm';
 import { STATUS_ICON_MAP, type PlanStatus } from '@/components/dashboard/shared';
 import type { ProcessNode, QuarterlyPlanRow, QuarterlyInitiativeRow, AnnualPlanRow, AnnualBudgetRow } from '@/hooks/usePlansV2';
 
@@ -218,7 +219,6 @@ export function QuarterlyDetailView({ process, plan, initiatives, quarter, year,
   const [editNote, setEditNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [newInitTitle, setNewInitTitle] = useState('');
   const [addingInit, setAddingInit] = useState(false);
 
   const saveEdit = async () => {
@@ -257,16 +257,15 @@ export function QuarterlyDetailView({ process, plan, initiatives, quarter, year,
     } finally { setSaving(false); }
   };
 
-  const addInitiative = async () => {
-    if (!plan || !newInitTitle.trim()) return;
+  const addInitiative = async (title: string, description: string) => {
+    if (!plan) return;
     setSaving(true);
     try {
       await fetchApi('/api/plans/quarterly/initiatives', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quarterly_plan_id: plan.quarterly_id, title: newInitTitle.trim() }),
+        body: JSON.stringify({ quarterly_plan_id: plan.quarterly_id, title, description: description || undefined }),
       });
-      setNewInitTitle('');
       setAddingInit(false);
       onRefresh?.();
     } finally { setSaving(false); }
@@ -415,14 +414,11 @@ export function QuarterlyDetailView({ process, plan, initiatives, quarter, year,
           </div>
 
           {addingInit && (
-            <div className="flex gap-1.5 mb-2">
-              <input value={newInitTitle} onChange={e => setNewInitTitle(e.target.value)}
-                className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-[11px] focus:ring-2 focus:ring-indigo-500"
-                placeholder="Назва ініціативи" aria-label="Назва ініціативи"
-                onKeyDown={e => e.key === 'Enter' && addInitiative()} />
-              <button onClick={addInitiative} disabled={saving || !newInitTitle.trim()} className="cal-action-btn accent" aria-label="Зберегти"><Check className="w-3.5 h-3.5" /></button>
-              <button onClick={() => { setAddingInit(false); setNewInitTitle(''); }} className="cal-action-btn" aria-label="Скасувати"><X className="w-3.5 h-3.5" /></button>
-            </div>
+            <InitiativeForm
+              onSubmit={addInitiative}
+              onCancel={() => setAddingInit(false)}
+              saving={saving}
+            />
           )}
 
           {initiatives.length === 0 && !addingInit ? (

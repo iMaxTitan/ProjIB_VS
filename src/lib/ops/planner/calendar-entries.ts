@@ -20,9 +20,9 @@ export interface CalendarEntry {
   subject: string | null;
   has_transcript: boolean;
   transcript_summary: string | null;
-  procedure_name: string;
+  plan_name: string;
   process_name: string;
-  /** Title of the linked daily_task (shown instead of procedure_name). */
+  /** Title of the linked daily_task (shown instead of plan_name). */
   task_title: string | null;
   /** Description of the linked daily_task. */
   task_description: string | null;
@@ -36,12 +36,14 @@ export interface CalendarEntry {
 
 export interface ActivePlanForSlot {
   monthlyPlanId: string;
-  procedureId: string;
-  procedureName: string;
+  /** Display name — procedure name or initiative title */
+  planName: string;
+  procedureId: string | null;
   processName: string;
   departmentCode: string;
   plannedHours: number;
   status: 'active' | 'done';
+  initiativeId: string | null;
 }
 
 export interface CreateEntryParams {
@@ -117,7 +119,6 @@ export async function getWeekEntries(
       id, employee_id, date, start_time, duration_minutes,
       source, monthly_plan_id, outlook_event_id, daily_task_id, task_template_id,
       subject, has_transcript, transcript_summary, outlook_modified, needs_push,
-      monthly_plans(procedure_id, procedures(name, processes(process_name))),
       daily_tasks(monthly_plan_id, completed_at, description, title),
       procedure_task_templates(title)
     `)
@@ -128,39 +129,30 @@ export async function getWeekEntries(
 
   if (error) throw error;
 
-  type PlanJoin = {
-    procedure_id: string;
-    procedures: {
-      name: string;
-      processes: { process_name: string } | { process_name: string }[] | null;
-    } | null;
-  };
+  // Collect unique plan IDs and fetch plan details from view
+  const planIds = [...new Set((data || []).map(r => r.monthly_plan_id).filter(Boolean))] as string[];
+  const planMap = new Map<string, { plan_name: string; process_name: string }>();
+  if (planIds.length > 0) {
+    const { data: plans } = await db
+      .from('v_monthly_plan_details')
+      .select('monthly_plan_id, plan_name, process_name')
+      .in('monthly_plan_id', planIds);
+    for (const p of plans || []) {
+      planMap.set(p.monthly_plan_id, { plan_name: p.plan_name ?? '', process_name: p.process_name ?? '' });
+    }
+  }
 
   return (data || []).map((row) => {
-    let procedureName = 'Без процедури';
-    let processName = '';
+    const planInfo = row.monthly_plan_id ? planMap.get(row.monthly_plan_id) : undefined;
+    const planName = row.source === 'external' && !planInfo
+      ? (row.subject || '(без теми)')
+      : (planInfo?.plan_name ?? '');
+    const processName = planInfo?.process_name ?? '';
 
-    if (row.source === 'plan' && row.monthly_plans) {
-      const plan = (Array.isArray(row.monthly_plans)
-        ? row.monthly_plans[0] : row.monthly_plans) as unknown as PlanJoin | null;
-      const proc = plan?.procedures;
-      if (proc) {
-        procedureName = proc.name;
-        const procObj = proc.processes;
-        processName = Array.isArray(procObj)
-          ? procObj[0]?.process_name ?? '' : procObj?.process_name ?? '';
-      }
-    } else if (row.source === 'external') {
-      procedureName = row.subject || '(без теми)';
-    }
-
-    // Check if linked daily_task has a plan
     const taskJoin = (row as Record<string, unknown>).daily_tasks as
       | { monthly_plan_id: string | null; completed_at: string | null; description: string | null; title: string | null }
       | { monthly_plan_id: string | null; completed_at: string | null; description: string | null; title: string | null }[] | null;
     const taskObj = Array.isArray(taskJoin) ? taskJoin[0] : taskJoin;
-    const taskHasPlan = !!taskObj?.monthly_plan_id;
-    const taskCompleted = !!taskObj?.completed_at;
 
     return {
       id: row.id, employee_id: row.employee_id, date: row.date,
@@ -168,11 +160,11 @@ export async function getWeekEntries(
       source: row.source as 'plan' | 'external',
       monthly_plan_id: row.monthly_plan_id, outlook_event_id: row.outlook_event_id,
       daily_task_id: row.daily_task_id, task_template_id: (row as Record<string, unknown>).task_template_id as string | null,
-      task_has_plan: taskHasPlan, task_completed: taskCompleted,
+      task_has_plan: !!taskObj?.monthly_plan_id, task_completed: !!taskObj?.completed_at,
       subject: row.subject,
       has_transcript: !!(row as Record<string, unknown>).has_transcript,
       transcript_summary: row.transcript_summary,
-      procedure_name: procedureName, process_name: processName,
+      plan_name: planName, process_name: processName,
       task_title: taskObj?.title ?? null,
       task_description: taskObj?.description ?? null,
       outlook_modified: !!(row as Record<string, unknown>).outlook_modified,
@@ -204,51 +196,37 @@ export async function getActivePlansForUser(
   const planIds = (assignees || []).map((r) => r.monthly_plan_id);
   if (planIds.length === 0) return [];
 
-  type PlanRow = { monthly_plan_id: string; planned_hours: number; procedure_id: string; status: string; procedures: unknown };
-  const allPlans: PlanRow[] = [];
+  type ViewRow = {
+    monthly_plan_id: string; planned_hours: number; procedure_id: string | null;
+    initiative_id: string | null; status: string; plan_type: string;
+    plan_name: string; process_name: string; department_code: string;
+  };
+
+  const allPlans: ViewRow[] = [];
   for (const { year, month } of months) {
     const { data } = await db
-      .from('monthly_plans')
-      .select('monthly_plan_id, planned_hours, procedure_id, status, procedures(name, processes(process_name, departments(department_code)))')
+      .from('v_monthly_plan_details')
+      .select('monthly_plan_id, planned_hours, procedure_id, initiative_id, status, plan_type, plan_name, process_name, department_code')
       .in('monthly_plan_id', planIds)
       .eq('year', year)
       .eq('month', month)
       .in('status', ['active', 'done']);
-    if (data) allPlans.push(...(data as PlanRow[]));
+    if (data) allPlans.push(...(data as ViewRow[]));
   }
 
   const seen = new Set<string>();
-  const plans = allPlans.filter(p => {
-    if (seen.has(p.monthly_plan_id)) return false;
-    seen.add(p.monthly_plan_id);
-    return true;
-  });
-
-  return plans.map((row) => {
-    type DeptJoin = { department_code: string } | { department_code: string }[] | null;
-    type ProcJoin = {
-      name: string;
-      processes: { process_name: string; departments: DeptJoin } | { process_name: string; departments: DeptJoin }[] | null;
-    };
-    const proc = row.procedures as unknown as ProcJoin | ProcJoin[] | null;
-    const p = Array.isArray(proc) ? proc[0] : proc;
-    const procObj = p?.processes;
-    const processRow = Array.isArray(procObj) ? procObj[0] : procObj;
-    const processName = processRow?.process_name ?? '';
-    const deptObj = processRow?.departments;
-    const deptRow = Array.isArray(deptObj) ? deptObj[0] : deptObj;
-    const departmentCode = deptRow?.department_code ?? '';
-
-    return {
+  return allPlans
+    .filter(p => { if (seen.has(p.monthly_plan_id)) return false; seen.add(p.monthly_plan_id); return true; })
+    .map((row) => ({
       monthlyPlanId: row.monthly_plan_id,
+      planName: row.plan_name ?? '',
       procedureId: row.procedure_id,
-      procedureName: p?.name ?? 'Без процедури',
-      processName,
-      departmentCode,
+      processName: row.process_name ?? '',
+      departmentCode: row.department_code ?? '',
       plannedHours: Number(row.planned_hours) || 0,
       status: row.status === 'done' ? 'done' as const : 'active' as const,
-    };
-  });
+      initiativeId: row.initiative_id,
+    }));
 }
 
 // ─── Write operations ────────────────────────────────────────────────────────

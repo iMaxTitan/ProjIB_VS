@@ -125,7 +125,7 @@ async function pushModifiedEntries(
       method: 'PATCH' as const,
       url: `/users/${userOid}/events/${entry.outlook_event_id}`,
       headers: { 'Content-Type': 'application/json' },
-      body: buildOutlookEvent(entry, entry.procedure_name),
+      body: buildOutlookEvent(entry, entry.plan_name),
     }));
 
     const responses = await sendBatch(token, requests);
@@ -201,7 +201,7 @@ export async function pushToOutlook(
       method: 'POST' as const,
       url: `/users/${userOid}/events`,
       headers: { 'Content-Type': 'application/json' },
-      body: buildOutlookEvent(entry, entry.procedure_name),
+      body: buildOutlookEvent(entry, entry.plan_name),
     }));
 
     const responses = await sendBatch(token, requests);

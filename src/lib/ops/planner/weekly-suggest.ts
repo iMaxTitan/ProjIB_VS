@@ -13,7 +13,7 @@ import {
   WORK_START, WORK_END, MAX_WEEK_MIN, WORK_DAY_MIN,
   weekDates,
   buildOccupiedMap,
-  scheduledMinByProcedure,
+  scheduledMinByPlan,
   mergeConsecutiveSlots,
   suggestFromPreviousWeek,
   suggestProportional,
@@ -45,10 +45,7 @@ export async function suggestWeekSlots(
     dayOcc.push({ startMin: WORK_START, endMin: WORK_END });
     occupiedMap.set(vd, dayOcc);
   }
-  const planToProcedure = new Map<string, string>();
-  for (const p of activePlans) planToProcedure.set(p.monthlyPlanId, p.procedureId);
-
-  const alreadyScheduled = scheduledMinByProcedure(existingEntries, planToProcedure);
+  const alreadyScheduled = scheduledMinByPlan(existingEntries);
 
   const prevStart = new Date(weekStart);
   prevStart.setDate(prevStart.getDate() - 7);
@@ -56,7 +53,7 @@ export async function suggestWeekSlots(
   const prevPlanEntries = prevEntries.filter((e) => e.source === 'plan');
 
   if (prevPlanEntries.length > 0) {
-    const slots = suggestFromPreviousWeek(prevPlanEntries, dates, occupiedMap, lunchStartMin, alreadyScheduled, planToProcedure);
+    const slots = suggestFromPreviousWeek(prevPlanEntries, dates, occupiedMap, lunchStartMin, alreadyScheduled);
     return mergeConsecutiveSlots(slots);
   }
 

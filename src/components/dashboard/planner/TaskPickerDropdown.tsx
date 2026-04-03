@@ -34,13 +34,13 @@ interface TaskPickerData {
 export type SelectPayload =
   | { type: 'template'; templateId: string; title: string; content: string; monthlyPlanId?: string }
   | { type: 'existing'; dailyTaskId: string }
-  | { type: 'new'; monthlyPlanId: string; procedureId: string }
-  | { type: 'procedure-only'; monthlyPlanId: string; procedureId: string };
+  | { type: 'new'; monthlyPlanId: string; procedureId?: string | null }
+  | { type: 'procedure-only'; monthlyPlanId: string; procedureId?: string | null };
 
-interface ProcedureOption {
-  procedureId: string;
+interface PlanOption {
+  procedureId: string | null;
   monthlyPlanId: string;
-  procedureName: string;
+  planName: string;
   processName: string;
 }
 
@@ -48,8 +48,8 @@ interface TaskPickerDropdownProps {
   /** For plan entries — procedure already known */
   procedureId?: string;
   monthlyPlanId?: string;
-  /** For external entries — show procedure list first */
-  procedures?: ProcedureOption[];
+  /** For external entries — show plan list first */
+  procedures?: PlanOption[];
   entryDate: string;
   durationMinutes: number;
   anchorRect: DOMRect | null;
@@ -87,29 +87,29 @@ const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
   onSelect,
   onClose,
 }) => {
-  // Two-step mode: external events need procedure selection first
-  const needsProcedureStep = !initialProcedureId && !!procedures?.length;
-  const [selectedProcedure, setSelectedProcedure] = useState<ProcedureOption | null>(null);
+  // Two-step mode: external events need plan selection first
+  const needsPlanStep = !initialMonthlyPlanId && !!procedures?.length;
+  const [selectedPlan, setSelectedPlan] = useState<PlanOption | null>(null);
 
-  const procedureId = selectedProcedure?.procedureId || initialProcedureId;
-  const monthlyPlanId = selectedProcedure?.monthlyPlanId || initialMonthlyPlanId;
+  const procedureId = selectedPlan?.procedureId || initialProcedureId;
+  const monthlyPlanId = selectedPlan?.monthlyPlanId || initialMonthlyPlanId;
 
   const [data, setData] = useState<TaskPickerData | null>(null);
-  const [loading, setLoading] = useState(!needsProcedureStep);
+  const [loading, setLoading] = useState(!needsPlanStep);
   const isDesktop = useMediaQuery('(min-width: 640px)');
   const ref = useRef<HTMLDivElement>(null);
 
-  /* ---- Fetch tasks when procedure is known ---- */
+  /* ---- Fetch tasks when plan is known ---- */
   useEffect(() => {
-    if (!procedureId || !monthlyPlanId) return;
+    if (!monthlyPlanId) return;
     let cancelled = false;
     setLoading(true);
     const params = new URLSearchParams({
-      procedure_id: procedureId,
       monthly_plan_id: monthlyPlanId,
       entry_date: entryDate,
       duration_minutes: String(durationMinutes),
     });
+    if (procedureId) params.set('procedure_id', procedureId);
     fetch(`/api/planner/tasks?${params}`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.statusText)))
       .then((d) => { if (!cancelled) setData(d); })
@@ -207,11 +207,11 @@ const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
   };
 
   /* ---- Procedure step (for external events) ---- */
-  const showProcedureStep = needsProcedureStep && !selectedProcedure;
+  const showPlanStep = needsPlanStep && !selectedPlan;
 
   /* ---- "New task" handler ---- */
   const handleNewTask = useCallback(() => {
-    if (procedureId && monthlyPlanId) {
+    if (monthlyPlanId) {
       onSelect({ type: 'new', monthlyPlanId, procedureId });
     }
   }, [procedureId, monthlyPlanId, onSelect]);
@@ -239,21 +239,21 @@ const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
       )}
 
       {/* Step 1: Procedure selection (external events only) */}
-      {showProcedureStep && (
+      {showPlanStep && (
         <div className="p-1.5 space-y-1">
           <div className={cn(
             'flex items-center gap-1.5 text-3xs font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg',
             'bg-sky-50/80 text-sky-600',
           )}>
             <FolderOpen className="w-3 h-3 text-sky-400" aria-hidden="true" />
-            Оберіть процедуру
+            Оберіть план
             <span className="ml-auto text-3xs font-medium opacity-60">{procedures!.length}</span>
           </div>
           {procedures!.map((p) => (
             <button
-              key={p.procedureId}
+              key={p.monthlyPlanId}
               type="button"
-              onClick={() => setSelectedProcedure(p)}
+              onClick={() => setSelectedPlan(p)}
               className={cn(
                 'w-full text-left px-3 py-2 text-xs transition-all duration-150',
                 'cursor-pointer rounded-lg mx-1 my-0.5 hover:bg-sky-50/60',
@@ -261,7 +261,7 @@ const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
               )}
               style={{ width: 'calc(100% - 8px)' }}
             >
-              <span className="block font-semibold text-slate-800 truncate leading-tight">{p.procedureName}</span>
+              <span className="block font-semibold text-slate-800 truncate leading-tight">{p.planName}</span>
               {p.processName && (
                 <span className="block text-2xs text-slate-400 truncate mt-0.5 leading-tight">{p.processName}</span>
               )}
@@ -271,25 +271,25 @@ const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
       )}
 
       {/* Step 2: Tasks/Templates (after procedure selected or for plan entries) */}
-      {!showProcedureStep && (
+      {!showPlanStep && (
         <>
           {/* Back button (external events — go back to procedure list) */}
-          {needsProcedureStep && selectedProcedure && (
+          {needsPlanStep && selectedPlan && (
             <button
               type="button"
-              onClick={() => { setSelectedProcedure(null); setData(null); }}
+              onClick={() => { setSelectedPlan(null); setData(null); }}
               className="flex items-center gap-1 px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors w-full border-b border-slate-100"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
-              <span className="truncate">{selectedProcedure.procedureName}</span>
+              <span className="truncate">{selectedPlan.planName}</span>
             </button>
           )}
 
           {/* "Procedure only" — link plan without template */}
-          {needsProcedureStep && selectedProcedure && !loading && (
+          {needsPlanStep && selectedPlan && !loading && (
             <div className="px-1.5 pt-1">
               <button type="button"
-                onClick={() => onSelect({ type: 'procedure-only', monthlyPlanId: selectedProcedure.monthlyPlanId, procedureId: selectedProcedure.procedureId })}
+                onClick={() => onSelect({ type: 'procedure-only', monthlyPlanId: selectedPlan.monthlyPlanId, procedureId: selectedPlan.procedureId })}
                 className={cn(
                   'w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold',
                   'rounded-lg transition-all duration-150 cursor-pointer',
@@ -297,7 +297,7 @@ const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
                   'focus:outline-none focus:ring-1 focus:ring-sky-300',
                 )}>
                 <FolderOpen className="w-3.5 h-3.5" />
-                Тільки процедуру
+                Тільки план
               </button>
             </div>
           )}
@@ -310,8 +310,8 @@ const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
 
           {isEmpty && (
             <div className="py-4">
-              <p className="text-center text-xs text-slate-400 pb-3">Немає шаблонів для цієї процедури</p>
-              {procedureId && monthlyPlanId && (
+              <p className="text-center text-xs text-slate-400 pb-3">Немає шаблонів для цього плану</p>
+              {monthlyPlanId && (
                 <div className="px-1.5">
                   <button
                     type="button"
@@ -350,7 +350,7 @@ const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
               );
             })}
 
-            {!isEmpty && procedureId && monthlyPlanId && (
+            {!isEmpty && monthlyPlanId && (
               <button
                 type="button"
                 onClick={handleNewTask}

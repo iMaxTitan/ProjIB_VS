@@ -151,7 +151,7 @@ export default function TasksModal({ state, weekStart, onClose }: Props) {
       setTitle(meetingEntry?.subject || '');
       setDescription(summaryEntry?.transcript_summary
         ? summaryEntry.transcript_summary.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500)
-        : state.plan.procedureName);
+        : state.plan.planName);
       setHours(state.totalHours);
       setDate(state.latestDate);
       setDocumentNumber('');
@@ -230,7 +230,7 @@ export default function TasksModal({ state, weekStart, onClose }: Props) {
     : 'Нова задача';
 
   const isCreate = state.mode === 'create';
-  const procedureId = state.plan.procedureId;
+  const procedureId = state.plan.procedureId ?? '';
 
   return createPortal(
     <div
@@ -247,7 +247,7 @@ export default function TasksModal({ state, weekStart, onClose }: Props) {
           <div className="flex items-center gap-1.5">
             <div className="w-1 h-[18px] rounded-sm bg-indigo-500 flex-shrink-0" />
             <span className="text-[13px] font-semibold text-slate-800 flex-1">{modalTitle}</span>
-            <span className="text-[10px] text-slate-500 flex-shrink-0 max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{state.plan.procedureName}</span>
+            <span className="text-[10px] text-slate-500 flex-shrink-0 max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{state.plan.planName}</span>
             <button className="cal-action-btn" onClick={onClose} aria-label="Закрити" type="button">
               <X className="h-3.5 w-3.5" />
             </button>

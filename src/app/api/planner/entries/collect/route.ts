@@ -1,6 +1,6 @@
 /**
  * POST /api/planner/entries/collect
- * Body: { procedureId, weekStart, monthlyPlanId, entries: [{ id, task_template_id, duration_minutes, date }] }
+ * Body: { monthlyPlanId, weekStart, entries: [{ id, task_template_id, duration_minutes, date }] }
  *
  * Groups entries by task_template_id, creates daily_tasks per group.
  * No modal — immediate collect.
@@ -38,11 +38,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { procedureId, weekStart, monthlyPlanId, entries, externalEntries } = body;
+    const { weekStart, monthlyPlanId, entries, externalEntries } = body;
 
-    if (!procedureId || typeof procedureId !== 'string') {
-      return NextResponse.json({ error: 'procedureId required' }, { status: 400 });
-    }
     if (!monthlyPlanId || typeof monthlyPlanId !== 'string') {
       return NextResponse.json({ error: 'monthlyPlanId required' }, { status: 400 });
     }
@@ -54,7 +51,7 @@ export async function POST(req: NextRequest) {
 
     const db = getDb();
     const result = await collectProcedureTasks(db, userId, {
-      procedureId, weekStart, monthlyPlanId,
+      monthlyPlanId, weekStart,
       entries: entries || [],
       externalEntries: externalEntries || [],
     });

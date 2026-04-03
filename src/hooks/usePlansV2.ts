@@ -115,6 +115,7 @@ export function usePlansV2(user?: UserInfo) {
     const plan = monthlyPlans.find(p => p.monthly_plan_id === selectedProcedureId);
     if (plan?.initiative_id) {
       const cat = initiativesCatalog.find(i => i.id === plan.initiative_id);
+      const hrs = hoursMap.get(plan.monthly_plan_id);
       return {
         procedureId: selectedProcedureId,
         name: cat?.title || 'Ініціатива',
@@ -122,14 +123,14 @@ export function usePlansV2(user?: UserInfo) {
         description: cat?.description,
         taskTemplates: [],
         plannedHours: plan.planned_hours || 0,
-        spentHours: 0,
+        spentHours: hrs?.spent ?? 0,
         plans: [plan],
         isInitiative: true,
         initiativeId: plan.initiative_id,
       };
     }
     return null;
-  }, [selectedProcess, selectedProcedureId, selectedProcessId, monthlyPlans, initiativesCatalog]);
+  }, [selectedProcess, selectedProcedureId, selectedProcessId, monthlyPlans, initiativesCatalog, hoursMap]);
 
   const detailPlans = useMemo(() => {
     if (selectedProcedure) return selectedProcedure.plans;

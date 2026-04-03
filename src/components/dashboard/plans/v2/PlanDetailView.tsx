@@ -11,6 +11,13 @@ import type { PlanCompanyInfo, PlanProjectInfo, PlanDocInfo } from '@/hooks/useP
 import { usePlanRelations } from '@/hooks/usePlanRelations';
 import { usePlansV2Ctx } from './PlansV2Context';
 import { scopeHeaderLabel, DetailHeader, InlineDropdown, SummaryFooter, TAG_CLS, META_LABEL } from './PlanDetailShared';
+import InitiativeForm from './InitiativeForm';
+
+async function fetchApi(url: string, init?: RequestInit) {
+  const res = await fetch(url, { credentials: 'include', ...init });
+  if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || `HTTP ${res.status}`); }
+  return res.json();
+}
 
 const PERIOD_LABELS: Record<string, string> = { month: 'місяць', quarter: 'квартал', year: 'рік' };
 
@@ -55,8 +62,6 @@ export default function ProcedureView({
   const isYear = viewLevel === 'year';
   const isQuarter = viewLevel === 'quarter';
   const isMonth = viewLevel === 'month';
-  const showInitiatives = isQuarter || isMonth;
-
   // Editing: only month + pending
   const monthlyPlan = isMonth ? pr.plans[0] : null;
   const monthlyPlanId = monthlyPlan?.monthly_plan_id ?? null;
@@ -68,6 +73,7 @@ export default function ProcedureView({
   const removeRelation = React.useCallback(async (type: string, id: string) => { await removeRel(type, id); onRefresh?.(); }, [removeRel, onRefresh]);
 
   const [showProjectDropdown, setShowProjectDropdown] = React.useState(false);
+  const [addingInit, setAddingInit] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   // Plan actions
@@ -110,7 +116,14 @@ export default function ProcedureView({
     if (!monthlyPlanId) return;
     setSaving(true);
     try {
-      await fetch(`/api/plans/monthly?id=${monthlyPlanId}`, { method: 'DELETE', credentials: 'include' });
+      const res = await fetch(`/api/plans/monthly?id=${monthlyPlanId}`, { method: 'DELETE', credentials: 'include' });
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({}));
+        const confirmed = window.confirm(body.error || 'План має задачі. Видалити разом із задачами?');
+        if (confirmed) {
+          await fetch(`/api/plans/monthly?id=${monthlyPlanId}&force=true`, { method: 'DELETE', credentials: 'include' });
+        } else { return; }
+      }
       onRefresh?.();
     } finally { setSaving(false); }
   }, [monthlyPlanId, onRefresh]);
@@ -164,12 +177,6 @@ export default function ProcedureView({
     setExpandedQ(prev => { const n = new Set(prev); if (n.has(q)) n.delete(q); else n.add(q); return n; });
   }, []);
 
-  const visibleInitiatives = React.useMemo(() => {
-    if (!initiatives) return [];
-    if (isMonth) return initiatives.filter(i => i.status === 'in_progress' || i.status === 'completed');
-    return initiatives;
-  }, [initiatives, isMonth]);
-
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
       <DetailHeader title={scopeHeaderLabel(viewLevel, scopeLabel)} onClose={onClose} />
@@ -204,7 +211,7 @@ export default function ProcedureView({
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-600">
               <Settings2 className="w-3 h-3" />{pr.serviceName}
             </span>
-          ) : <span className="text-[10px] text-slate-300 italic">не визначено</span>}
+          ) : <span className="text-[10px] text-slate-400 italic">не визначено</span>}
         </div>
 
         {/* Компанії (month only) */}
@@ -223,7 +230,7 @@ export default function ProcedureView({
                     return (
                       <button key={c.id} type="button"
                         onClick={() => selected ? removeRelation('company', c.id) : addRelation('company', c.id)}
-                        className={cn(TAG_CLS, 'cursor-pointer transition-colors', selected ? 'bg-slate-100 text-slate-600' : 'bg-slate-50 text-slate-300 line-through')}>
+                        className={cn(TAG_CLS, 'cursor-pointer transition-colors', selected ? 'bg-slate-100 text-slate-600' : 'bg-slate-50 text-slate-500 line-through')}>
                         {c.label}
                       </button>
                     );
@@ -232,32 +239,56 @@ export default function ProcedureView({
               );
             })() : companies.length > 0 ? (
               <div className="flex flex-wrap gap-1">
-                {companies.map(c => <span key={c.companyId} className={cn(TAG_CLS, 'bg-slate-100 text-slate-600')}>{c.companyName}</span>)}
+                {companies.map(c => <span key={c.companyId} className={cn(TAG_CLS, 'bg-blue-50 text-blue-700')}>{c.companyName}</span>)}
               </div>
-            ) : <span className="text-[10px] text-slate-300 italic">не призначено</span>}
+            ) : <span className="text-[10px] text-slate-400 italic">не призначено</span>}
           </div>
         )}
 
         {/* Ініціативи */}
-        {showInitiatives && (
-          <div className="px-4 py-2.5 border-b border-slate-100">
-            <div className={META_LABEL}><Lightbulb className="w-3 h-3" />Ініціативи ({visibleInitiatives.length})</div>
-            {visibleInitiatives.length > 0 ? (
-              <div className="flex flex-col gap-1">
-                {visibleInitiatives.map(init => {
-                  const stMap: Record<string, { cls: string; label: string }> = { planned: { cls: 'bg-blue-400', label: 'Заплановано' }, in_progress: { cls: 'bg-amber-400', label: 'В роботі' }, completed: { cls: 'bg-emerald-400', label: 'Завершено' } };
-                  const st = stMap[init.status] || stMap.planned;
-                  return (
-                    <div key={init.plan_initiative_id} className="flex items-center gap-2">
-                      <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', st.cls)} title={st.label} />
-                      <span className="text-[11px] text-slate-700 line-clamp-2">{init.title}</span>
-                    </div>
-                  );
-                })}
+        {(isQuarter || isMonth) && (() => {
+          const visibleInits = !initiatives ? [] : isMonth
+            ? initiatives.filter(i => i.status === 'planned' || i.status === 'in_progress' || i.status === 'completed')
+            : initiatives;
+          return (
+            <div className="px-4 py-2.5 border-b border-slate-100">
+              <div className={META_LABEL}>
+                <Lightbulb className="w-3 h-3" />Ініціативи ({visibleInits.length})
+                {editing && <button onClick={() => setAddingInit(!addingInit)} className="cal-action-btn ml-auto" title="Додати ініціативу" aria-label="Додати ініціативу"><Plus className="w-3 h-3" /></button>}
               </div>
-            ) : <span className="text-[10px] text-slate-300 italic">немає ініціатив</span>}
-          </div>
-        )}
+              {addingInit && (
+                <InitiativeForm
+                  onSubmit={async (title, description) => {
+                    if (!monthlyPlanId) return;
+                    const qId = pr.plans[0]?.quarterly_id;
+                    await fetchApi('/api/plans/quarterly/initiatives', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ quarterly_plan_id: qId, title, description: description || undefined }),
+                    });
+                    setAddingInit(false);
+                    onRefresh?.();
+                  }}
+                  onCancel={() => setAddingInit(false)}
+                />
+              )}
+              {visibleInits.length > 0 ? (
+                <div className="flex flex-col gap-1">
+                  {visibleInits.map(init => {
+                    const stMap: Record<string, { cls: string; label: string }> = { planned: { cls: 'bg-blue-400', label: 'Заплановано' }, in_progress: { cls: 'bg-amber-400', label: 'В роботі' }, completed: { cls: 'bg-emerald-400', label: 'Завершено' } };
+                    const st = stMap[init.status] || stMap.planned;
+                    return (
+                      <div key={init.plan_initiative_id} className="flex items-center gap-2">
+                        <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', st.cls)} title={st.label} />
+                        <span className="text-[11px] text-slate-700 line-clamp-2">{init.title}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : !addingInit && <span className="text-[10px] text-slate-400 italic">немає ініціатив</span>}
+            </div>
+          );
+        })()}
 
         {/* Проєкти */}
         <div className="px-4 py-2.5 border-b border-slate-100">
@@ -274,38 +305,12 @@ export default function ProcedureView({
                 </span>
               ))}
             </div>
-          ) : <span className="text-[10px] text-slate-300 italic">не призначено</span>}
+          ) : <span className="text-[10px] text-slate-400 italic">не призначено</span>}
           {showProjectDropdown && (() => {
             const selectedIds = new Set(projects.map(p => p.projectId));
             const available = allProjects.filter(p => !selectedIds.has(p.id));
             return <InlineDropdown items={available} loading={false} onSelect={(id) => { addRelation('project', id); setShowProjectDropdown(false); }} onClose={() => setShowProjectDropdown(false)} />;
           })()}
-        </div>
-
-        {/* Документи БЗ */}
-        <div className="px-4 py-2.5 border-b border-slate-100">
-          <div className={META_LABEL}><BookOpen className="w-3 h-3" />Документи БЗ ({kbDocs.length})</div>
-          {editing ? (() => {
-            const selectedIds = new Set(kbDocs.map(d => d.kbDocumentId));
-            return (
-              <div className="flex flex-wrap gap-1">
-                {allDocuments.map(d => {
-                  const selected = selectedIds.has(d.id);
-                  return (
-                    <button key={d.id} type="button"
-                      onClick={() => selected ? removeRelation('document', d.id) : addRelation('document', d.id)}
-                      className={cn(TAG_CLS, 'cursor-pointer transition-colors', selected ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-300 line-through')}>
-                      {d.label}
-                    </button>
-                  );
-                })}
-              </div>
-            );
-          })() : kbDocs.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {kbDocs.map(d => <span key={d.kbDocumentId} className={cn(TAG_CLS, 'bg-emerald-50 text-emerald-600')}>{d.title}</span>)}
-            </div>
-          ) : <span className="text-[10px] text-slate-300 italic">не призначено</span>}
         </div>
 
         {/* Шаблони задач (month only) */}
@@ -321,9 +326,35 @@ export default function ProcedureView({
                   </div>
                 ))}
               </div>
-            ) : <span className="text-[10px] text-slate-300 italic">немає шаблонів</span>}
+            ) : <span className="text-[10px] text-slate-400 italic">немає шаблонів</span>}
           </div>
         )}
+
+        {/* Документи БЗ */}
+        <div className="px-4 py-2.5 border-b border-slate-100">
+          <div className={META_LABEL}><BookOpen className="w-3 h-3" />Документи БЗ ({kbDocs.length})</div>
+          {editing ? (() => {
+            const selectedIds = new Set(kbDocs.map(d => d.kbDocumentId));
+            return (
+              <div className="flex flex-wrap gap-1">
+                {allDocuments.map(d => {
+                  const selected = selectedIds.has(d.id);
+                  return (
+                    <button key={d.id} type="button"
+                      onClick={() => selected ? removeRelation('document', d.id) : addRelation('document', d.id)}
+                      className={cn(TAG_CLS, 'cursor-pointer transition-colors', selected ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-500 line-through')}>
+                      {d.label}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })() : kbDocs.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {kbDocs.map(d => <span key={d.kbDocumentId} className={cn(TAG_CLS, 'bg-emerald-50 text-emerald-600')}>{d.title}</span>)}
+            </div>
+          ) : <span className="text-[10px] text-slate-400 italic">не призначено</span>}
+        </div>
 
         {/* Квартали → місяці (year) */}
         {isYear && quarterBreakdown.map(q => {

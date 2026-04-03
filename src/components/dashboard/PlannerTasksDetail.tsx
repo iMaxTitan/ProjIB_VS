@@ -219,7 +219,7 @@ export default function PlannerTasksDetail({ plan, onClose, onAddTask, onEditTas
   const deleteMut = useDeleteTask();
   const assignMut = useAssignDraftToplan();
   const statusMut = useChangeTaskStatus();
-  const { data: templates } = useTemplates(plan.procedureId);
+  const { data: templates } = useTemplates(plan.procedureId ?? undefined);
 
   const handleAssignDraft = (draftId: string) => {
     assignMut.mutate({ draftId, monthlyPlanId: plan.monthlyPlanId });
@@ -265,7 +265,7 @@ export default function PlannerTasksDetail({ plan, onClose, onAddTask, onEditTas
         <div className="flex items-center gap-2">
           <div className="w-1 h-5 rounded-sm bg-indigo-500 flex-shrink-0" />
           <span className="text-xs font-semibold text-slate-700 flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-            {plan.procedureName}
+            {plan.planName}
           </span>
           {!readOnly && (
             <button className="action-btn" aria-label="Додати задачу" onClick={onAddTask}>

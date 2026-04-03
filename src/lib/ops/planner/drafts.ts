@@ -23,12 +23,12 @@ export interface AssignedTask {
   description: string;
   task_date: string;
   spent_hours: number;
-  procedure_name: string | null;
+  plan_name: string | null;
 }
 
 export interface ActivePlan {
   monthlyPlanId: string;
-  procedureName: string;
+  planName: string;
   processName: string;
 }
 
@@ -63,12 +63,9 @@ export async function getDraftsData(
       .is('monthly_plan_id', null)
       .order('task_date', { ascending: false }),
 
-    // Incomplete tasks (with plan, current month) — join procedure name via monthly_plans
+    // Incomplete tasks (with plan, current month)
     db.from('daily_tasks')
-      .select(`
-        daily_task_id, monthly_plan_id, description, task_date, spent_hours,
-        monthly_plans!inner(procedures(name))
-      `)
+      .select('daily_task_id, monthly_plan_id, description, task_date, spent_hours')
       .eq('user_id', userId)
       .not('monthly_plan_id', 'is', null)
       .gte('task_date', `${year}-${String(month).padStart(2, '0')}-01`)
@@ -94,53 +91,43 @@ export async function getDraftsData(
     spent_hours: Number(d.spent_hours) || 0,
   }));
 
+  // --- Fetch plan names from view for recent tasks + active plans ---
+  const recentPlanIds = [...new Set((recentRes.data || []).map(d => d.monthly_plan_id).filter(Boolean))] as string[];
+  const assignedIds = (assigneeRes.data || []).map((r) => r.monthly_plan_id);
+  const allPlanIds = [...new Set([...recentPlanIds, ...assignedIds])];
+
+  type PlanDetail = { plan_name: string; process_name: string; status: string; year: number; month: number };
+  const planDetailMap = new Map<string, PlanDetail>();
+  if (allPlanIds.length > 0) {
+    const { data: planDetails } = await db
+      .from('v_monthly_plan_details')
+      .select('monthly_plan_id, plan_name, process_name, status, year, month')
+      .in('monthly_plan_id', allPlanIds);
+    for (const p of planDetails || []) {
+      planDetailMap.set(p.monthly_plan_id, { plan_name: p.plan_name ?? '', process_name: p.process_name ?? '', status: p.status, year: p.year, month: p.month });
+    }
+  }
+
   // --- Recent assigned tasks ---
-  const recentTasks: AssignedTask[] = (recentRes.data || []).map((d) => {
-    type PlanJoin = { procedures: { name: string } | { name: string }[] | null };
-    const plan = d.monthly_plans as unknown as PlanJoin;
-    const proc = plan?.procedures;
-    const procName = Array.isArray(proc) ? proc[0]?.name : proc?.name;
-    return {
-      daily_task_id: d.daily_task_id,
-      monthly_plan_id: d.monthly_plan_id as string,
-      description: d.description || '',
-      task_date: d.task_date,
-      spent_hours: Number(d.spent_hours) || 0,
-      procedure_name: procName ?? null,
-    };
-  });
+  const recentTasks: AssignedTask[] = (recentRes.data || []).map((d) => ({
+    daily_task_id: d.daily_task_id,
+    monthly_plan_id: d.monthly_plan_id as string,
+    description: d.description || '',
+    task_date: d.task_date,
+    spent_hours: Number(d.spent_hours) || 0,
+    plan_name: planDetailMap.get(d.monthly_plan_id as string)?.plan_name ?? null,
+  }));
 
   // --- Active plans for assignment dropdown ---
-  const assignedIds = (assigneeRes.data || []).map((r) => r.monthly_plan_id);
-  let activePlans: ActivePlan[] = [];
-
-  if (assignedIds.length > 0) {
-    const { data: plans } = await db
-      .from('monthly_plans')
-      .select('monthly_plan_id, procedures(name, processes(process_name))')
-      .in('monthly_plan_id', assignedIds)
-      .eq('year', year)
-      .eq('month', month)
-      .eq('status', 'active');
-
-    activePlans = (plans || []).map((row) => {
-      type ProcJoin = {
-        name: string;
-        processes: { process_name: string } | { process_name: string }[] | null;
-      };
-      const proc = row.procedures as unknown as ProcJoin | ProcJoin[] | null;
-      const p = Array.isArray(proc) ? proc[0] : proc;
-      const procObj = p?.processes;
-      const processName = Array.isArray(procObj)
-        ? procObj[0]?.process_name
-        : procObj?.process_name;
-      return {
-        monthlyPlanId: row.monthly_plan_id,
-        procedureName: p?.name ?? 'Без процедури',
-        processName: processName ?? 'Інше',
-      };
+  const activePlans: ActivePlan[] = assignedIds
+    .filter(id => {
+      const p = planDetailMap.get(id);
+      return p && p.status === 'active' && p.year === year && p.month === month;
+    })
+    .map(id => {
+      const p = planDetailMap.get(id)!;
+      return { monthlyPlanId: id, planName: p.plan_name, processName: p.process_name };
     });
-  }
 
   // --- Source IDs (for calendar dedup + status) ---
   const sourceRows = (meetingIdsRes.data || []).filter((r) => r.document_number);

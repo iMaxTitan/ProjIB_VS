@@ -176,8 +176,13 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const db = getDb();
-    const { error } = await db.from('monthly_plans').delete().eq('monthly_plan_id', id);
+    const force = req.nextUrl.searchParams.get('force') === 'true';
+    const { data, error } = await db.rpc('delete_monthly_plan', { p_id: id, p_force: force }).single();
     if (error) throw error;
+    const result = data as { ok?: boolean; error?: string; confirm?: boolean; taskCount?: number };
+    if (result.error) {
+      return NextResponse.json(result, { status: 409 });
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     logger.error('[plans/monthly] DELETE error:', err);

@@ -71,23 +71,26 @@ export default function EmployeeTasksPanel({
   const monthlyPlan = isMonth && selectedProcedure ? selectedProcedure.plans[0] : null;
   const monthlyPlanId = monthlyPlan?.monthly_plan_id ?? null;
   const editing = isMonth && !!canEdit && monthlyPlan?.status === 'pending';
+  const canEditAssignees = isMonth && !!canEdit && !!monthlyPlan;
   const departmentId = selectedProcess?.departmentId;
 
-  // Assignees hook
-  const { deptEmployees, toggleAssignee: toggleAssigneeFn } = usePlanAssignees(monthlyPlanId, departmentId, editing, user.role ?? undefined, user.user_id ?? undefined);
+  // Assignees hook — assignees can be edited in any plan status
+  const { deptEmployees, toggleAssignee: toggleAssigneeFn } = usePlanAssignees(monthlyPlanId, departmentId, canEditAssignees, user.role ?? undefined, user.user_id ?? undefined);
   const toggleAssignee = React.useCallback(async (userId: string, assigned: boolean) => {
     await toggleAssigneeFn(userId, assigned);
     onRefresh?.();
   }, [toggleAssigneeFn, onRefresh]);
 
-  // Build planId → procedureId + procedureName map
-  const planProcMap = React.useMemo(() => {
-    const m = new Map<string, { procedureId: string; procedureName: string }>();
+  // Build planId → planName map (procedures from tree + initiatives from plan_name)
+  const planNameMap = React.useMemo(() => {
+    const m = new Map<string, { planId: string; planName: string }>();
     if (!selectedProcess) return m;
     for (const plan of detailPlans) {
-      const proc = selectedProcess.procedures.find(p => p.procedureId === plan.procedure_id);
-      if (proc) {
-        m.set(plan.monthly_plan_id, { procedureId: proc.procedureId, procedureName: proc.name });
+      if (plan.procedure_id) {
+        const proc = selectedProcess.procedures.find(p => p.procedureId === plan.procedure_id);
+        if (proc) m.set(plan.monthly_plan_id, { planId: proc.procedureId, planName: proc.name });
+      } else if (plan.initiative_id && plan.plan_name) {
+        m.set(plan.monthly_plan_id, { planId: plan.initiative_id, planName: plan.plan_name });
       }
     }
     return m;
@@ -117,12 +120,12 @@ export default function EmployeeTasksPanel({
       const hours = t.spent_hours || 0;
       emp.totalHours += hours;
 
-      // Per-procedure accumulation (for process view)
-      const procInfo = planProcMap.get(t.monthly_plan_id);
-      if (procInfo) {
-        const existing = emp.procMap.get(procInfo.procedureId);
+      // Per-plan accumulation (for process view)
+      const planInfo = planNameMap.get(t.monthly_plan_id);
+      if (planInfo) {
+        const existing = emp.procMap.get(planInfo.planId);
         if (existing) existing.hours += hours;
-        else emp.procMap.set(procInfo.procedureId, { name: procInfo.procedureName, hours });
+        else emp.procMap.set(planInfo.planId, { name: planInfo.planName, hours });
       }
 
       // Group tasks by title (for procedure view)
@@ -148,7 +151,7 @@ export default function EmployeeTasksPanel({
           .sort((a, b) => b[1].hours - a[1].hours)
           .map(([key, g]) => ({ title: key.split('::')[0], description: g.description, hours: Math.round(g.hours * 10) / 10, count: g.count, source: g.source })),
       }));
-  }, [dailyTasks, planProcMap]);
+  }, [dailyTasks, planNameMap]);
 
   const showProcessBreakdown = !selectedProcedure && !!selectedProcess;
   const hasData = employees.length > 0;
@@ -190,27 +193,34 @@ export default function EmployeeTasksPanel({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
-        {editing ? (() => {
+        {canEditAssignees ? (() => {
           if (deptEmployees.length === 0) return (
             <div className="flex items-center justify-center py-12"><Spinner size="md" /></div>
           );
           const assignedIds = new Set(assignees.map(a => a.user_id));
+          const usersWithTasks = new Set(dailyTasks.map(t => t.user_id));
           return (
             <div className="py-1">
               {deptEmployees.map((emp, idx) => {
                 const assigned = assignedIds.has(emp.id);
+                const hasTasks = assigned && usersWithTasks.has(emp.id);
                 return (
                   <button key={emp.id} type="button"
-                    onClick={() => toggleAssignee(emp.id, assigned)}
+                    onClick={() => {
+                      if (assigned && hasTasks) return;
+                      toggleAssignee(emp.id, assigned);
+                    }}
                     className={cn(
                       'w-full flex items-center gap-2.5 px-4 py-2.5 transition-colors text-left border-b border-slate-100/80 last:border-b-0',
-                      assigned ? 'bg-slate-50/80 hover:bg-slate-100/80' : 'hover:bg-slate-50/30',
+                      'hover:bg-slate-50/60',
+                      assigned && hasTasks && 'cursor-not-allowed',
                     )}>
                     <UserAvatar name={emp.name} initials={getInitials(emp.name)} idx={idx} />
                     <div className="flex-1 min-w-0">
-                      <div className={cn('text-xs font-semibold truncate', assigned ? 'text-slate-800' : 'text-slate-300 line-through')}>
+                      <div className={cn('text-xs font-semibold truncate text-slate-800', !assigned && 'line-through')}>
                         {emp.name}
                       </div>
+                      {assigned && hasTasks && <div className="text-[9px] text-amber-500">має задачі</div>}
                     </div>
                     {assigned && <span className="text-[9px] font-semibold text-emerald-500 flex-shrink-0">✓</span>}
                   </button>

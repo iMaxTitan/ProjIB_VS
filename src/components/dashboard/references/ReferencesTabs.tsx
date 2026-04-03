@@ -1,9 +1,9 @@
 'use client';
 
-import { Banknote, Building2, CalendarDays, FileSpreadsheet, Folder, Users, Video } from 'lucide-react';
+import { Banknote, Building2, CalendarDays, FileSpreadsheet, Folder, Lightbulb, Users } from 'lucide-react';
 import DashboardTopTabs, { DashboardTopTabItem } from '../shared/DashboardTopTabs';
 
-export type ReferenceType = 'projects' | 'procedures' | 'companies' | 'employees' | 'calendar' | 'meetings' | 'budget_items';
+export type ReferenceType = 'projects' | 'procedures' | 'companies' | 'employees' | 'calendar' | 'initiatives' | 'budget_items';
 
 const REFERENCE_TABS: DashboardTopTabItem<ReferenceType>[] = [
   { id: 'projects', label: 'Проекты', shortLabel: 'Проекты', icon: Folder, tone: 'amber' },
@@ -11,7 +11,7 @@ const REFERENCE_TABS: DashboardTopTabItem<ReferenceType>[] = [
   { id: 'companies', label: 'Предприятия', shortLabel: 'Предпр.', icon: Building2, tone: 'blue' },
   { id: 'employees', label: 'Сотрудники', shortLabel: 'Сотр.', icon: Users, tone: 'emerald' },
   { id: 'calendar', label: 'Календарь', shortLabel: 'Календ.', icon: CalendarDays, tone: 'indigo' },
-  { id: 'meetings', label: 'Наради', shortLabel: 'Наради', icon: Video, tone: 'indigo' },
+  { id: 'initiatives', label: 'Ініціативи', shortLabel: 'Ініціат.', icon: Lightbulb, tone: 'amber' },
   { id: 'budget_items', label: 'Бюджетні статті', shortLabel: 'Бюджет', icon: Banknote, tone: 'emerald' },
 ];
 

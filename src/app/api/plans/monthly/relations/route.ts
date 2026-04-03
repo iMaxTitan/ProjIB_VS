@@ -128,7 +128,8 @@ export async function POST(req: NextRequest) {
     const mapping = TABLE_MAP[type];
     if (!mapping) return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
 
-    if (!(await checkPlanPending(monthly_plan_id))) {
+    // Assignees can be added always; other relations only for pending plans
+    if (type !== 'assignee' && !(await checkPlanPending(monthly_plan_id))) {
       return NextResponse.json({ error: 'Plan must be in pending status' }, { status: 403 });
     }
 
@@ -165,11 +166,22 @@ export async function DELETE(req: NextRequest) {
     const mapping = TABLE_MAP[type];
     if (!mapping) return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
 
-    if (!(await checkPlanPending(monthly_plan_id))) {
+    const db = getDb();
+
+    // Assignee removal: check for completed tasks
+    if (type === 'assignee') {
+      const { count } = await db.from('daily_tasks')
+        .select('daily_task_id', { count: 'exact', head: true })
+        .eq('monthly_plan_id', monthly_plan_id)
+        .eq('user_id', id)
+        .eq('task_type', 'completed');
+      if (count && count > 0) {
+        return NextResponse.json({ error: `Неможливо видалити — у співробітника є ${count} виконаних задач` }, { status: 400 });
+      }
+    } else if (!(await checkPlanPending(monthly_plan_id))) {
       return NextResponse.json({ error: 'Plan must be in pending status' }, { status: 403 });
     }
 
-    const db = getDb();
     const { error } = await db.from(mapping.table)
       .delete()
       .eq('monthly_plan_id', monthly_plan_id)

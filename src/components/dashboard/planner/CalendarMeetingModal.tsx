@@ -173,7 +173,7 @@ export default function CalendarMeetingModal({ entry, onClose, onSummaryGenerate
           <div className="flex items-center gap-1.5">
             <div className="w-1 h-[18px] rounded-sm bg-sky-500 flex-shrink-0" />
             <span className="text-[13px] font-semibold text-slate-800 flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-              {entry.subject || entry.procedure_name || 'Зустріч'}
+              {entry.subject || entry.plan_name || 'Зустріч'}
             </span>
             <span className="text-[10px] text-slate-400 flex-shrink-0">
               {timeRange} · {entry.duration_minutes} хв

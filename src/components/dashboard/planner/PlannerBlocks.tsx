@@ -127,8 +127,8 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
         }
       }}
       title={[
-        entry.template_title || entry.subject || entry.procedure_name,
-        entry.template_title ? entry.procedure_name : (entry.procedure_name && entry.subject ? entry.procedure_name : ''),
+        entry.template_title || entry.subject || entry.plan_name,
+        entry.template_title ? entry.plan_name : (entry.plan_name && entry.subject ? entry.plan_name : ''),
         `${entry.start_time.slice(0, 5)} · ${entry.duration_minutes} хв`,
       ].filter(Boolean).join('\n')}
       className={cn(
@@ -153,7 +153,7 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
         {isExternal && entry.transcript_summary && <Sparkles className="h-2.5 w-2.5 flex-shrink-0 text-indigo-400 inline" />}
         {isExternal && entry.has_transcript && !entry.transcript_summary && <ScrollText className="h-2.5 w-2.5 flex-shrink-0 opacity-60 inline" />}
         {entry.outlook_modified && <AlertTriangle className="h-2.5 w-2.5 flex-shrink-0 text-amber-500 inline" />}
-        <span>{entry.template_title || entry.subject || entry.procedure_name}</span>
+        <span>{entry.template_title || entry.subject || entry.plan_name}</span>
       </p>
 
       {/* cal-time */}
@@ -168,7 +168,7 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
       )}
 
       {/* cal-proc */}
-      {entry.procedure_name && <p className="cal-proc">{entry.procedure_name}</p>}
+      {entry.plan_name && <p className="cal-proc">{entry.plan_name}</p>}
 
       {/* Top-right badge: template picker (no template) or clear (has template) */}
       {!isOptimistic && onOpenPicker && !entry.task_template_id && !entry.daily_task_id && (
@@ -243,7 +243,7 @@ export function GhostBlock({ suggestion, onAccept, onDismiss, onResize, layoutCo
 
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: `suggestion-${sgId}`,
-    data: { type: 'suggestion', suggestionId: sgId, procedureName: suggestion.procedure_name },
+    data: { type: 'suggestion', suggestionId: sgId, planName: suggestion.plan_name },
   });
 
   const startMin = timeToMinutes(suggestion.start_time);
@@ -292,7 +292,7 @@ export function GhostBlock({ suggestion, onAccept, onDismiss, onResize, layoutCo
         isDragging && 'pointer-events-none',
         resizeDelta !== 0 && 'ring-2 ring-violet-300/50',
       )}
-      title={`${suggestion.procedure_name}\n${suggestion.start_time} · ${suggestion.duration_minutes} хв`}
+      title={`${suggestion.plan_name}\n${suggestion.start_time} · ${suggestion.duration_minutes} хв`}
       style={{
         top: row * ROW_HEIGHT + 1,
         left: `calc(${colPct}% + 2px)`,
@@ -306,7 +306,7 @@ export function GhostBlock({ suggestion, onAccept, onDismiss, onResize, layoutCo
       }}
     >
       <p className="text-[11px] font-semibold leading-[1.3] text-violet-700">
-        {suggestion.procedure_name}
+        {suggestion.plan_name}
       </p>
       {displayHeight >= ROW_HEIGHT * 1.8 && (
         <p className="cal-time">{suggestion.start_time} · {suggestion.duration_minutes} хв</p>

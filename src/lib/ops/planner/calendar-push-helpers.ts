@@ -31,8 +31,8 @@ export interface ModifiedPushEntry extends CalPushEntry {
   outlook_event_id: string;
 }
 
-export type EntryWithName = CalPushEntry & { procedure_name: string };
-export type ModifiedEntryWithName = ModifiedPushEntry & { procedure_name: string };
+export type EntryWithName = CalPushEntry & { plan_name: string };
+export type ModifiedEntryWithName = ModifiedPushEntry & { plan_name: string };
 
 // ─── Build Outlook event ─────────────────────────────────────────────────────
 
@@ -92,15 +92,15 @@ export async function ensureMasterCategory(token: string, userOid: string): Prom
   }
 }
 
-// ─── Resolve procedure name from plan join ──────────────────────────────────
+// ─── Resolve plan names via view ──────────────────────────────────────────────
 
-function resolveProcedureName(row: Record<string, unknown>): string {
-  type PlanJoin = { procedures: { name: string } | { name: string }[] | null } | null;
-  const plan = row.monthly_plans as PlanJoin;
-  const planObj = Array.isArray(plan) ? plan[0] : plan;
-  const proc = planObj?.procedures;
-  const procObj = Array.isArray(proc) ? proc[0] : proc;
-  return procObj?.name ?? (row.subject as string) ?? 'Подія';
+async function fetchPlanNames(db: SupabaseClient, planIds: string[]): Promise<Map<string, string>> {
+  if (planIds.length === 0) return new Map();
+  const { data } = await db
+    .from('v_monthly_plan_details')
+    .select('monthly_plan_id, plan_name')
+    .in('monthly_plan_id', planIds);
+  return new Map((data || []).map(p => [p.monthly_plan_id, p.plan_name ?? '']));
 }
 
 // ─── Fetch entries needing initial push (no outlook_event_id) ───────────────
@@ -112,10 +112,7 @@ export async function fetchUnpushedEntries(
 ): Promise<EntryWithName[]> {
   const { data, error } = await db
     .from('weekly_calendar_entries')
-    .select(`
-      id, date, start_time, duration_minutes, subject, monthly_plan_id,
-      monthly_plans!monthly_plan_id(procedures(name))
-    `)
+    .select('id, date, start_time, duration_minutes, subject, monthly_plan_id')
     .eq('employee_id', employeeId)
     .eq('source', 'plan')
     .is('outlook_event_id', null)
@@ -126,6 +123,9 @@ export async function fetchUnpushedEntries(
     return [];
   }
 
+  const planIds = [...new Set((data || []).map(r => r.monthly_plan_id).filter(Boolean))] as string[];
+  const nameMap = await fetchPlanNames(db, planIds);
+
   return (data || []).map((row) => ({
     id: row.id,
     date: row.date,
@@ -133,7 +133,7 @@ export async function fetchUnpushedEntries(
     duration_minutes: row.duration_minutes,
     subject: row.subject,
     monthly_plan_id: row.monthly_plan_id,
-    procedure_name: resolveProcedureName(row as Record<string, unknown>),
+    plan_name: nameMap.get(row.monthly_plan_id ?? '') ?? row.subject ?? 'Подія',
   }));
 }
 
@@ -146,10 +146,7 @@ export async function fetchModifiedEntries(
 ): Promise<ModifiedEntryWithName[]> {
   const { data, error } = await db
     .from('weekly_calendar_entries')
-    .select(`
-      id, date, start_time, duration_minutes, subject, monthly_plan_id, outlook_event_id,
-      monthly_plans!monthly_plan_id(procedures(name))
-    `)
+    .select('id, date, start_time, duration_minutes, subject, monthly_plan_id, outlook_event_id')
     .eq('employee_id', employeeId)
     .eq('source', 'plan')
     .eq('needs_push', true)
@@ -161,6 +158,9 @@ export async function fetchModifiedEntries(
     return [];
   }
 
+  const planIds = [...new Set((data || []).map(r => r.monthly_plan_id).filter(Boolean))] as string[];
+  const nameMap = await fetchPlanNames(db, planIds);
+
   return (data || []).map((row) => ({
     id: row.id,
     date: row.date,
@@ -169,6 +169,6 @@ export async function fetchModifiedEntries(
     subject: row.subject,
     monthly_plan_id: row.monthly_plan_id,
     outlook_event_id: row.outlook_event_id as string,
-    procedure_name: resolveProcedureName(row as Record<string, unknown>),
+    plan_name: nameMap.get(row.monthly_plan_id ?? '') ?? row.subject ?? 'Подія',
   }));
 }

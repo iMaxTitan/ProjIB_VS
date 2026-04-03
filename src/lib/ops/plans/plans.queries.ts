@@ -47,8 +47,8 @@ export async function fetchActiveEmployees(role?: string, departmentId?: string,
 
 export async function fetchMonthlyPlans(year: number) {
   const { data, error } = await db
-    .from('monthly_plans')
-    .select('monthly_plan_id, quarterly_id, procedure_id, initiative_id, year, month, status, planned_hours, distribution_type')
+    .from('v_monthly_plan_details')
+    .select('monthly_plan_id, quarterly_id, procedure_id, initiative_id, year, month, status, planned_hours, distribution_type, plan_type, plan_name, plan_description, process_id, process_name, department_id, department_code, department_name')
     .eq('year', year)
     .order('month');
   if (error) throw error;

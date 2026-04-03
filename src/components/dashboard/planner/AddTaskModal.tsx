@@ -187,7 +187,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
     }
   };
 
-  const procedureName = monthlyPlan?.procedure_name;
+  const planDisplayName = monthlyPlan?.plan_name ?? monthlyPlan?.procedure_name;
   const monthYear = monthlyPlan ? `${getMonthName(monthlyPlan.month, 'ru')} ${monthlyPlan.year}` : '';
 
   return (
@@ -213,14 +213,14 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
       }
     >
       <div className="space-y-5">
-        {procedureName && (
+        {planDisplayName && (
           <div className="flex items-center gap-3 px-3 py-2 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
             <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-indigo-100">
               <FileText className="w-4 h-4 text-indigo-500" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-3xs font-bold text-indigo-400 uppercase tracking-wider mb-0.5">{monthYear}</p>
-              <p className="text-xs font-medium text-slate-700 truncate">{procedureName}</p>
+              <p className="text-xs font-medium text-slate-700 truncate">{planDisplayName}</p>
             </div>
           </div>
         )}
@@ -238,7 +238,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({
             onCompanyToggle={toggleCompany}
             onTemplateSelect={(content, tmplTitle) => { setDescription(content); setTitle(tmplTitle); setSource('template'); }}
             procedureId={monthlyPlan?.procedure_id ?? undefined}
-            procedureName={monthlyPlan?.procedure_name ?? undefined}
+            procedureName={monthlyPlan?.plan_name ?? monthlyPlan?.procedure_name ?? undefined}
             planCompaniesInfo={planCompaniesInfo}
             distributionLabel={distributionLabel}
             companyShares={companyShares}

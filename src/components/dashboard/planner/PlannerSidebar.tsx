@@ -21,12 +21,12 @@ function progressColorClass(pct: number): string {
   return 'text-red-500';
 }
 
-function DraggableProcedure({ plan, syncedHours, unsyncedHours, suggestedHours, isSelected, isCollected, onSelect, onCollectTasks, totalSlotHours }: {
+function DraggablePlan({ plan, syncedHours, unsyncedHours, suggestedHours, isSelected, isCollected, onSelect, onCollectTasks, totalSlotHours }: {
   plan: ActivePlanForSlot;
   syncedHours: number; unsyncedHours: number; suggestedHours: number;
   isSelected: boolean; isCollected: boolean;
   onSelect: () => void;
-  onCollectTasks?: (procedureId: string) => void;
+  onCollectTasks?: (monthlyPlanId: string) => void;
   totalSlotHours: number;
 }) {
   const isCompleted = plan.status === 'done';
@@ -39,16 +39,14 @@ function DraggableProcedure({ plan, syncedHours, unsyncedHours, suggestedHours, 
   const deptLabel = plan.departmentCode || '';
   const syncW = plan.plannedHours > 0 ? Math.min(100, Math.round((syncedHours / plan.plannedHours) * 100)) : 0;
   const distW = plan.plannedHours > 0 ? Math.min(100, Math.round((totalDist / plan.plannedHours) * 100)) : 0;
-
   return (
     <div
       draggable={!isCompleted}
       onDragStart={(e) => {
         e.dataTransfer.setData('application/planner-procedure', JSON.stringify({
           type: 'procedure',
-          procedureId: plan.procedureId,
           monthlyPlanId: plan.monthlyPlanId,
-          procedureName: plan.procedureName,
+          planName: plan.planName,
         }));
         e.dataTransfer.effectAllowed = 'copy';
         setIsDragging(true);
@@ -67,7 +65,7 @@ function DraggableProcedure({ plan, syncedHours, unsyncedHours, suggestedHours, 
       )}
       style={isCompleted ? { cursor: 'default' } : undefined}>
 
-      {/* Row 1: dept badge (color by status) + process + pct% */}
+      {/* Row 1: dept badge (color by status) + process/initiative label + pct% */}
       <div className="flex items-center gap-1.5" style={{ marginBottom: 4 }}>
         {deptLabel && (
           <span className={cn('text-[10px] font-bold py-0.5 px-1.5 rounded-[5px] flex-shrink-0 border', tone.bg, tone.border, tone.color)}>
@@ -82,14 +80,14 @@ function DraggableProcedure({ plan, syncedHours, unsyncedHours, suggestedHours, 
         </span>
       </div>
 
-      {/* Row 2: procedure name */}
+      {/* Row 2: plan name */}
       <p className={cn('text-[13px] font-medium leading-[1.35] mb-1.5', isSelected ? 'text-sky-900' : 'text-slate-700')} style={{
         display: isHovered ? 'block' : '-webkit-box',
         WebkitLineClamp: isHovered ? undefined : 2,
         WebkitBoxOrient: isHovered ? undefined : 'vertical',
         overflow: isHovered ? 'visible' : 'hidden',
       }}>
-        {plan.procedureName}
+        {plan.initiativeId ? '💡' : '📋'} {plan.planName}
       </p>
 
       {/* Row 3: Dual progress bar */}
@@ -112,7 +110,7 @@ function DraggableProcedure({ plan, syncedHours, unsyncedHours, suggestedHours, 
 
         {onCollectTasks && !isCompleted && totalSlotHours > 0 && (
           <button
-            onClick={(e) => { e.stopPropagation(); onCollectTasks!(plan.procedureId); }}
+            onClick={(e) => { e.stopPropagation(); onCollectTasks!(plan.monthlyPlanId); }}
             className="cal-action-btn ml-auto"
             title={`Зібрати задачі (${totalSlotHours.toFixed(1)} г)`}>
             <ClipboardCheck className="h-3.5 w-3.5" />
@@ -127,50 +125,43 @@ interface Props {
   activePlans: ActivePlanForSlot[];
   entries: CalendarEntry[];
   suggestions: SuggestedSlot[];
-  selectedProcedureId: string | null;
-  collectedProcedureIds: Set<string>;
-  onSelectProcedure: (procedureId: string) => void;
-  onCollectTasks?: (procedureId: string) => void;
+  selectedPlanId: string | null;
+  collectedPlanIds: Set<string>;
+  onSelectPlan: (monthlyPlanId: string) => void;
+  onCollectTasks?: (monthlyPlanId: string) => void;
 }
 
-export default function PlannerSidebar({ activePlans, entries, suggestions, selectedProcedureId, collectedProcedureIds, onSelectProcedure, onCollectTasks }: Props) {
+export default function PlannerSidebar({ activePlans, entries, suggestions, selectedPlanId, collectedPlanIds, onSelectPlan, onCollectTasks }: Props) {
   const sortedPlans = useMemo(() => {
     return [...activePlans].sort((a, b) => {
       if (a.status !== b.status) return a.status === 'active' ? -1 : 1;
-      return a.procedureName.localeCompare(b.procedureName, 'uk');
+      return a.planName.localeCompare(b.planName, 'uk');
     });
   }, [activePlans]);
 
-  const planToProcedure = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of activePlans) map.set(p.monthlyPlanId, p.procedureId);
-    return map;
-  }, [activePlans]);
-
-  const hoursByProcedure = useMemo(() => {
+  const hoursByPlan = useMemo(() => {
     const map = new Map<string, { synced: number; unsynced: number; assigned: number; collectable: number }>();
     for (const e of entries) {
       if (!e.monthly_plan_id) continue;
-      const procId = planToProcedure.get(e.monthly_plan_id);
-      if (!procId) continue;
-      const prev = map.get(procId) || { synced: 0, unsynced: 0, assigned: 0, collectable: 0 };
+      const prev = map.get(e.monthly_plan_id) || { synced: 0, unsynced: 0, assigned: 0, collectable: 0 };
       const hrs = e.duration_minutes / 60;
       if (e.source === 'plan') {
         if (e.outlook_event_id) prev.synced += hrs; else prev.unsynced += hrs;
         if (e.daily_task_id) prev.assigned += hrs;
         if (e.task_template_id && !e.daily_task_id) prev.collectable += hrs;
       } else if (e.source === 'external' && !e.daily_task_id) {
-        // External with transcript or template → collectable
         if (e.has_transcript || e.task_template_id) prev.collectable += hrs;
       }
-      map.set(procId, prev);
+      map.set(e.monthly_plan_id, prev);
     }
     return map;
-  }, [entries, planToProcedure]);
+  }, [entries]);
 
-  const suggestedByProcedure = useMemo(() => {
+  const suggestedByPlan = useMemo(() => {
     const map = new Map<string, number>();
-    for (const s of suggestions) map.set(s.procedure_id, (map.get(s.procedure_id) || 0) + s.duration_minutes / 60);
+    for (const s of suggestions) {
+      if (s.monthly_plan_id) map.set(s.monthly_plan_id, (map.get(s.monthly_plan_id) || 0) + s.duration_minutes / 60);
+    }
     return map;
   }, [suggestions]);
 
@@ -200,15 +191,15 @@ export default function PlannerSidebar({ activePlans, entries, suggestions, sele
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-1 space-y-1">
         {sortedPlans.map((plan) => {
-          const hrs = hoursByProcedure.get(plan.procedureId) || { synced: 0, unsynced: 0, assigned: 0, collectable: 0 };
+          const hrs = hoursByPlan.get(plan.monthlyPlanId) || { synced: 0, unsynced: 0, assigned: 0, collectable: 0 };
           return (
-            <DraggableProcedure
+            <DraggablePlan
               key={plan.monthlyPlanId} plan={plan}
               syncedHours={hrs.synced} unsyncedHours={hrs.unsynced}
-              suggestedHours={suggestedByProcedure.get(plan.procedureId) || 0}
-              isSelected={selectedProcedureId === plan.procedureId}
-              isCollected={collectedProcedureIds.has(plan.procedureId)}
-              onSelect={() => onSelectProcedure(plan.procedureId)}
+              suggestedHours={suggestedByPlan.get(plan.monthlyPlanId) || 0}
+              isSelected={selectedPlanId === plan.monthlyPlanId}
+              isCollected={collectedPlanIds.has(plan.monthlyPlanId)}
+              onSelect={() => onSelectPlan(plan.monthlyPlanId)}
               onCollectTasks={onCollectTasks} totalSlotHours={hrs.collectable}
             />
           );
@@ -217,11 +208,10 @@ export default function PlannerSidebar({ activePlans, entries, suggestions, sele
 
       {/* Footer */}
       <PanelFooter>
-        <SummaryBox label="Процедур" value={String(sortedPlans.length)} />
+        <SummaryBox label="Планів" value={String(sortedPlans.length)} />
         <SummaryBox label="Факт" value={`${fmt(calStats.planHours)} год`} colorClass="text-blue-600" />
         <SummaryBox label="Покриття" value={`${calStats.coverage}%`} colorClass={pctColor(calStats.coverage)} />
       </PanelFooter>
     </div>
   );
 }
-

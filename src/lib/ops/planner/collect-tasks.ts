@@ -30,9 +30,8 @@ interface ExternalEntryInput {
 }
 
 interface CollectParams {
-  procedureId: string;
-  weekStart: string;
   monthlyPlanId: string;
+  weekStart: string;
   entries: EntryInput[];
   externalEntries?: ExternalEntryInput[];
 }
@@ -47,7 +46,7 @@ export async function collectProcedureTasks(
   userId: string,
   params: CollectParams,
 ): Promise<CollectResult> {
-  const { procedureId, monthlyPlanId, entries, externalEntries = [] } = params;
+  const { monthlyPlanId, entries, externalEntries = [] } = params;
 
   if (entries.length === 0 && externalEntries.length === 0) {
     throw new Error('Немає записів для збору');
@@ -97,7 +96,7 @@ export async function collectProcedureTasks(
         spent_hours: totalHours,
         source: 'calendar',
         task_type: 'incomplete',
-        document_number: `proc:${procedureId}`,
+        document_number: `plan:${monthlyPlanId}`,
       })
       .select('daily_task_id')
       .single();
@@ -144,7 +143,7 @@ export async function collectProcedureTasks(
         spent_hours: hours,
         source: 'calendar',
         task_type: 'incomplete',
-        document_number: `proc:${procedureId}`,
+        document_number: `plan:${monthlyPlanId}`,
       })
       .select('daily_task_id')
       .single();

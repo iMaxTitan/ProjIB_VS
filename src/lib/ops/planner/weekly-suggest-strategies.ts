@@ -10,9 +10,8 @@ import logger from '@/lib/shared/logger';
 
 export interface SuggestedSlot {
   _id?: string;
-  procedure_id: string;
   monthly_plan_id: string;
-  procedure_name: string;
+  plan_name: string;
   process_name: string;
   date: string;
   start_time: string;
@@ -66,16 +65,13 @@ export function buildOccupiedMap(entries: CalendarEntry[]): Map<string, Occupied
   return map;
 }
 
-export function scheduledMinByProcedure(
+export function scheduledMinByPlan(
   entries: CalendarEntry[],
-  planToProcedure: Map<string, string>,
 ): Map<string, number> {
   const map = new Map<string, number>();
   for (const e of entries) {
     if (e.source !== 'plan' || !e.monthly_plan_id) continue;
-    const procId = planToProcedure.get(e.monthly_plan_id);
-    if (!procId) continue;
-    map.set(procId, (map.get(procId) || 0) + e.duration_minutes);
+    map.set(e.monthly_plan_id, (map.get(e.monthly_plan_id) || 0) + e.duration_minutes);
   }
   return map;
 }
@@ -99,11 +95,11 @@ export function findFreeSlot(occupied: OccupiedInterval[], durationMin: number, 
 export function mergeConsecutiveSlots(slots: SuggestedSlot[]): SuggestedSlot[] {
   if (slots.length <= 1) return slots;
 
-  // Sort by date → start_time → procedure
+  // Sort by date → start_time → plan
   const sorted = [...slots].sort((a, b) =>
     a.date.localeCompare(b.date)
     || a.start_time.localeCompare(b.start_time)
-    || a.procedure_id.localeCompare(b.procedure_id),
+    || a.monthly_plan_id.localeCompare(b.monthly_plan_id),
   );
 
   const merged: SuggestedSlot[] = [sorted[0]];
@@ -114,7 +110,7 @@ export function mergeConsecutiveSlots(slots: SuggestedSlot[]): SuggestedSlot[] {
 
     if (
       cur.date === prev.date
-      && cur.procedure_id === prev.procedure_id
+      && cur.monthly_plan_id === prev.monthly_plan_id
       && timeToMin(cur.start_time) === prevEnd
     ) {
       // Merge: extend previous slot
@@ -134,31 +130,28 @@ export function suggestFromPreviousWeek(
   occupiedMap: Map<string, OccupiedInterval[]>,
   lunchStartMin: number,
   alreadyScheduled: Map<string, number>,
-  planToProcedure: Map<string, string>,
 ): SuggestedSlot[] {
   const suggestions: SuggestedSlot[] = [];
   const totalAlreadyMin = [...alreadyScheduled.values()].reduce((s, v) => s + v, 0);
   let weekCap = MAX_WEEK_MIN - totalAlreadyMin;
 
-  // Budget per procedure = prev-week minutes - already scheduled this week
-  const prevMinByProc = new Map<string, number>();
+  // Budget per plan = prev-week minutes - already scheduled this week
+  const prevMinByPlan = new Map<string, number>();
   for (const e of prevEntries) {
-    const procId = e.monthly_plan_id ? planToProcedure.get(e.monthly_plan_id) : undefined;
-    if (!procId) continue;
-    prevMinByProc.set(procId, (prevMinByProc.get(procId) || 0) + e.duration_minutes);
+    if (!e.monthly_plan_id) continue;
+    prevMinByPlan.set(e.monthly_plan_id, (prevMinByPlan.get(e.monthly_plan_id) || 0) + e.duration_minutes);
   }
   const remainingBudget = new Map<string, number>();
-  for (const [procId, prevMin] of prevMinByProc) {
-    const rem = prevMin - (alreadyScheduled.get(procId) || 0);
-    if (rem > 0) remainingBudget.set(procId, rem);
+  for (const [planId, prevMin] of prevMinByPlan) {
+    const rem = prevMin - (alreadyScheduled.get(planId) || 0);
+    if (rem > 0) remainingBudget.set(planId, rem);
   }
 
   for (const entry of prevEntries) {
     if (weekCap < 30) break;
-    const procId = entry.monthly_plan_id ? planToProcedure.get(entry.monthly_plan_id) : undefined;
-    if (!procId) continue;
+    if (!entry.monthly_plan_id) continue;
 
-    const budget = remainingBudget.get(procId) || 0;
+    const budget = remainingBudget.get(entry.monthly_plan_id) || 0;
     if (budget < 30) continue;
 
     const prevDay = new Date(entry.date).getDay();
@@ -181,9 +174,8 @@ export function suggestFromPreviousWeek(
     }
 
     suggestions.push({
-      procedure_id: procId,
-      monthly_plan_id: entry.monthly_plan_id || '',
-      procedure_name: entry.procedure_name,
+      monthly_plan_id: entry.monthly_plan_id,
+      plan_name: entry.plan_name || '',
       process_name: entry.process_name,
       date: targetDate,
       start_time: time,
@@ -194,7 +186,7 @@ export function suggestFromPreviousWeek(
     dayOcc.push({ startMin: tMin, endMin: tMin + entry.duration_minutes });
     occupiedMap.set(targetDate, dayOcc);
     weekCap -= entry.duration_minutes;
-    remainingBudget.set(procId, budget - entry.duration_minutes);
+    remainingBudget.set(entry.monthly_plan_id, budget - entry.duration_minutes);
   }
 
   logger.info(`[WeeklyPlanner] Suggested ${suggestions.length} slots from previous week`);
@@ -212,12 +204,12 @@ export function suggestProportional(
   alreadyScheduled: Map<string, number>,
   freeMin: number,
 ): SuggestedSlot[] {
-  // 1. Calculate weekly weight per procedure (subtract already-scheduled)
+  // 1. Calculate weekly weight per plan (subtract already-scheduled)
   const eligible: { plan: ActivePlanForSlot; weight: number }[] = [];
   for (const plan of activePlans) {
     const assignees = countByPlan.get(plan.monthlyPlanId) || 1;
     const weeklyBudgetHrs = plan.plannedHours / assignees / 4;
-    const alreadyHrs = (alreadyScheduled.get(plan.procedureId) || 0) / 60;
+    const alreadyHrs = (alreadyScheduled.get(plan.monthlyPlanId) || 0) / 60;
     const weight = weeklyBudgetHrs - alreadyHrs; // remaining weekly budget in hours
     if (weight < 0.5) continue; // less than 30 min remaining — skip
     eligible.push({ plan, weight });
@@ -257,9 +249,8 @@ export function suggestProportional(
 
       if (freeTime) {
         suggestions.push({
-          procedure_id: plan.procedureId,
           monthly_plan_id: plan.monthlyPlanId,
-          procedure_name: plan.procedureName,
+          plan_name: plan.planName,
           process_name: plan.processName,
           date,
           start_time: freeTime,

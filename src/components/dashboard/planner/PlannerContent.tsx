@@ -11,7 +11,7 @@ import { usePullCalendar, usePushCalendar } from '@/hooks/usePlannerSync';
 import type { SuggestedSlot } from '@/lib/ops/planner/weekly-suggest';
 import type { CalendarEntry } from '@/lib/ops/planner/calendar-entries';
 import { useCreateDraft, useDrafts } from '@/hooks/usePlannerDrafts';
-import PlannerGrid, { type TemplateDragData, type ProcedureDragData } from './PlannerGrid';
+import PlannerGrid, { type TemplateDragData, type PlanDragData } from './PlannerGrid';
 import type { SelectPayload } from './TaskPickerDropdown';
 import PlannerSidebar from './PlannerSidebar';
 import PlannerHeader from './PlannerHeader';
@@ -55,10 +55,11 @@ export default function PlannerContent() {
 
   const { data: draftsData } = useDrafts();
   const draftedSourceIds = useMemo(() => new Set<string>(draftsData?.meetingTaskIds ?? []), [draftsData?.meetingTaskIds]);
-  const collectedProcedureIds = useMemo(() => {
+  const collectedPlanIds = useMemo(() => {
     const set = new Set<string>();
     for (const id of draftedSourceIds) {
-      if (id.startsWith('proc:')) set.add(id.slice(5));
+      if (id.startsWith('plan:')) set.add(id.slice(5));
+      else if (id.startsWith('proc:')) set.add(id.slice(5)); // backwards compat
     }
     return set;
   }, [draftedSourceIds]);
@@ -76,7 +77,7 @@ export default function PlannerContent() {
   const pushCalendar = usePushCalendar();
   const queryClient = useQueryClient();
   const [suggestions, setSuggestions] = useState<SuggestedSlot[]>([]);
-  const [selectedProcedureId, setSelectedProcedureId] = useState<string | null>(null);
+  const [selectedPlanId, setSelectedProcedureId] = useState<string | null>(null);
   const [selectedMeeting, setSelectedMeeting] = useState<CalendarEntry | null>(null);
 
   // ─── PULL on week change (background, no spinner)
@@ -96,9 +97,9 @@ export default function PlannerContent() {
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const d = event.active.data.current;
-    if (d?.type === 'procedure') setDragLabel(d.procedureName as string);
+    if (d?.type === 'procedure') setDragLabel(d.planName as string);
     else if (d?.type === 'suggestion') {
-      setDragLabel(d.procedureName as string || '');
+      setDragLabel(d.planName as string || '');
     }
   }, []);
 
@@ -126,7 +127,7 @@ export default function PlannerContent() {
         queryClient.setQueryData<WeeklyPlannerData>(qk, (old) => {
           if (!old) return old;
           return { ...old, entries: old.entries.map((e) => e.id === externalAtSlot.id
-            ? { ...e, monthly_plan_id: activeData.monthlyPlanId as string, procedure_name: activeData.procedureName as string }
+            ? { ...e, monthly_plan_id: activeData.monthlyPlanId as string, plan_name: activeData.planName as string }
             : e) };
         });
         updateEntry.mutate({ id: externalAtSlot.id, monthly_plan_id: activeData.monthlyPlanId as string });
@@ -141,7 +142,7 @@ export default function PlannerContent() {
         outlook_event_id: null, daily_task_id: null, task_template_id: null,
         task_has_plan: false, task_completed: false,
         subject: null, has_transcript: false, transcript_summary: null,
-        procedure_name: activeData.procedureName as string, process_name: '',
+        plan_name: activeData.planName as string, process_name: '',
         task_title: null, task_description: null, outlook_modified: false, needs_push: false, template_title: null,
       };
       const shifts = resolveOverlaps(tempEntry.id, [...entries, tempEntry], targetDate);
@@ -149,7 +150,7 @@ export default function PlannerContent() {
       createEntry.mutate({
         monthly_plan_id: activeData.monthlyPlanId as string,
         date: targetDate, start_time: targetTime, duration_minutes: DEFAULT_DURATION,
-        _procedureName: activeData.procedureName as string, _processName: '',
+        _planName: activeData.planName as string, _processName: '',
         ...(hasCascade ? { cascade: true } : {}),
       });
       for (const sh of shifts) updateEntry.mutate({ id: sh.id, start_time: sh.newStartTime, cascade: true });
@@ -172,12 +173,12 @@ export default function PlannerContent() {
       duration_minutes: data.durationMinutes,
       task_template_id: data.templateId,
       cascade: true,
-      _procedureName: data.procedureName ?? '',
+      _planName: data.planName ?? '',
       _processName: '',
     });
   }, [createEntry]);
 
-  const handleProcedureDrop = useCallback((date: string, startTime: string, data: ProcedureDragData) => {
+  const handleProcedureDrop = useCallback((date: string, startTime: string, data: PlanDragData) => {
     const droppedPlan = activePlans.find(p => p.monthlyPlanId === data.monthlyPlanId);
     if (droppedPlan?.status === 'done') return;
 
@@ -200,14 +201,14 @@ export default function PlannerContent() {
       outlook_event_id: null, daily_task_id: null, task_template_id: null,
       task_has_plan: false, task_completed: false,
       subject: null, has_transcript: false, transcript_summary: null,
-      procedure_name: data.procedureName, process_name: '',
+      plan_name: data.planName, process_name: '',
       task_title: null, task_description: null, outlook_modified: false, needs_push: false, template_title: null,
     };
     const shifts = resolveOverlaps(tempEntry.id, [...entries, tempEntry], date);
     createEntry.mutate({
       monthly_plan_id: data.monthlyPlanId,
       date, start_time: startTime, duration_minutes: DEFAULT_DURATION,
-      _procedureName: data.procedureName, _processName: '',
+      _planName: data.planName, _processName: '',
       ...(shifts.length > 0 ? { cascade: true } : {}),
     });
     for (const sh of shifts) updateEntry.mutate({ id: sh.id, start_time: sh.newStartTime, cascade: true });
@@ -242,27 +243,24 @@ export default function PlannerContent() {
   const [taskModalState, setTaskModalState] = useState<TasksModalState>(null);
 
   const collectTasks = useCollectTasks();
-  const handleCollectTasks = useCallback((procedureId: string) => {
-    const plan = activePlans.find(p => p.procedureId === procedureId);
+  const handleCollectTasks = useCallback((monthlyPlanId: string) => {
+    const plan = activePlans.find(p => p.monthlyPlanId === monthlyPlanId);
     if (!plan || plan.status === 'done') return;
-    const planToProcedure = new Map(activePlans.map(p => [p.monthlyPlanId, p.procedureId]));
-    // Only entries with template but no task yet
     // Plan entries with template (no task yet)
     const collectableEntries = entries.filter((e) =>
       e.task_template_id && !e.daily_task_id &&
-      e.monthly_plan_id && planToProcedure.get(e.monthly_plan_id) === procedureId
+      e.monthly_plan_id === monthlyPlanId
     );
-    // External entries with procedure + transcript (no task yet)
+    // External entries with plan + transcript (no task yet)
     const collectableExternal = entries.filter((e) =>
       e.source === 'external' && e.has_transcript && !e.daily_task_id &&
-      e.monthly_plan_id && planToProcedure.get(e.monthly_plan_id) === procedureId &&
+      e.monthly_plan_id === monthlyPlanId &&
       !e.task_template_id
     );
     if (collectableEntries.length === 0 && collectableExternal.length === 0) return;
     collectTasks.mutate({
-      procedureId,
+      monthlyPlanId,
       weekStart: weekStartStr,
-      monthlyPlanId: plan.monthlyPlanId,
       entries: collectableEntries.map(e => ({
         id: e.id,
         task_template_id: e.task_template_id!,
@@ -292,7 +290,7 @@ export default function PlannerContent() {
       const plan = activePlans.find(p => p.monthlyPlanId === task.monthlyPlanId);
       queryClient.setQueryData<WeeklyPlannerData>(qk, (old) => {
         if (!old) return old;
-        return { ...old, entries: old.entries.map((e) => e.id === entryId ? { ...e, monthly_plan_id: task.monthlyPlanId, procedure_name: plan?.procedureName ?? '' } : e) };
+        return { ...old, entries: old.entries.map((e) => e.id === entryId ? { ...e, monthly_plan_id: task.monthlyPlanId, plan_name: plan?.planName ?? '' } : e) };
       });
       updateEntry.mutate({ id: entryId, monthly_plan_id: task.monthlyPlanId });
     }
@@ -313,7 +311,7 @@ export default function PlannerContent() {
     const qk = [...PLANNER_ENTRIES_KEY, weekStartStr];
     queryClient.setQueryData<WeeklyPlannerData>(qk, (old) => {
       if (!old) return old;
-      return { ...old, entries: old.entries.map((e) => e.id === entryId ? { ...e, monthly_plan_id: null, procedure_name: '', task_template_id: null, template_title: null } : e) };
+      return { ...old, entries: old.entries.map((e) => e.id === entryId ? { ...e, monthly_plan_id: null, plan_name: '', task_template_id: null, template_title: null } : e) };
     });
     updateEntry.mutate({ id: entryId, monthly_plan_id: null, task_template_id: null });
   }, [updateEntry, queryClient, weekStartStr]);
@@ -359,7 +357,7 @@ export default function PlannerContent() {
   const handleAcceptSuggestion = useCallback((id: string) => {
     const sg = suggestions.find((s) => s._id === id);
     if (!sg) return;
-    createEntry.mutate({ monthly_plan_id: sg.monthly_plan_id || '', date: sg.date, start_time: sg.start_time, duration_minutes: sg.duration_minutes, _procedureName: sg.procedure_name, _processName: sg.process_name });
+    createEntry.mutate({ monthly_plan_id: sg.monthly_plan_id || '', date: sg.date, start_time: sg.start_time, duration_minutes: sg.duration_minutes, _planName: sg.plan_name, _processName: sg.process_name });
     setSuggestions((prev) => prev.filter((s) => s._id !== id));
   }, [suggestions, createEntry]);
 
@@ -462,8 +460,8 @@ export default function PlannerContent() {
               ) : (
                 <PlannerSidebar
                   activePlans={activePlans} entries={entries} suggestions={suggestions}
-                  selectedProcedureId={selectedProcedureId} collectedProcedureIds={collectedProcedureIds}
-                  onSelectProcedure={(id) => setSelectedProcedureId((prev) => prev === id ? null : id)}
+                  selectedPlanId={selectedPlanId} collectedPlanIds={collectedPlanIds}
+                  onSelectPlan={(id) => setSelectedProcedureId((prev) => prev === id ? null : id)}
                   onCollectTasks={handleCollectTasks}
                 />
               )}
@@ -510,7 +508,7 @@ export default function PlannerContent() {
               ) : (
                 <PlannerGrid
                   weekDates={weekDates} entries={entries} suggestions={suggestions}
-                  lunchStart={lunchStart} selectedProcedureId={selectedProcedureId}
+                  lunchStart={lunchStart} selectedPlanId={selectedPlanId}
                   activePlans={activePlans}
                   vacationDays={vacationDays}
                   onDeleteEntry={handleDeleteEntry} onResizeEntry={handleResizeEntry}
@@ -546,12 +544,12 @@ export default function PlannerContent() {
         <div className="flex flex-col min-w-0 overflow-clip" style={{ width: `${Math.max(100 - leftPct - midPct, 15)}%` }}>
           <div className="glass-panel rounded-xl flex flex-col flex-1 min-h-0 p-2" data-el="L1 zone · tasks-detail" data-el-cat="glass">
             {(() => {
-              const selectedPlan = selectedProcedureId ? activePlans.find(p => p.procedureId === selectedProcedureId) : null;
+              const selectedPlan = selectedPlanId ? activePlans.find(p => p.monthlyPlanId === selectedPlanId) : null;
               if (!selectedPlan) {
                 return (
                   <div className="flex flex-col items-center justify-center flex-1 text-slate-400 gap-2">
                     <ClipboardList className="h-8 w-8 opacity-40" />
-                    <p className="text-xs">Оберіть процедуру зліва</p>
+                    <p className="text-xs">Оберіть план зліва</p>
                   </div>
                 );
               }
@@ -597,7 +595,7 @@ export default function PlannerContent() {
             ) : (
               <PlannerGrid
                 weekDates={weekDates} entries={entries} suggestions={suggestions}
-                lunchStart={lunchStart} selectedProcedureId={selectedProcedureId}
+                lunchStart={lunchStart} selectedPlanId={selectedPlanId}
                 activePlans={activePlans}
                 vacationDays={vacationDays}
                 onDeleteEntry={handleDeleteEntry} onResizeEntry={handleResizeEntry}
@@ -656,20 +654,20 @@ export default function PlannerContent() {
           <div className="mob-sheet-handle" />
         </div>
         <div className="px-3 pb-1 text-xs font-semibold text-slate-500">
-          {mobilePanel === 'procs' ? 'Процедури' : 'Мої задачі'}
+          {mobilePanel === 'procs' ? 'Плани' : 'Мої задачі'}
         </div>
         <div className="mob-sheet-body px-2">
           {mobilePanel === 'procs' && (
             <PlannerSidebar
               activePlans={activePlans} entries={entries} suggestions={suggestions}
-              selectedProcedureId={selectedProcedureId} collectedProcedureIds={collectedProcedureIds}
-              onSelectProcedure={(id) => { setSelectedProcedureId(prev => prev === id ? null : id); setMobilePanel(null); }}
+              selectedPlanId={selectedPlanId} collectedPlanIds={collectedPlanIds}
+              onSelectPlan={(id) => { setSelectedProcedureId(prev => prev === id ? null : id); setMobilePanel(null); }}
               onCollectTasks={handleCollectTasks}
             />
           )}
-          {mobilePanel === 'tasks' && selectedProcedureId && (() => {
-            const selectedPlan = activePlans.find(p => p.procedureId === selectedProcedureId);
-            if (!selectedPlan) return <div className="p-4 text-slate-400 text-xs">Оберіть процедуру</div>;
+          {mobilePanel === 'tasks' && selectedPlanId && (() => {
+            const selectedPlan = activePlans.find(p => p.monthlyPlanId === selectedPlanId);
+            if (!selectedPlan) return <div className="p-4 text-slate-400 text-xs">Оберіть план</div>;
             return (
               <PlannerTasksDetail plan={selectedPlan} onClose={() => setMobilePanel(null)}
                 readOnly={selectedPlan.status === 'done'}
@@ -678,8 +676,8 @@ export default function PlannerContent() {
               />
             );
           })()}
-          {mobilePanel === 'tasks' && !selectedProcedureId && (
-            <div className="p-4 text-slate-400 text-xs">Спочатку оберіть процедуру у вкладці &quot;Плани&quot;</div>
+          {mobilePanel === 'tasks' && !selectedPlanId && (
+            <div className="p-4 text-slate-400 text-xs">Спочатку оберіть план у вкладці &quot;Плани&quot;</div>
           )}
         </div>
       </div>
