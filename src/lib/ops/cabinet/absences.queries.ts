@@ -1,13 +1,13 @@
 /**
  * Absences — read operations.
  */
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import type { AbsenceRow, AbsenceType, YearlyQuota, TeamAbsencesResult, TeamVacationRow } from './absences.types';
 import { SELECT_COLS } from './absences.types';
 import { getMonthsInRange, stripJoin } from './absences.helpers';
 
 export async function getMyAbsences(
-  db: SupabaseClient, userId: string, year: number,
+  db: PostgrestClient, userId: string, year: number,
 ): Promise<AbsenceRow[]> {
   const [{ data, error }, { data: timesheets }] = await Promise.all([
     db.from('planned_absences').select(SELECT_COLS).eq('user_id', userId).eq('year', year).order('start_date'),
@@ -28,7 +28,7 @@ export async function getMyAbsences(
 }
 
 export async function getPendingApprovals(
-  db: SupabaseClient, approverId: string,
+  db: PostgrestClient, approverId: string,
 ): Promise<AbsenceRow[]> {
   const { data: approver } = await db.from('user_profiles').select('role, department_id').eq('user_id', approverId).single();
   if (!approver) return [];
@@ -59,7 +59,7 @@ export async function getPendingApprovals(
 }
 
 export async function getYearlyQuota(
-  db: SupabaseClient, userId: string, year: number,
+  db: PostgrestClient, userId: string, year: number,
 ): Promise<YearlyQuota> {
   const { data, error } = await db
     .from('planned_absences')
@@ -79,7 +79,7 @@ export async function getYearlyQuota(
 }
 
 export async function getTeamAbsences(
-  db: SupabaseClient, requesterId: string, year: number,
+  db: PostgrestClient, requesterId: string, year: number,
 ): Promise<TeamAbsencesResult> {
   const { data: requester } = await db.from('user_profiles').select('role, department_id').eq('user_id', requesterId).single();
   if (!requester) throw new Error('Профіль не знайдено');

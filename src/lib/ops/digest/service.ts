@@ -8,7 +8,7 @@
  *   chief    → same as head + company-wide stats
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { computeKPI } from '@/lib/ops/kpi/service';
 import { esc, fmtHours, kpiIcon, shortName } from '@/lib/bot/shared/format-helpers';
 
@@ -60,7 +60,7 @@ function remainingWorkingDays(now: Date): number {
 }
 
 async function buildPersonalSection(
-  db: SupabaseClient,
+  db: PostgrestClient,
   user: DigestUser,
   year: number,
   month: number,
@@ -133,7 +133,7 @@ async function buildPersonalSection(
 }
 
 async function buildTeamSection(
-  db: SupabaseClient,
+  db: PostgrestClient,
   deptId: string,
   year: number,
   month: number,
@@ -210,7 +210,7 @@ async function buildTeamSection(
 }
 
 async function buildCompanySection(
-  db: SupabaseClient,
+  db: PostgrestClient,
   year: number,
   month: number,
   week: { start: string; end: string },
@@ -247,7 +247,7 @@ async function buildCompanySection(
  * Returns null if there's nothing to show (no notifications connected).
  */
 export async function buildDigestMessage(
-  db: SupabaseClient,
+  db: PostgrestClient,
   user: DigestUser,
   now: Date,
 ): Promise<string | null> {

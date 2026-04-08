@@ -3,7 +3,7 @@
  * Loads user's active monthly plans for the current month, grouped by process.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 
 export interface WizardPlan {
   monthlyPlanId: string;
@@ -22,7 +22,7 @@ export interface WizardProcess {
 }
 
 export async function getActivePlansForWizard(
-  db: SupabaseClient,
+  db: PostgrestClient,
   userId: string,
 ): Promise<WizardProcess[]> {
   const now = new Date();

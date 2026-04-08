@@ -3,7 +3,7 @@
  * Templates are reference data: employee picks one → daily_task created with pre-filled title/description.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 
 export interface TaskTemplate {
   id: string;
@@ -18,7 +18,7 @@ export interface TaskTemplate {
 // ─── Read ───
 
 export async function getTemplates(
-  db: SupabaseClient,
+  db: PostgrestClient,
   procedureId: string,
 ): Promise<TaskTemplate[]> {
   const { data, error } = await db
@@ -35,7 +35,7 @@ export async function getTemplates(
 // ─── Create ───
 
 export async function createTemplate(
-  db: SupabaseClient,
+  db: PostgrestClient,
   procedureId: string,
   title: string,
   content: string,
@@ -59,7 +59,7 @@ export async function createTemplate(
 // ─── Update ───
 
 export async function updateTemplate(
-  db: SupabaseClient,
+  db: PostgrestClient,
   id: string,
   updates: Partial<Pick<TaskTemplate, 'title' | 'content' | 'is_active'>>,
 ): Promise<TaskTemplate> {
@@ -77,7 +77,7 @@ export async function updateTemplate(
 // ─── Delete (soft — is_active = false) ───
 
 export async function deleteTemplate(
-  db: SupabaseClient,
+  db: PostgrestClient,
   id: string,
 ): Promise<void> {
   const { error } = await db

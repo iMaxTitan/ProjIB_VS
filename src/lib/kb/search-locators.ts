@@ -4,7 +4,7 @@
  * Extracted from search.ts to respect 300-line limit.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 import type { KBChunk } from './query-translator';
 import type { KBSearchResult } from './search';
@@ -14,7 +14,7 @@ import type { KBSearchResult } from './search';
 const META_QUERY_PATTERN = /як[іi]\s+(закон|документ|нормативн|акт)|які\s+є\s+(закон|документ)|перелік\s+(закон|документ)|список\s+(закон|документ)|что\s+есть\s+в\s+базе|какие\s+(законы|документы)|что\s+содержит/i;
 
 export async function handleMetaQuery(
-  query: string, db: SupabaseClient,
+  query: string, db: PostgrestClient,
 ): Promise<KBSearchResult | null> {
   if (!META_QUERY_PATTERN.test(query)) return null;
 
@@ -73,7 +73,7 @@ const LEGAL_ACT_ALIASES: Array<[RegExp, string]> = [
   [/постанов[іиа]?\s*(?:кму?\s*)?\s*№?\s*(\d+)/i, ''],
 ];
 
-export async function legalLocator(query: string, db: SupabaseClient): Promise<KBChunk[]> {
+export async function legalLocator(query: string, db: PostgrestClient): Promise<KBChunk[]> {
   const artMatch = query.match(LEGAL_LOCATOR_PATTERN);
   if (!artMatch) return [];
 

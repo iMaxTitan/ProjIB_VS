@@ -2,7 +2,7 @@
  * Telegram bot authentication and permission resolution.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import type { TelegramUser, UserProfile } from './types';
 
 export interface BasicUser {
@@ -14,7 +14,7 @@ export interface BasicUser {
  * Resolve telegram chat_id → basic user (no API key required).
  * Single query to user_profiles (telegram fields merged).
  */
-export async function resolveUserBasic(db: SupabaseClient, chatId: number): Promise<BasicUser | null> {
+export async function resolveUserBasic(db: PostgrestClient, chatId: number): Promise<BasicUser | null> {
   const { data } = await db
     .from('user_profiles')
     .select('user_id, full_name, role, department_id, status, telegram_chat_id, telegram_username, telegram_is_active')
@@ -38,13 +38,13 @@ export async function resolveUserBasic(db: SupabaseClient, chatId: number): Prom
 }
 
 /** No-op — last_update_id field removed (webhooks don't need it). */
-export async function updateLastUpdateId(_db: SupabaseClient, _tgUserId: string, _updateId: number): Promise<void> {
+export async function updateLastUpdateId(_db: PostgrestClient, _tgUserId: string, _updateId: number): Promise<void> {
   // No-op: using webhooks, not polling
 }
 
 /** Verify a linking code from user_profiles. Returns user_id on success, null on failure. */
 export async function verifyCode(
-  db: SupabaseClient,
+  db: PostgrestClient,
   code: string,
   chatId: number,
   username: string | null,

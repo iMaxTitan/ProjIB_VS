@@ -21,7 +21,7 @@ const POLL_OFFSET_MS = 45_000;        // сдвиг от heartbeat
  * Серверный in-memory store: heartbeat + polling через API.
  * Без WebSocket, без прямых DB запросов.
  */
-export function usePresence(user: UserInfo | null): PresenceUser[] {
+export function usePresence(user: UserInfo | null, enabled = true): PresenceUser[] {
     const [activeUsers, setActiveUsers] = useState<PresenceUser[]>([]);
     const usersRef = useRef<PresenceUser[]>([]);
 
@@ -37,7 +37,7 @@ export function usePresence(user: UserInfo | null): PresenceUser[] {
 
     // Heartbeat: POST /api/presence/heartbeat каждые 60с
     useEffect(() => {
-        if (!user?.user_id) return;
+        if (!user?.user_id || !enabled) return;
         let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
         async function sendHeartbeat(isRetry = false) {
@@ -70,7 +70,7 @@ export function usePresence(user: UserInfo | null): PresenceUser[] {
 
     // Poll: GET /api/presence/online каждые 60с (со сдвигом 30с от heartbeat)
     useEffect(() => {
-        if (!user?.user_id) return;
+        if (!user?.user_id || !enabled) return;
 
         let pollTimer: ReturnType<typeof setInterval> | null = null;
 

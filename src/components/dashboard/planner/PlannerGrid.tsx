@@ -6,21 +6,19 @@ import { cn } from '@/lib/shared/utils';
 import { SummaryBox, PanelFooter, pctColor, WEEKLY_CAPACITY } from '@/components/dashboard/shared';
 import type { CalendarEntry, ActivePlanForSlot } from '@/lib/ops/planner/calendar-entries';
 import type { SuggestedSlot } from '@/lib/ops/planner/weekly-suggest';
-import { START_HOUR, END_HOUR, SLOT_STEP, ROWS, ROW_HEIGHT, timeLabel, CalendarBlock, GhostBlock, entryStatus } from './PlannerBlocks';
+import { START_HOUR, END_HOUR, SLOT_STEP, ROWS, ROW_HEIGHT, timeLabel, CalendarBlock, GhostBlock, entryStatus, type EntryStatusKey } from './PlannerBlocks';
 import { computeOverlapLayout } from './planner-helpers';
 import TaskPickerDropdown, { type SelectPayload } from './TaskPickerDropdown';
 
 const LUNCH_DURATION_HR = 1;
 const DAY_NAMES = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ'];
 
-const LEGEND_ITEMS: { key: string; label: string }[] = [
-  { key: 'distributed', label: 'Не синхронізовано' },
-  { key: 'synced',      label: 'Синхронізовано' },
-  { key: 'modified',    label: 'Потребує оновлення' },
-  { key: 'returned',    label: 'Змінено в Outlook' },
-  { key: 'templated',   label: 'Шаблон задачі' },
-  { key: 'collected',   label: 'Зібрано в задачу' },
-  { key: 'external',    label: 'Зовнішня подія' },
+const LEGEND_ITEMS: { key: EntryStatusKey; label: string }[] = [
+  { key: 'slot',      label: 'Слот плану' },
+  { key: 'task',      label: 'Планова задача' },
+  { key: 'pending',   label: 'На узгодженні' },
+  { key: 'completed', label: 'Виконано' },
+  { key: 'external',  label: 'Зовнішня подія' },
 ];
 
 export interface TemplateDragData {
@@ -38,9 +36,19 @@ export interface PlanDragData {
   planName: string;
 }
 
-function GridCell({ rowIdx, dateStr, lunchStartHour, onTemplateDrop, onProcedureDrop, onSlotDrop }: {
+export interface TaskDragData {
+  type: 'task';
+  dailyTaskId: string;
+  title: string;
+  monthlyPlanId: string;
+  durationMinutes: number;
+  planName?: string;
+}
+
+function GridCell({ rowIdx, dateStr, lunchStartHour, onTemplateDrop, onTaskDrop, onProcedureDrop, onSlotDrop }: {
   rowIdx: number; dateStr: string; lunchStartHour: number;
   onTemplateDrop?: (date: string, startTime: string, data: TemplateDragData) => void;
+  onTaskDrop?: (date: string, startTime: string, data: TaskDragData) => void;
   onProcedureDrop?: (date: string, startTime: string, data: PlanDragData) => void;
   onSlotDrop?: (date: string, startTime: string, entryId: string) => void;
 }) {
@@ -67,6 +75,7 @@ function GridCell({ rowIdx, dateStr, lunchStartHour, onTemplateDrop, onProcedure
       }}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes('application/planner-template') ||
+            e.dataTransfer.types.includes('application/planner-task') ||
             e.dataTransfer.types.includes('application/planner-procedure') ||
             e.dataTransfer.types.includes('application/planner-slot')) {
           e.preventDefault();
@@ -81,6 +90,12 @@ function GridCell({ rowIdx, dateStr, lunchStartHour, onTemplateDrop, onProcedure
         if (slotRaw) {
           e.preventDefault();
           try { const d = JSON.parse(slotRaw); onSlotDrop?.(dateStr, time, d.id); } catch { /* ignore */ }
+          return;
+        }
+        const taskRaw = e.dataTransfer.getData('application/planner-task');
+        if (taskRaw) {
+          e.preventDefault();
+          try { onTaskDrop?.(dateStr, time, JSON.parse(taskRaw)); } catch { /* ignore */ }
           return;
         }
         const tplRaw = e.dataTransfer.getData('application/planner-template');
@@ -131,9 +146,10 @@ interface Props {
   onResizeSuggestion: (id: string, newDurationMin: number) => void;
   onSelectEntry?: (entry: CalendarEntry) => void;
   onLinkTask?: (entryId: string, task: SelectPayload) => void;
-  onClearTemplate?: (entryId: string) => void;
-  onClearProcedure?: (entryId: string) => void;
+  onAssignPlan?: (entryId: string, monthlyPlanId: string, planName: string) => void;
+  onClearPlan?: (entryId: string) => void;
   onTemplateDrop?: (date: string, startTime: string, data: TemplateDragData) => void;
+  onTaskDrop?: (date: string, startTime: string, data: TaskDragData) => void;
   onProcedureDrop?: (date: string, startTime: string, data: PlanDragData) => void;
   onSlotDrop?: (date: string, startTime: string, entryId: string) => void;
 }
@@ -143,7 +159,7 @@ export default function PlannerGrid({
   selectedPlanId, vacationDays,
   onDeleteEntry, onResizeEntry,
   onAcceptSuggestion, onDismissSuggestion, onResizeSuggestion,
-  onSelectEntry, onLinkTask, onClearTemplate, onClearProcedure, onTemplateDrop, onProcedureDrop, onSlotDrop,
+  onSelectEntry, onLinkTask, onAssignPlan, onClearPlan, onTemplateDrop, onTaskDrop, onProcedureDrop, onSlotDrop,
 }: Props) {
   const [pickerEntry, setPickerEntry] = useState<CalendarEntry | null>(null);
   const [pickerRect, setPickerRect] = useState<DOMRect | null>(null);
@@ -269,7 +285,7 @@ export default function PlannerGrid({
                 background: vacationDays?.has(dateStr) ? 'rgba(251,191,36,0.04)' : undefined,
               }}>
                 {Array.from({ length: ROWS }, (_, r) => (
-                  <GridCell key={r} rowIdx={r} dateStr={dateStr} lunchStartHour={lunchStartHour} onTemplateDrop={onTemplateDrop} onProcedureDrop={onProcedureDrop} onSlotDrop={onSlotDrop} />
+                  <GridCell key={r} rowIdx={r} dateStr={dateStr} lunchStartHour={lunchStartHour} onTemplateDrop={onTemplateDrop} onTaskDrop={onTaskDrop} onProcedureDrop={onProcedureDrop} onSlotDrop={onSlotDrop} />
                 ))}
                 {dateStr === today && <NowLine />}
                 {(entriesByDate.get(dateStr) || []).map((entry) => {
@@ -277,12 +293,12 @@ export default function PlannerGrid({
                   const isDimmed = !!selectedPlanId && entry.source === 'plan' && entry.monthly_plan_id !== selectedPlanId;
                   return (
                     <CalendarBlock key={entry.id} entry={entry} dimmed={isDimmed}
-                      readOnly={!!entry.daily_task_id || (entry.source === 'external' && !entry.monthly_plan_id && !entry.task_template_id) || (!!entry.monthly_plan_id && completedPlanIds.has(entry.monthly_plan_id))}
+                      readOnly={entry.task_type === 'completed' || entry.task_type === 'pending_approval'}
                       onDelete={onDeleteEntry} onResize={onResizeEntry}
                       onSelectEntry={onSelectEntry}
                       onOpenPicker={onLinkTask ? handleOpenPicker : undefined}
-                      onClearTemplate={onClearTemplate}
-                      onClearProcedure={onClearProcedure}
+                      onAssignPlan={onAssignPlan}
+                      onClearPlan={onClearPlan}
                       layoutColumn={lay?.column} layoutTotal={lay?.totalColumns} />
                   );
                 })}
@@ -339,12 +355,10 @@ export default function PlannerGrid({
 
       {pickerEntry && (() => {
         const planId = pickerEntry.monthly_plan_id ?? selectedPlanId ?? undefined;
-        const plan = planId ? activePlans.find(p => p.monthlyPlanId === planId) : undefined;
-        const procId = plan?.procedureId ?? undefined;
 
         // No plan linked and no sidebar selection → show plan list
         const planList = !planId ? activePlans.map(p => ({
-          procedureId: p.procedureId, monthlyPlanId: p.monthlyPlanId,
+          monthlyPlanId: p.monthlyPlanId,
           planName: p.planName, processName: p.processName,
         })) : undefined;
 
@@ -352,7 +366,6 @@ export default function PlannerGrid({
 
         return (
           <TaskPickerDropdown
-            procedureId={procId ?? undefined}
             monthlyPlanId={planId}
             procedures={planList}
             entryDate={pickerEntry.date} durationMinutes={pickerEntry.duration_minutes}

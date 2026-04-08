@@ -65,21 +65,38 @@ function sourceBadge(source: string, createdByRole: string | null) {
   return null;
 }
 
-function TaskRow({ task, userRole, onDelete, onChangeStatus, onEdit, readOnly }: {
+function TaskRow({ task, userRole, onDelete, onChangeStatus, onEdit, readOnly, monthlyPlanId, planName }: {
   task: PlanTaskItem; userRole: string;
   onDelete: (id: string) => void;
   onChangeStatus: (id: string, taskType: string) => void;
   onEdit?: (task: PlanTaskItem) => void;
   readOnly?: boolean;
+  monthlyPlanId?: string;
+  planName?: string;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const badge = sourceBadge(task.source, task.created_by_role);
   const status = statusLabel(task.task_type);
   const isManager = userRole === 'chief' || userRole === 'head';
   const isFromManager = task.source === 'chief' || task.source === 'head';
+  const isDraggable = !readOnly && task.task_type === 'incomplete' && !!monthlyPlanId;
 
   return (
-    <div className="task-row pp-task-row group/task hover:bg-slate-50/50">
+    <div
+      className={cn('task-row pp-task-row group/task hover:bg-slate-50/50', isDraggable && 'cursor-grab active:cursor-grabbing')}
+      draggable={isDraggable}
+      onDragStart={isDraggable ? (e) => {
+        e.dataTransfer.setData('application/planner-task', JSON.stringify({
+          type: 'task',
+          dailyTaskId: task.daily_task_id,
+          title: task.title || task.description,
+          monthlyPlanId,
+          durationMinutes: Math.max(30, Math.round((Number(task.spent_hours) || 1) * 60)),
+          planName,
+        }));
+        e.dataTransfer.effectAllowed = 'copy';
+      } : undefined}
+    >
       <TaskCheckbox taskType={task.task_type} />
       {badge && (
         <span className={cn('text-[9px] font-bold py-px px-1.5 rounded border flex-shrink-0', badge.classes)}>
@@ -317,7 +334,8 @@ export default function PlannerTasksDetail({ plan, onClose, onAddTask, onEditTas
               {allIncompleteTasks.map(task => (
                 <TaskRow key={task.daily_task_id} task={task} userRole={userRole}
                   onDelete={(id) => deleteMut.mutate(id)} onChangeStatus={handleChangeStatus}
-                  onEdit={onEditTask} readOnly={readOnly} />
+                  onEdit={onEditTask} readOnly={readOnly}
+                  monthlyPlanId={plan.monthlyPlanId} planName={plan.planName} />
               ))}
             </TaskGroup>
 
@@ -327,19 +345,15 @@ export default function PlannerTasksDetail({ plan, onClose, onAddTask, onEditTas
               {managerTasks.map(task => (
                 <TaskRow key={task.daily_task_id} task={task} userRole={userRole}
                   onDelete={(id) => deleteMut.mutate(id)} onChangeStatus={handleChangeStatus}
-                  onEdit={onEditTask} readOnly={readOnly} />
+                  onEdit={onEditTask} readOnly={readOnly}
+                  monthlyPlanId={plan.monthlyPlanId} planName={plan.planName} />
               ))}
             </TaskGroup>
 
             {/* 3. Чернетки */}
             {!readOnly && (
-              <TaskGroup icon="📝" name="Чернетки" subtitle="збережені з нарад"
-                count={drafts.length} accentClass="text-slate-700"
-                action={
-                  <button className="action-btn-small" title="Нова чернетка">
-                    <Plus className="h-3 w-3" />
-                  </button>
-                }>
+              <TaskGroup icon="📝" name="Чернетки" subtitle="з нарад та бота"
+                count={drafts.length} accentClass="text-slate-700">
                 {drafts.map(draft => (
                   <DraftRow key={draft.daily_task_id} draft={draft} onAssign={handleAssignDraft} isPending={assignMut.isPending} />
                 ))}
@@ -387,7 +401,8 @@ export default function PlannerTasksDetail({ plan, onClose, onAddTask, onEditTas
               {completedTasks.map(task => (
                 <TaskRow key={task.daily_task_id} task={task} userRole={userRole}
                   onDelete={(id) => deleteMut.mutate(id)} onChangeStatus={handleChangeStatus}
-                  onEdit={onEditTask} readOnly={readOnly} />
+                  onEdit={onEditTask} readOnly={readOnly}
+                  monthlyPlanId={plan.monthlyPlanId} planName={plan.planName} />
               ))}
             </TaskGroup>
 

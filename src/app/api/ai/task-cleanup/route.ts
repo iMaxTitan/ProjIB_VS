@@ -20,7 +20,7 @@ let _companyNamesCache: string[] | null = null;
 let _companyCacheAt = 0;
 const COMPANY_CACHE_TTL = 300_000; // 5 minutes
 
-// ─── Supabase service-role (lazy singleton) ───
+// ─── DB service-role (lazy singleton) ───
 let _db: ReturnType<typeof createClient> | null = null;
 function getDb() {
   if (_db) return _db;

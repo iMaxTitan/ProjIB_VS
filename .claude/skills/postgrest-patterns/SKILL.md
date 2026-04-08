@@ -75,7 +75,7 @@ CREATE INDEX posts_search_idx ON posts USING gin (to_tsvector('english', title |
 
 **Problem:** Each Postgres connection uses 1-3MB RAM. Direct connections exhaust resources.
 
-**Solution:** Use PgBouncer (built into Supabase).
+**Solution:** Use PgBouncer (built into PostgreSQL/PostgREST).
 
 ```
 Pool size formula: (CPU cores × 2) + spindle_count
@@ -93,7 +93,7 @@ Pool size formula: (CPU cores × 2) + spindle_count
 -- Set statement timeout
 SET statement_timeout = '30s';
 
--- In Supabase: Configure in dashboard or connection string
+-- In PostgreSQL/PostgREST: Configure in dashboard or connection string
 ```
 
 ---

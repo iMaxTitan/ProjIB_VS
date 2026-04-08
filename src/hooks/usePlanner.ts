@@ -17,6 +17,7 @@ export const PLANNER_ENTRIES_KEY = ['planner', 'entries'] as const;
 interface CreateEntryWithMeta extends CreateEntryParams {
   _planName?: string;
   _processName?: string;
+  _taskTitle?: string;
   cascade?: boolean;
 }
 
@@ -195,6 +196,7 @@ export function useCollectTasks() {
       monthlyPlanId: string; weekStart: string;
       entries: { id: string; task_template_id: string; duration_minutes: number; date: string }[];
       externalEntries?: { id: string; duration_minutes: number; date: string; subject: string | null; transcript_summary: string | null }[];
+      linkedEntries?: { id: string; daily_task_id: string; duration_minutes: number; date: string }[];
     }) => plannerFetch<{ tasksCreated: number; entriesLinked: number }>('/api/planner/entries/collect', {
       method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(params),
     }),

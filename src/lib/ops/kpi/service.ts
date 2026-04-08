@@ -7,7 +7,7 @@
  * Role computations → kpi-compute-roles.ts
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 import {
   KPI_NORM,
@@ -32,7 +32,7 @@ import type {
 export { KPI_NORM, getMonthsForPeriod };
 
 export async function computeKPI(
-  db: SupabaseClient,
+  db: PostgrestClient,
   userId: string,
   year: number,
   periodType: string,

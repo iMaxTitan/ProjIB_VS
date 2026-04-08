@@ -1,9 +1,9 @@
 /**
  * Activity service — shared types and interfaces.
  */
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 
-export type { SupabaseClient };
+export type { PostgrestClient };
 
 // =============================================
 // Internal DB row types

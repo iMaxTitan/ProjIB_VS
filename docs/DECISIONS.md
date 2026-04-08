@@ -34,9 +34,9 @@
 
 ## Аутентифікація
 
-### [1] Custom PostgREST JWT замість Supabase Auth
+### [1] Custom PostgREST JWT замість PostgreSQL/PostgREST Auth
 **Рішення:** Server-side JWT (HS256) після Azure AD login
-**Відкинуто:** Supabase Auth, NextAuth (migrated to PostgREST)
+**Відкинуто:** PostgreSQL/PostgREST Auth, NextAuth (migrated to PostgREST)
 **Чому:** Azure AD — корпоративний IdP. PostgREST Auth не підтримує MSAL напряму
 **Наслідок:** `/api/auth/token` генерує JWT, `useAuthRefresh` оновлює кожні 40хв
 
@@ -108,7 +108,7 @@
 
 ### [11] Presence і conversation memory — в пам'яті
 **Рішення:** in-memory Map, TTL (4хв presence, 10хв memory, 10 pairs)
-**Відкинуто:** Supabase realtime, Redis (not available with PostgREST)
+**Відкинуто:** PostgreSQL/PostgREST realtime, Redis (not available with PostgREST)
 **Чому:** single process на Synology. Некритичні дані. Простота
 **Наслідок:** втрачаються при рестарті — прийнятно
 

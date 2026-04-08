@@ -14,7 +14,7 @@ model: sonnet
 
 # Code Reviewer — CS Platform
 
-Next.js 15 + React 19 + TypeScript strict + Supabase + Tailwind.
+Next.js 15 + React 19 + TypeScript strict + PostgreSQL/PostgREST + Tailwind.
 
 ## How to Review
 
@@ -46,7 +46,7 @@ Next.js 15 + React 19 + TypeScript strict + Supabase + Tailwind.
 - API routes: `isRequestAuthorized` + `getDbUserId` + `getDb()` (service-role)
 - No `console.log` (use `logger`)
 
-### Supabase
+### PostgreSQL/PostgREST
 - Error handling on queries
 - No `.single()` without uniqueness guarantee
 

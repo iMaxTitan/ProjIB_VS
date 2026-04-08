@@ -4,7 +4,7 @@
  * Max 20 requests per $batch call (Graph API limit).
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { getGraphToken } from '@/lib/ops/graph/client';
 import { fetchWithTimeout } from '@/lib/shared/utils/fetch-with-timeout';
 import logger from '@/lib/shared/logger';
@@ -77,7 +77,7 @@ async function sendBatch(
 // ─── Process create responses ────────────────────────────────────────────────
 
 async function processCreateResponses(
-  db: SupabaseClient,
+  db: PostgrestClient,
   entries: EntryWithName[],
   responses: BatchResponseItem[],
 ): Promise<{ synced: number; failed: number; errors: string[] }> {
@@ -109,7 +109,7 @@ async function processCreateResponses(
 // ─── Push modified entries (PATCH existing Outlook events) ──────────────────
 
 async function pushModifiedEntries(
-  db: SupabaseClient,
+  db: PostgrestClient,
   token: string,
   userOid: string,
   entries: ModifiedEntryWithName[],
@@ -166,7 +166,7 @@ async function pushModifiedEntries(
 // ─── Main push function ──────────────────────────────────────────────────────
 
 export async function pushToOutlook(
-  db: SupabaseClient,
+  db: PostgrestClient,
   employeeId: string,
   userOid: string,
   weekStart: string,

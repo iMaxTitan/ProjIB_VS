@@ -3,8 +3,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { BarChart3, RefreshCw, ChevronLeft, ChevronRight, Clock, CheckSquare, Target } from 'lucide-react';
 import { cn } from '@/lib/shared/utils';
-import { useAuth } from '@/lib/shared/auth';
 import { useKPI } from '@/hooks/useKPI';
+import type { UserInfo } from '@/types/azure';
 import { Spinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
 import { DashboardStatCard } from '../shared';
@@ -29,8 +29,7 @@ function getQuarterMonths(q: number): number[] {
   return [start, start + 1, start + 2];
 }
 
-const KPIContent: React.FC = () => {
-  const { user } = useAuth();
+const KPIContent: React.FC<{ user: UserInfo }> = ({ user }) => {
   const role = (user?.role || 'employee') as 'chief' | 'head' | 'employee';
   const now = new Date();
   const currentYear = now.getFullYear();

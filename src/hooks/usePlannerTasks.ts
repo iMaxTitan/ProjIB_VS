@@ -23,6 +23,11 @@ interface CreateTaskParams {
   description: string;
   task_date: string;
   spent_hours: number;
+  company_ids?: string[];
+  document_number?: string;
+  project_id?: string;
+  kb_document_id?: string;
+  attachment_url?: string;
 }
 
 interface UpdateTaskParams {

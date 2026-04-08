@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/shared/auth';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import HorizontalNav from '@/components/navigation/HorizontalNav';
 import DashboardContent from '@/components/dashboard/DashboardContent';
-import { UserRole } from '@/types/supabase';
+import { UserRole } from '@/types/db-user';
 import { getDashboardSectionFromPath, isDashboardSectionFullHeight } from '@/components/dashboard/sections';
 import QueryProvider from '@/app/QueryProvider';
 import { Spinner } from '@/components/ui/Spinner';
@@ -15,7 +15,7 @@ const LOADING_TEXT = '\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430...';
 
 export default function HomePage() {
   const router = useRouter();
-  const { user, isLoading: loading } = useAuth();
+  const { user, isLoading: loading, isSessionReady } = useAuth();
   const [currentPath, setCurrentPath] = useState('/');
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function HomePage() {
   return (
     <QueryProvider>
       <div className="flex flex-col h-screen bg-slate-100">
-        <DashboardHeader user={user} />
+        <DashboardHeader user={user} isSessionReady={isSessionReady} />
         <HorizontalNav
           role={user.role as UserRole}
           currentPath={currentPath}

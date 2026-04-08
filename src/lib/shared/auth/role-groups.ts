@@ -3,7 +3,7 @@
  * Import these instead of hardcoding ['chief', 'head'] etc.
  */
 
-import type { UserRole } from '@/types/supabase';
+import type { UserRole } from '@/types/db-user';
 
 export const ROLE_GROUPS = {
   /** KB management: upload, validate, normalize, index */

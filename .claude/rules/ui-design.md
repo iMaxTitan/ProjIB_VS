@@ -46,7 +46,7 @@ TAILWIND — only for layout:
 - [ ] No inline `style={{}}` for glass/element/data-cell/nav — use CSS classes
 - [ ] Status colors use `.st-*` classes, not inline rgba
 - [ ] Action buttons use `.cal-action-btn` or `.action-btn-small`, not custom styles
-- [ ] File ≤400 lines (classes eliminate 60%+ of inline style bloat)
+- [ ] Large touched components move new responsibility into nearby modules instead of growing one more mixed-responsibility file
 
 ---
 
@@ -132,11 +132,21 @@ ALL report tables use `reportTableStyles` from `ReportTableStyles.ts`:
 
 ## 6. Shared Dashboard Components — MANDATORY
 
+Desktop dashboard default is a three-panel layout:
+
+- left panel: navigation, filters, selectable lists, secondary stats
+- center panel: main working surface, matrix, table, or primary content
+- right panel: selected item details, inspector, actions, or secondary context
+
+Use `ThreePanelLayout` by default for new desktop dashboard screens that need navigation + work area + details.
+Use `TwoPanelLayout` only when the feature is genuinely simpler and there is no persistent third responsibility.
+
 FORBIDDEN: Creating custom versions of existing shared components.
 
 ```tsx
 import {
-  TwoPanelLayout,      // Split screens. ALWAYS. Never manual flex split.
+  ThreePanelLayout,    // Default desktop dashboard layout. Prefer this first.
+  TwoPanelLayout,      // Secondary pattern for simpler screens only.
   DashboardTopTabs,    // Top tabs. NO custom tab buttons.
   ReferenceListItem,   // Clickable list items. NO custom list buttons.
   DetailSection,       // Section with title in details panel.
@@ -195,11 +205,12 @@ FORBIDDEN: `window.confirm()`, `window.alert()`, `console.log` in components.
 ## 11. Quick Checklist
 
 1. **Colors** — `slate-*` for neutrals, NEVER `gray-*`. Semantic colors for accents.
-2. **Responsive** — ALWAYS: `px-3 sm:px-4`, mobile-first
+2. **Layout** — desktop dashboard defaults to three panels; do not hand-roll custom split layouts when `ThreePanelLayout` fits
 3. **Accessibility** — aria-label on every interactive element, aria-hidden on icons
 4. **Focus** — `focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2`
 5. **Animations** — `transition-[transform,opacity] duration-base`, never `transition-all`
 6. **Interactive div** — needs `role="button"` + `tabIndex={0}` + `onKeyDown`
+7. **Responsive** — mobile-first, with filters collapsed appropriately and side panels exposed via existing FAB/drawer patterns when applicable
 
 ## 12. CSS Utilities (globals.css)
 
@@ -223,7 +234,7 @@ If you see code violating these standards — FIX it:
 - Inconsistent typography → match the table in section 2
 
 Full visual reference: `demo-design-system.html`
-Full docs: `docs/UI_DESIGN_SYSTEM.md`, `docs/TWO_PANEL_TAB_STANDARD.md`
+Full docs: `docs/UI_DESIGN_SYSTEM.md`, `docs/TWO_PANEL_TAB_STANDARD.md` (legacy/simple pattern reference)
 
 ---
 

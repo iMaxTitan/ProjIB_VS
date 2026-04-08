@@ -34,19 +34,16 @@ interface TaskPickerData {
 export type SelectPayload =
   | { type: 'template'; templateId: string; title: string; content: string; monthlyPlanId?: string }
   | { type: 'existing'; dailyTaskId: string }
-  | { type: 'new'; monthlyPlanId: string; procedureId?: string | null }
-  | { type: 'procedure-only'; monthlyPlanId: string; procedureId?: string | null };
+  | { type: 'new'; monthlyPlanId: string }
+  | { type: 'procedure-only'; monthlyPlanId: string };
 
 interface PlanOption {
-  procedureId: string | null;
   monthlyPlanId: string;
   planName: string;
   processName: string;
 }
 
 interface TaskPickerDropdownProps {
-  /** For plan entries — procedure already known */
-  procedureId?: string;
   monthlyPlanId?: string;
   /** For external entries — show plan list first */
   procedures?: PlanOption[];
@@ -78,7 +75,6 @@ const SECTION_CONFIG = {
 /* ------------------------------------------------------------------ */
 
 const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
-  procedureId: initialProcedureId,
   monthlyPlanId: initialMonthlyPlanId,
   procedures,
   entryDate,
@@ -91,7 +87,6 @@ const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
   const needsPlanStep = !initialMonthlyPlanId && !!procedures?.length;
   const [selectedPlan, setSelectedPlan] = useState<PlanOption | null>(null);
 
-  const procedureId = selectedPlan?.procedureId || initialProcedureId;
   const monthlyPlanId = selectedPlan?.monthlyPlanId || initialMonthlyPlanId;
 
   const [data, setData] = useState<TaskPickerData | null>(null);
@@ -109,14 +104,13 @@ const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
       entry_date: entryDate,
       duration_minutes: String(durationMinutes),
     });
-    if (procedureId) params.set('procedure_id', procedureId);
     fetch(`/api/planner/tasks?${params}`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.statusText)))
       .then((d) => { if (!cancelled) setData(d); })
       .catch((err) => { logger.warn('[TaskPickerDropdown] fetch error', err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [procedureId, monthlyPlanId, entryDate, durationMinutes]);
+  }, [monthlyPlanId, entryDate, durationMinutes]);
 
   /* ---- Click outside ---- */
   useEffect(() => {
@@ -212,9 +206,9 @@ const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
   /* ---- "New task" handler ---- */
   const handleNewTask = useCallback(() => {
     if (monthlyPlanId) {
-      onSelect({ type: 'new', monthlyPlanId, procedureId });
+      onSelect({ type: 'new', monthlyPlanId });
     }
-  }, [procedureId, monthlyPlanId, onSelect]);
+  }, [monthlyPlanId, onSelect]);
 
   /* ---- Content ---- */
   const content = (
@@ -289,7 +283,7 @@ const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
           {needsPlanStep && selectedPlan && !loading && (
             <div className="px-1.5 pt-1">
               <button type="button"
-                onClick={() => onSelect({ type: 'procedure-only', monthlyPlanId: selectedPlan.monthlyPlanId, procedureId: selectedPlan.procedureId })}
+                onClick={() => onSelect({ type: 'procedure-only', monthlyPlanId: selectedPlan.monthlyPlanId })}
                 className={cn(
                   'w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold',
                   'rounded-lg transition-all duration-150 cursor-pointer',

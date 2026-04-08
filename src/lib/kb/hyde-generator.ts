@@ -15,7 +15,7 @@ import { config } from '@/lib/shared/config';
 import { fetchWithTimeout } from '@/lib/shared/utils/fetch-with-timeout';
 import { HYDE_ANGLES } from './shared/hyde-angles';
 import { generateChunkPrefix, type PrefixResult } from './prefix-pipeline';
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -165,7 +165,7 @@ export interface BackfillProgress {
  * Uses batch LLM (20 chunks per call) + batch embed.
  */
 export async function backfillHyde(
-  db: SupabaseClient,
+  db: PostgrestClient,
   options?: {
     batchSize?: number;
     delayMs?: number;

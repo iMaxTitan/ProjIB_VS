@@ -147,10 +147,11 @@ export default function PlannerSidebar({ activePlans, entries, suggestions, sele
       const hrs = e.duration_minutes / 60;
       if (e.source === 'plan') {
         if (e.outlook_event_id) prev.synced += hrs; else prev.unsynced += hrs;
-        if (e.daily_task_id) prev.assigned += hrs;
-        if (e.task_template_id && !e.daily_task_id) prev.collectable += hrs;
-      } else if (e.source === 'external' && !e.daily_task_id) {
-        if (e.has_transcript || e.task_template_id) prev.collectable += hrs;
+        if (e.task_type === 'completed' || e.task_type === 'pending_approval') prev.assigned += hrs;
+        else if (e.daily_task_id && e.task_type === 'incomplete') prev.collectable += hrs;
+        else if (!e.daily_task_id) prev.collectable += hrs;
+      } else if (e.source === 'external' && e.daily_task_id && e.task_type === 'incomplete') {
+        prev.collectable += hrs;
       }
       map.set(e.monthly_plan_id, prev);
     }

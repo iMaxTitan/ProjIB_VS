@@ -18,7 +18,7 @@ import {
   type UserRole,
 } from './types';
 import { buildBotSystemPrompt } from './system-prompt';
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -66,7 +66,7 @@ export interface BotRouterInput {
   message: string;
   /** Used as memory key. Use chatId for group chats, userId for private. */
   conversationId: string;
-  db: SupabaseClient;
+  db: PostgrestClient;
   /** Already filtered/enabled tools for this user */
   tools: BotTool[];
   /** Per-tool scope. If omitted, all tools get scope 'all'. */

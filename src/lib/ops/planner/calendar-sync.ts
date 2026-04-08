@@ -2,7 +2,7 @@
  *  - mode='full': always fetches by date range (used on week navigation)
  *  - mode='delta': uses stored delta token for incremental updates (background refresh)
  */
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { getGraphToken } from '@/lib/ops/graph/client';
 import logger from '@/lib/shared/logger';
 import { GRAPH_BASE, graphGet } from './calendar-shared';
@@ -42,7 +42,7 @@ interface SyncState {
 // ─── Sync state ──────────────────────────────────────────────────────────────
 
 export async function getSyncState(
-  db: SupabaseClient,
+  db: PostgrestClient,
   employeeId: string,
 ): Promise<SyncState | null> {
   const { data, error } = await db
@@ -63,7 +63,7 @@ export async function getSyncState(
 }
 
 export async function needsSync(
-  db: SupabaseClient,
+  db: PostgrestClient,
   employeeId: string,
   maxStaleMinutes = 5,
 ): Promise<boolean> {
@@ -76,7 +76,7 @@ export async function needsSync(
 }
 
 async function saveSyncState(
-  db: SupabaseClient,
+  db: PostgrestClient,
   employeeId: string,
   deltaToken: string | null,
   syncError: string | null,
@@ -93,7 +93,7 @@ async function saveSyncState(
 // ─── Main pull function ─────────────────────────────────────────────────────
 
 export async function pullCalendarEvents(
-  db: SupabaseClient,
+  db: PostgrestClient,
   employeeId: string,
   userOid: string,
   weekStart: string,

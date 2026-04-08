@@ -2,7 +2,7 @@
  * Generate AI summary for a calendar meeting transcript.
  * Reuses Graph API helpers from meetings module + Anthropic AI client.
  */
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { getGraphToken, graphGet, graphGetText } from '@/lib/ops/graph/client';
 import { parseVTT, formatTranscriptAsText } from '@/lib/ops/graph/meetings';
 import { generateAITextWithUsage } from '@/lib/shared/ai/client';
@@ -68,7 +68,7 @@ async function fetchTranscriptText(token: string, userOid: string, meetingId: st
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export async function generateMeetingSummary(
-  db: SupabaseClient,
+  db: PostgrestClient,
   entryId: string,
   userOid: string,
 ): Promise<{ summary: string } | { error: string }> {

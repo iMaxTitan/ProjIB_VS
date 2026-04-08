@@ -150,7 +150,7 @@ CS Platform — внутренняя система планирования, к
 ### NFR-01 Безопасность
 
 - аутентификация через Microsoft 365 (Azure AD)
-- custom JWT (HS256) для Supabase, refresh каждые 40 мин
+- custom JWT (HS256) для PostgreSQL/PostgREST, refresh каждые 40 мин
 - авторизация по ролям в API routes (isRequestAuthorized + getDbUserId)
 - RLS на всех таблицах (TO authenticated)
 - rate limiting на всех API endpoints

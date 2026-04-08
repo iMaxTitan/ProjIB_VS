@@ -38,10 +38,10 @@ annual_plans (годовой)
 UI (components/dashboard/plans/)
   → Hooks (hooks/planning/, hooks/usePlans*.ts)
     → Services (lib/ops/plans/)
-      → Supabase DB (direct client calls из hooks)
+      → PostgreSQL/PostgREST DB (direct client calls из hooks)
 ```
 
-> **Важно:** Plans-модуль исторически использует прямые вызовы Supabase из hooks,
+> **Важно:** Plans-модуль исторически использует прямые вызовы PostgreSQL/PostgREST из hooks,
 > а НЕ через API routes (кроме `/api/plans/count`). Это отклонение от стандартного паттерна.
 
 ---
@@ -343,7 +343,7 @@ View `v_plan_user_company_hours` агрегирует часы по задача
 |---|---|---|
 | GET | `/api/plans/count` | Подсчёт планов текущего пользователя (annual, quarterly, monthly) |
 
-Остальные операции (CRUD) — прямые вызовы Supabase из hooks (исторически).
+Остальные операции (CRUD) — прямые вызовы PostgreSQL/PostgREST из hooks (исторически).
 
 ---
 

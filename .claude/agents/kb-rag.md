@@ -34,7 +34,7 @@ Upload -> processor.ts (parse file)
        -> processor-docx.ts (DOCX with Word styles)
        -> chunker.ts (split into chunks)
        -> embedder.ts (Voyage embeddings)
-       -> Supabase (store chunks + vectors)
+       -> PostgreSQL/PostgREST (store chunks + vectors)
 ```
 
 ### File Locations
@@ -64,7 +64,7 @@ Upload -> processor.ts (parse file)
 7. **Contextual prefix**: `lib/kb/contextual-prefix.ts` — adds document context to chunks.
 
 ### Using Context7 for Up-to-Date Docs
-When working with Voyage AI, pgvector, or Supabase features, use Context7 MCP to look up current API docs:
+When working with Voyage AI, pgvector, or PostgreSQL/PostgREST features, use Context7 MCP to look up current API docs:
 1. `resolve-library-id` to find the library (e.g., "supabase", "voyageai")
 2. `query-docs` to get relevant code examples
 

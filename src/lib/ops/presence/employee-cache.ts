@@ -3,7 +3,7 @@
  * Используется GET /api/presence/online для обогащения данных.
  * Map кэшируется целиком — не пересоздаётся при каждом вызове.
  */
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 
 export interface CachedEmployee {
@@ -18,7 +18,7 @@ let loadedAt = 0;
 const TTL_MS = 15 * 60_000; // 15 min — employees rarely change
 
 export async function getEmployeesMap(
-  db: SupabaseClient
+  db: PostgrestClient
 ): Promise<Map<string, CachedEmployee>> {
   if (cachedMap && Date.now() - loadedAt < TTL_MS) {
     return cachedMap;

@@ -3,7 +3,7 @@
  * DIRECT_MAP and prefix commands are auto-built from botRegistry metadata.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 import { botRegistry } from '@/lib/bot/core/registry';
 import { isDocumentResult, isFormattedResult, type DocumentResult, type ToolContext } from '@/lib/bot/core/types';
@@ -42,7 +42,7 @@ export function getTeamsSuggestedActions(): string[] {
 export async function tryDirectTeamsCommand(
   text: string,
   profile: TeamsUserProfile,
-  db: SupabaseClient,
+  db: PostgrestClient,
 ): Promise<TeamsDirectResult | null> {
   const key = text.toLowerCase().trim();
   const allTools = botRegistry.getAll();

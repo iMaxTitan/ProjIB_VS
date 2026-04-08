@@ -3,7 +3,7 @@
  * Platform-specific types live in telegram/types.ts, teams/types.ts, etc.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 
 export type ToolScope = 'own' | 'department' | 'all';
 export type UserRole = 'chief' | 'head' | 'analyst' | 'employee' | 'kb_user';
@@ -11,7 +11,7 @@ export type UserRole = 'chief' | 'head' | 'analyst' | 'employee' | 'kb_user';
 export type BotSource = 'telegram' | 'teams';
 
 export interface ToolContext {
-  db: SupabaseClient;
+  db: PostgrestClient;
   userId: string;
   role: UserRole;
   departmentId: string | null;

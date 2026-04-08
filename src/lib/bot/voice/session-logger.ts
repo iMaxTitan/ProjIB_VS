@@ -3,7 +3,7 @@
  * Зберігає дані розмов (тривалість, транскрипт, джерело).
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ export interface VoiceSessionRow {
 // ── Write ─────────────────────────────────────────────────────────────────────
 
 export async function logVoiceSession(
-  db: SupabaseClient,
+  db: PostgrestClient,
   session: VoiceSessionInput,
 ): Promise<void> {
   const { error } = await db.from('voice_sessions').insert({
@@ -51,7 +51,7 @@ export async function logVoiceSession(
 // ── Read ──────────────────────────────────────────────────────────────────────
 
 export async function getVoiceSessions(
-  db: SupabaseClient,
+  db: PostgrestClient,
   options: { limit?: number; userId?: string } = {},
 ): Promise<VoiceSessionRow[]> {
   const { limit = 50, userId } = options;
@@ -90,7 +90,7 @@ export async function getVoiceSessions(
 // ── Stats ─────────────────────────────────────────────────────────────────────
 
 export async function getVoiceStats(
-  db: SupabaseClient,
+  db: PostgrestClient,
 ): Promise<{ total: number; today: number; avgDuration: number }> {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);

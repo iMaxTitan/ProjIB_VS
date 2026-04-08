@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Users } from 'lucide-react';
 import { UserInfo } from '@/types/azure';
-import { SupabaseUserInfo } from '@/types/supabase';
+import { DbUserInfo } from '@/types/db-user';
 import { cn } from '@/lib/shared/utils';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useEmployees } from '@/hooks/useEmployees';
@@ -20,7 +20,7 @@ interface EmployeesReferenceContentProps {
 }
 
 export default function EmployeesReferenceContent({ user, tabsSlot }: EmployeesReferenceContentProps) {
-  const [selectedEmployee, setSelectedEmployee] = useState<SupabaseUserInfo | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<DbUserInfo | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [detailsMode, setDetailsMode] = useState<'view' | 'create'>('view');
   const [preselectedDepartmentName, setPreselectedDepartmentName] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export default function EmployeesReferenceContent({ user, tabsSlot }: EmployeesR
 
   const canEdit = user.role === 'chief' || user.role === 'head';
 
-  const handleSelectEmployee = (employee: SupabaseUserInfo) => {
+  const handleSelectEmployee = (employee: DbUserInfo) => {
     setDetailsMode('view');
     setSelectedEmployee(employee);
     if (isMobile) {
@@ -55,7 +55,7 @@ export default function EmployeesReferenceContent({ user, tabsSlot }: EmployeesR
     setPreselectedDepartmentName(null);
   };
 
-  const handleEmployeeSaved = (employee: SupabaseUserInfo) => {
+  const handleEmployeeSaved = (employee: DbUserInfo) => {
     handleEmployeeUpserted(employee);
     if (selectedEmployee?.user_id === employee.user_id) {
       setSelectedEmployee(employee);

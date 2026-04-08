@@ -5,7 +5,7 @@ import { config } from '@/lib/shared/config';
 import { isRequestAuthorized, getDbUserId } from '@/lib/shared/api/request-guards';
 import type { MonthProcessItem } from '@/components/dashboard/reports/types';
 
-// ─── Supabase service-role (lazy singleton) ───
+// ─── DB service-role (lazy singleton) ───
 let _db: ReturnType<typeof createClient> | null = null;
 function getDb() {
   if (_db) return _db;

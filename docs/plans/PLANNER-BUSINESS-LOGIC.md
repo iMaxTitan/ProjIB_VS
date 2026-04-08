@@ -14,7 +14,7 @@ UI (components/dashboard/planner/)
   → Hooks (hooks/usePlanner*.ts, useTaskTemplates.ts)
     → API (app/api/planner/)
       → Services (lib/ops/planner/)
-        → Supabase DB + Microsoft Graph API
+        → PostgreSQL/PostgREST DB + Microsoft Graph API
 ```
 
 ### Центральная таблица: `weekly_calendar_entries`
@@ -248,6 +248,7 @@ Vacation days: `occupiedMap` с интервалом `{9:00, 18:00}` → стр�
 
 1. Пользователь кликает "Зберегти як чернетку" на external meeting (без плана)
 2. Источник `meetingId` (Outlook event ID) → линкуется к `weekly_calendar_entries`
+3. Из бота (Telegram/Teams) — задача без привязки к плану
 
 ### Dedup
 
@@ -313,8 +314,8 @@ Vacation days: `occupiedMap` с интервалом `{9:00, 18:00}` → стр�
 
 1. Chief/head создаёт шаблоны для процедуры (право `ROLE_GROUPS.REF_EDITORS`)
 2. AI-генерация: `POST /api/planner/templates/generate` (claude-sonnet)
-3. Сотрудник привязывает шаблон к блоку через `TaskPickerDropdown`
-4. Collect превращает шаблонизированные блоки в задачи
+3. **Прямое создание задачи:** клик по шаблону в правой панели → открывает модалку с предзаполненными title/content → задача создаётся со статусом `pending_approval` (если часы > 0) или `incomplete` (если часы = 0)
+4. **Через календарь (опционально):** drag шаблона на сетку → создаёт calendar entry с `task_template_id` → Collect превращает в задачу
 
 ### Soft-delete
 
@@ -323,6 +324,42 @@ Vacation days: `occupiedMap` с интервалом `{9:00, 18:00}` → стр�
 ### Дедупликация
 
 Шаблоны с title (lowercase), совпадающим с existing incomplete/chief задачами, скрываются из picker.
+
+---
+
+## 10.1. Правая панель задач (PlannerTasksDetail)
+
+Открывается при выборе месячного плана в левом сайдбаре. Содержит 5 сворачиваемых групп:
+
+### Группы
+
+1. **Незавершені задачі** — собственные задачи сотрудника (`incomplete`, `pending_approval`, `rejected`, кроме chief/head)
+2. **Задачі керівництва** — задачи от chief/head, ещё не completed
+3. **Чернетки** — задачи без привязки к плану (из нарад и бота). Действие: привязать к текущему плану (→ `incomplete`)
+4. **Шаблони задач** — активные шаблоны процедуры. Действия: клик → создать задачу напрямую; drag → в календарную сетку
+5. **Завершені** — согласованные задачи (`completed`), свёрнуто по умолчанию
+
+### Статусы задач (task_type)
+
+```
+draft ──[assign to plan]──► incomplete ──[Send]──► pending_approval ──[Accept]──► completed
+                                                                    ──[Reject]──► rejected
+                                                   rejected ──[Send]──► pending_approval
+```
+
+### Роли и действия
+
+| Действие | employee | chief/head |
+|----------|----------|------------|
+| Send (на согласование) | ✓ свои incomplete/rejected | — |
+| Accept (согласовати) | — | ✓ pending_approval |
+| Reject (відхилити) | — | ✓ pending_approval |
+| Edit | ✓ не completed | ✓ не completed |
+| Delete | ✓ свои, не от менеджера, не completed | ✓ |
+
+### Создание задачи из шаблона
+
+Клик по шаблону → модалка `TasksModal` (mode: `create`) с предзаполненными title и description из шаблона. Часы > 0 → `pending_approval`, часы = 0 → `incomplete`. Календарь не обязателен.
 
 ---
 

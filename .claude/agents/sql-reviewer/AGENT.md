@@ -1,6 +1,6 @@
 ---
 name: sql-reviewer
-description: Проверяет SQL миграции, RLS политики, схему БД и Supabase-запросы на корректность и безопасность
+description: Проверяет SQL миграции, RLS политики, схему БД и PostgreSQL/PostgREST-запросы на корректность и безопасность
 tools:
   - Read
   - Glob
@@ -14,10 +14,10 @@ model: sonnet
 
 # SQL Reviewer — CS Platform
 
-PostgreSQL + Supabase specialist.
+PostgreSQL + PostgreSQL/PostgREST specialist.
 
 ## Project Context
-- **DB:** Supabase (PostgreSQL with pgvector)
+- **DB:** PostgreSQL/PostgREST (PostgreSQL with pgvector)
 - **Types:** `src/types/supabase.ts`
 - **Services:** `lib/ops/` (plans/, kpi/, reports/, activity/)
 - **KB:** `lib/kb/` (embedder.ts, chunker.ts, processor.ts)
@@ -38,7 +38,7 @@ PostgreSQL + Supabase specialist.
 - `auth.uid()` used correctly
 - Service-role bypass only with explicit reason
 
-### Supabase Queries (TypeScript)
+### PostgreSQL/PostgREST Queries (TypeScript)
 - Error handling (`if (error) ...`)
 - `.single()` only when 1 result guaranteed
 - No `select('*')` — specify fields

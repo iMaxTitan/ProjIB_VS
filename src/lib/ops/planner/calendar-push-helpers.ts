@@ -3,7 +3,7 @@
  * Split from calendar-push.ts for file size compliance.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { fetchWithTimeout } from '@/lib/shared/utils/fetch-with-timeout';
 import logger from '@/lib/shared/logger';
 import { GRAPH_BASE, TIMEZONE, computeEndTime } from './calendar-shared';
@@ -94,7 +94,7 @@ export async function ensureMasterCategory(token: string, userOid: string): Prom
 
 // ─── Resolve plan names via view ──────────────────────────────────────────────
 
-async function fetchPlanNames(db: SupabaseClient, planIds: string[]): Promise<Map<string, string>> {
+async function fetchPlanNames(db: PostgrestClient, planIds: string[]): Promise<Map<string, string>> {
   if (planIds.length === 0) return new Map();
   const { data } = await db
     .from('v_monthly_plan_details')
@@ -106,7 +106,7 @@ async function fetchPlanNames(db: SupabaseClient, planIds: string[]): Promise<Ma
 // ─── Fetch entries needing initial push (no outlook_event_id) ───────────────
 
 export async function fetchUnpushedEntries(
-  db: SupabaseClient,
+  db: PostgrestClient,
   employeeId: string,
   dates: string[],
 ): Promise<EntryWithName[]> {
@@ -140,7 +140,7 @@ export async function fetchUnpushedEntries(
 // ─── Fetch entries needing update (needs_push + has outlook_event_id) ────────
 
 export async function fetchModifiedEntries(
-  db: SupabaseClient,
+  db: PostgrestClient,
   employeeId: string,
   dates: string[],
 ): Promise<ModifiedEntryWithName[]> {

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { employeesQueryOptions, departmentsQueryOptions, botStatusQueryOptions } from '@/lib/ops/reference-queries';
 import { saveEmployee as saveEmployeeCmd, type SaveEmployeeParams } from '@/lib/ops/reference-commands';
-import { SupabaseUserInfo } from '@/types/supabase';
+import { DbUserInfo } from '@/types/db-user';
 
 // ─── useDepartments ───────────────────────────────────────────
 
@@ -25,7 +25,7 @@ export { type SaveEmployeeParams } from '@/lib/ops/reference-commands';
 export function useEmployeeSave() {
   const [saving, setSaving] = useState(false);
 
-  const saveEmployee = useCallback(async (params: SaveEmployeeParams): Promise<SupabaseUserInfo> => {
+  const saveEmployee = useCallback(async (params: SaveEmployeeParams): Promise<DbUserInfo> => {
     setSaving(true);
     try {
       return await saveEmployeeCmd(params);
@@ -54,7 +54,7 @@ export function useBotStatus(userId: string | null): { data: BotStatus | null; i
 
 // ─── useAllEmployees ──────────────────────────────────────────
 
-export function useAllEmployees(): { employees: SupabaseUserInfo[]; isLoading: boolean } {
+export function useAllEmployees(): { employees: DbUserInfo[]; isLoading: boolean } {
   const { data: employees = [], isLoading } = useQuery(employeesQueryOptions);
   return { employees, isLoading };
 }
@@ -64,22 +64,22 @@ export function useAllEmployees(): { employees: SupabaseUserInfo[]; isLoading: b
 export type StatusFilter = 'all' | 'active' | 'blocked';
 
 interface UseEmployeesReturn {
-  employees: SupabaseUserInfo[];
+  employees: DbUserInfo[];
   loading: boolean;
   error: string | null;
-  employeesByDepartment: Record<string, SupabaseUserInfo[]>;
+  employeesByDepartment: Record<string, DbUserInfo[]>;
   departments: string[];
   statusFilter: StatusFilter;
   setStatusFilter: (filter: StatusFilter) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  filteredEmployees: SupabaseUserInfo[];
+  filteredEmployees: DbUserInfo[];
   expandedDepartments: Record<string, boolean>;
   toggleDepartment: (department: string) => void;
   expandAll: () => void;
   collapseAll: () => void;
   refreshEmployees: () => Promise<void>;
-  handleEmployeeUpserted: (employee: SupabaseUserInfo) => void;
+  handleEmployeeUpserted: (employee: DbUserInfo) => void;
 }
 
 export function useEmployees(): UseEmployeesReturn {
@@ -115,7 +115,7 @@ export function useEmployees(): UseEmployeesReturn {
   }, [employees, statusFilter, searchQuery]);
 
   const employeesByDepartment = useMemo(() => {
-    const grouped: Record<string, SupabaseUserInfo[]> = {};
+    const grouped: Record<string, DbUserInfo[]> = {};
     filteredEmployees.forEach(emp => {
       const dept = emp.department_name || 'Без отдела';
       if (!grouped[dept]) grouped[dept] = [];
@@ -145,8 +145,8 @@ export function useEmployees(): UseEmployeesReturn {
   const expandAll = useCallback(() => { const all: Record<string, boolean> = {}; departments.forEach(d => { all[d] = true; }); setExpandedDepartments(all); }, [departments]);
   const collapseAll = useCallback(() => { const all: Record<string, boolean> = {}; departments.forEach(d => { all[d] = false; }); setExpandedDepartments(all); }, [departments]);
 
-  const handleEmployeeUpserted = useCallback((employee: SupabaseUserInfo) => {
-    queryClient.setQueryData<SupabaseUserInfo[]>(['employees'], prev => {
+  const handleEmployeeUpserted = useCallback((employee: DbUserInfo) => {
+    queryClient.setQueryData<DbUserInfo[]>(['employees'], prev => {
       if (!prev) return [employee];
       const idx = prev.findIndex(emp => emp.user_id === employee.user_id);
       if (idx >= 0) { const updated = [...prev]; updated[idx] = employee; return updated; }

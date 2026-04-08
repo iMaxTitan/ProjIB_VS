@@ -4,7 +4,7 @@
  */
 import { supabase as db } from '@/lib/shared/db-client';
 import type { Project, CreateProjectInput, UpdateProjectInput } from '@/types/projects';
-import type { SupabaseUserInfo } from '@/types/supabase';
+import type { DbUserInfo } from '@/types/db-user';
 
 // ─── Projects ──────────────────────────────────────────────────
 
@@ -86,7 +86,7 @@ export interface SaveEmployeeParams {
   workRate: number;
 }
 
-export async function saveEmployee(params: SaveEmployeeParams): Promise<SupabaseUserInfo> {
+export async function saveEmployee(params: SaveEmployeeParams): Promise<DbUserInfo> {
   const { data, error } = await db.rpc('upsert_user_profile', {
     p_email: params.email,
     p_full_name: params.fullName,
@@ -98,5 +98,5 @@ export async function saveEmployee(params: SaveEmployeeParams): Promise<Supabase
     p_work_rate: params.workRate,
   });
   if (error) throw error;
-  return data as unknown as SupabaseUserInfo;
+  return data as unknown as DbUserInfo;
 }

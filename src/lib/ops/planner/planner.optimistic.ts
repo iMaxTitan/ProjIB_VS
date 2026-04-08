@@ -15,7 +15,7 @@ const toHMS = (t: string) => (t.length === 5 ? t + ':00' : t);
 
 /** Build optimistic CalendarEntry for create */
 export function buildOptimisticEntry(
-  params: CreateEntryParams & { _planName?: string; _processName?: string },
+  params: CreateEntryParams & { _planName?: string; _processName?: string; _taskTitle?: string },
 ): CalendarEntry {
   return {
     id: `_optimistic_${Date.now()}`,
@@ -26,16 +26,18 @@ export function buildOptimisticEntry(
     source: 'plan',
     monthly_plan_id: params.monthly_plan_id,
     outlook_event_id: null,
-    daily_task_id: null,
+    daily_task_id: params.daily_task_id ?? null,
     task_template_id: params.task_template_id ?? null,
     task_has_plan: false,
     task_completed: false,
+    task_hours: 0,
+    task_type: null,
     subject: null,
     has_transcript: false,
     transcript_summary: null,
     plan_name: params._planName ?? '',
     process_name: params._processName ?? '',
-    task_title: null,
+    task_title: params._taskTitle ?? null,
     task_description: null,
     outlook_modified: false,
     needs_push: false,
@@ -58,6 +60,8 @@ export function buildOptimisticBatch(entries: CreateEntryParams[]): CalendarEntr
     task_template_id: e.task_template_id ?? null,
     task_has_plan: false,
     task_completed: false,
+    task_hours: 0,
+    task_type: null,
     subject: null,
     has_transcript: false,
     transcript_summary: null,

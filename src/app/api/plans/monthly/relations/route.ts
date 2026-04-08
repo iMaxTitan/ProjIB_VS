@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
 
     if (type === 'employees' && departmentId) {
       // Employees from specific department, excluding already assigned
-      let query = db.from('user_profiles')
+      const query = db.from('user_profiles')
         .select('user_id, full_name, role')
         .eq('department_id', departmentId)
         .eq('status', 'active')

@@ -1,6 +1,6 @@
 import { logger } from '@/lib/shared/logger';
 import type { PlanStatus } from '@/types/planning';
-import type { UserRole } from '@/types/supabase';
+import type { UserRole } from '@/types/db-user';
 
 const STATUS_TRANSITIONS: Record<PlanStatus, { allowedNext: PlanStatus[]; allowedRoles: UserRole[] }[]> = {
   draft: [

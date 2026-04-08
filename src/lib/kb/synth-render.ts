@@ -79,7 +79,7 @@ const toSuper = (n: number): string =>
 
 // ── Source mapping ──────────────────────────────────────────────────────────────
 
-interface DocInfo { url: string; title: string }
+interface DocInfo { url: string; title: string; isLaw: boolean }
 
 export async function loadDocInfoMap(chunks: KBChunk[]): Promise<Map<string, DocInfo>> {
   const docIds = [...new Set(chunks.map(c => c.document_id))];
@@ -91,7 +91,8 @@ export async function loadDocInfoMap(chunks: KBChunk[]): Promise<Map<string, Doc
   if (data && Array.isArray(data)) {
     for (const d of data as { id: string; title: string; metadata?: Record<string, unknown> }[]) {
       const url = (d.metadata?.source_url as string) || '';
-      map.set(d.id, { url, title: d.title });
+      const docType = (d.metadata?.doc_type as string) || '';
+      map.set(d.id, { url, title: d.title, isLaw: Boolean(docType) });
     }
   }
   return map;

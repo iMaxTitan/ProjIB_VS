@@ -55,8 +55,6 @@ export async function GET(req: NextRequest) {
   }
 
   // ─── Picker mode (default) ───
-  const procedureId = url.searchParams.get('procedure_id');
-
   if (!monthlyPlanId) {
     return NextResponse.json(
       { error: 'monthly_plan_id is required' },
@@ -78,13 +76,19 @@ export async function GET(req: NextRequest) {
       (linkedRows || []).map((r) => r.daily_task_id as string),
     );
 
-    // 1. Templates -- active templates for the procedure (empty for initiatives)
+    // 1. Templates -- resolve procedure_id from monthly_plan, then fetch active templates
     let tplRows: { id: string; title: string; content: string }[] = [];
-    if (procedureId) {
+    const { data: planRow } = await db
+      .from('monthly_plans')
+      .select('procedure_id')
+      .eq('monthly_plan_id', monthlyPlanId)
+      .single();
+    const resolvedProcId = planRow?.procedure_id || null;
+    if (resolvedProcId) {
       const { data, error: tplErr } = await db
         .from('procedure_task_templates')
         .select('id, title, content')
-        .eq('procedure_id', procedureId)
+        .eq('procedure_id', resolvedProcId)
         .eq('is_active', true)
         .order('created_at');
       if (tplErr) throw tplErr;
@@ -316,13 +320,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { monthly_plan_id, title, description, task_date, spent_hours } = await req.json();
+    const { monthly_plan_id, title, description, task_date, spent_hours, company_ids, document_number, project_id, kb_document_id, attachment_url, task_type: reqTaskType, source: reqSource } = await req.json();
     if (!monthly_plan_id || !description) {
       return NextResponse.json({ error: 'monthly_plan_id and description required' }, { status: 400 });
     }
 
     const db = getDb();
-    const taskType = Number(spent_hours) > 0 ? 'completed' : 'incomplete';
+    const taskType = reqTaskType || 'incomplete';
+    const taskSource = reqSource || 'template';
 
     const { data, error } = await db
       .from('daily_tasks')
@@ -331,17 +336,28 @@ export async function POST(req: NextRequest) {
         user_id: userId,
         title: title || null,
         description,
-        source: 'template',
+        source: taskSource,
         task_type: taskType,
         task_date: task_date || new Date().toISOString().slice(0, 10),
         spent_hours: Number(spent_hours) || 0,
-        ...(taskType === 'completed' ? { completed_at: new Date().toISOString() } : {}),
+        document_number: document_number || null,
+        project_id: project_id || null,
+        kb_document_id: kb_document_id || null,
+        attachment_url: attachment_url || null,
       })
       .select('daily_task_id')
       .single();
 
     if (error) throw error;
-    logger.info(`[planner/tasks] Created task ${data!.daily_task_id} from template for ${userId}`);
+
+    // Link companies to task
+    if (Array.isArray(company_ids) && company_ids.length > 0) {
+      const rows = company_ids.map((cid: string) => ({ daily_task_id: data!.daily_task_id, company_id: cid }));
+      const { error: compErr } = await db.from('daily_task_companies').insert(rows);
+      if (compErr) logger.error('[planner/tasks] Failed to link companies:', compErr);
+    }
+
+    logger.info(`[planner/tasks] Created task ${data!.daily_task_id} for ${userId}`);
     return NextResponse.json({ daily_task_id: data!.daily_task_id });
   } catch (err) {
     logger.error('[planner/tasks] POST error:', err);

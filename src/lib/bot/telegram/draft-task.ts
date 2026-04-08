@@ -10,7 +10,7 @@
  * Returns true if the message matched the pattern (consumed), false otherwise.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { sendMessage } from '@/lib/bot/telegram/bot';
 import { esc } from '@/lib/bot/shared/format-helpers';
 import { fmtH } from '@/lib/bot/telegram/task-wizard/step-helpers';
@@ -65,7 +65,7 @@ export async function tryCreateDraftTask(
   chatId: number,
   text: string,
   userId: string,
-  db: SupabaseClient,
+  db: PostgrestClient,
 ): Promise<boolean> {
   const hoursMatch = text.match(HOURS_RE);
   if (!hoursMatch) return false;

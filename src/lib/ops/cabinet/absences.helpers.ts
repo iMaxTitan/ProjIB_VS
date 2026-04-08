@@ -1,7 +1,7 @@
 /**
  * Absences — pure helper functions + timesheet integration.
  */
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import type { TimesheetCode } from '@/types/calendar';
 import { calcWorkHours } from '@/lib/ops/working-days';
 import logger from '@/lib/shared/logger';
@@ -64,7 +64,7 @@ export function stripJoin(row: Record<string, unknown>): Record<string, unknown>
 // ─── Timesheet integration ─────────────────────────────────────
 
 export async function applyVacationToTimesheet(
-  db: SupabaseClient, userId: string, year: number, month: number,
+  db: PostgrestClient, userId: string, year: number, month: number,
   vacationDays: number[], approverId: string,
 ): Promise<void> {
   const { data: ts } = await db
@@ -117,7 +117,7 @@ export async function applyVacationToTimesheet(
 }
 
 export async function revertVacationFromTimesheet(
-  db: SupabaseClient, userId: string, year: number, month: number, start: Date, end: Date,
+  db: PostgrestClient, userId: string, year: number, month: number, start: Date, end: Date,
 ): Promise<void> {
   const { data: ts } = await db
     .from('employee_timesheet')
@@ -151,7 +151,7 @@ export async function revertVacationFromTimesheet(
 // ─── Validation helpers (async — need DB) ──────────────────────
 
 export async function checkOverlap(
-  db: SupabaseClient, userId: string, year: number, start: Date, end: Date, excludeId?: string,
+  db: PostgrestClient, userId: string, year: number, start: Date, end: Date, excludeId?: string,
 ): Promise<void> {
   let query = db.from('planned_absences')
     .select('id, start_date, end_date')
@@ -169,7 +169,7 @@ export async function checkOverlap(
 }
 
 export async function checkSameMonth(
-  db: SupabaseClient, userId: string, start: Date, end: Date, excludeId?: string,
+  db: PostgrestClient, userId: string, start: Date, end: Date, excludeId?: string,
 ): Promise<void> {
   const newMonths = getMonthsInRange(start, end);
   let query = db.from('planned_absences')

@@ -5,7 +5,7 @@
  * "Assign" = UPDATE monthly_plan_id + copy companies from plan.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ export interface DraftsData {
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
 export async function getDraftsData(
-  db: SupabaseClient,
+  db: PostgrestClient,
   userId: string,
 ): Promise<DraftsData> {
   const now = new Date();
@@ -145,7 +145,7 @@ export async function getDraftsData(
 // ─── Assign ───────────────────────────────────────────────────────────────────
 
 export async function assignDraft(
-  db: SupabaseClient,
+  db: PostgrestClient,
   draftId: string,
   planId: string,
   userId: string,
@@ -190,7 +190,7 @@ export async function assignDraft(
 // ─── Create ───────────────────────────────────────────────────────────────────
 
 export async function createDraft(
-  db: SupabaseClient,
+  db: PostgrestClient,
   userId: string,
   description: string,
   hours: number,
@@ -252,7 +252,7 @@ export async function createDraft(
 // ─── Delete ───────────────────────────────────────────────────────────────────
 
 export async function deleteDraft(
-  db: SupabaseClient,
+  db: PostgrestClient,
   draftId: string,
   userId: string,
 ): Promise<void> {

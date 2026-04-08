@@ -38,7 +38,7 @@ const SECTION_RENDERERS: Record<
   planner: () => <PlannerContent />,
   reports: () => <ReportsContent />,
   summary: ({ user }) => <SummaryTabContent user={user} />,
-  kpi: () => <KPIContent />,
+  kpi: ({ user }) => <KPIContent user={user} />,
   references: ({ user }) => <ReferencesContent user={user} />,
   bot: ({ user }) => <BotSectionContent user={user} />,
   kb: ({ user }) => <KBSectionContent user={user} />,

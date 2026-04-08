@@ -4,18 +4,18 @@
  * Promise dedup — при 10 параллельных запросах DB query выполнится один раз.
  * При ошибке — retry на следующем запросе (seedPromise сбрасывается).
  */
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { seedStore } from './store';
 
 let seedPromise: Promise<void> | null = null;
 
-export function ensureSeeded(db: SupabaseClient): Promise<void> {
+export function ensureSeeded(db: PostgrestClient): Promise<void> {
   if (seedPromise) return seedPromise;
   seedPromise = doSeed(db);
   return seedPromise;
 }
 
-async function doSeed(db: SupabaseClient): Promise<void> {
+async function doSeed(db: PostgrestClient): Promise<void> {
   try {
     // last_seen_at frozen (не обновляется при heartbeat) → берём всех кто логинился за последние 24ч
     const threshold = new Date(Date.now() - 86_400_000).toISOString();

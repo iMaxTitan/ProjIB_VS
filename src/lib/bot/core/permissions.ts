@@ -3,7 +3,7 @@
  * Loads role×tool permissions from DB and filters tools accordingly.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 import type { BotPermission, BotTool, UserRole, ToolScope } from './types';
 
@@ -16,7 +16,7 @@ const PERMISSIONS_CACHE_TTL = 5 * 60 * 1000;
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /** Load permissions (cached 5 min). */
-export async function loadPermissions(db: SupabaseClient): Promise<BotPermission[]> {
+export async function loadPermissions(db: PostgrestClient): Promise<BotPermission[]> {
   if (permissionsCache && Date.now() - permissionsCacheTime < PERMISSIONS_CACHE_TTL) {
     return permissionsCache;
   }

@@ -103,7 +103,7 @@ export default function MonthReportTab({ tabsSlot }: MonthReportTabProps) {
     }
   }, [selectedYear]);
 
-  // Load month reports via server API (1 request instead of 7 to Supabase)
+  // Load month reports via server API (1 request instead of 7 to DB)
   const loadMonthReports = useCallback(async () => {
     setMonthLoading(true);
     setError(null);

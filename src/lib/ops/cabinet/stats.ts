@@ -3,7 +3,7 @@
  * Queries: hours, tasks, KPI, recent work, profile.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { countNaiveWorkingDays } from '@/lib/ops/working-days';
 import { KPI_NORM, calcKPI, getMonthsForPeriod } from '@/lib/ops/kpi/helpers';
 import logger from '@/lib/shared/logger';
@@ -33,7 +33,7 @@ export interface CabinetStats {
 const HOURS_PER_DAY = 8;
 
 export async function getCabinetStats(
-  db: SupabaseClient,
+  db: PostgrestClient,
   userId: string,
 ): Promise<CabinetStats> {
   const now = new Date();
@@ -168,7 +168,7 @@ function getPlannedHoursForMonth(
 
 /** Simplified KPI for a single employee for a single month */
 async function computeSimpleKPI(
-  db: SupabaseClient,
+  db: PostgrestClient,
   userId: string,
   year: number,
   month: number,

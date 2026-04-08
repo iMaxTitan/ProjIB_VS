@@ -8,6 +8,16 @@ paths:
 
 # Task Map — Which Files to Edit
 
+## Dashboard layout and section shell
+```
+src/app/page.tsx                             ← main authenticated shell on `/`
+src/components/dashboard/DashboardContent.tsx ← section switcher/content host
+src/components/dashboard/sections.tsx        ← path/section mapping
+src/components/navigation/HorizontalNav.tsx  ← top navigation
+src/components/dashboard/shared/ThreePanelLayout.tsx ← default desktop multi-panel layout
+src/components/dashboard/shared/TwoPanelLayout.tsx   ← simpler/legacy split layout only
+```
+
 ## Add new bot tool
 ```
 lib/<domain>/bot-adapter.ts        ← new tool (follow kpi/bot-adapter.ts pattern)
@@ -65,7 +75,8 @@ app/api/kpi/route.ts               ← API endpoint
 lib/ops/plans/                     ← CRUD operations
 hooks/usePlans.ts                  ← client-side state
 components/dashboard/plans/        ← UI views
-components/dashboard/plans/details/ ← Monthly/Quarterly/Annual details
+components/dashboard/plans/v2/     ← active complex plans UI and three-panel work surfaces
+components/dashboard/plans/details/ ← older Monthly/Quarterly/Annual details areas where still used
 ```
 
 ## Auth
@@ -80,6 +91,17 @@ hooks/useAuthRefresh.ts            ← Token refresh (40min)
 components/dashboard/references/   ← UI tabs + subfolders (calendar/, companies/, employees/, procedures/)
 hooks/useCompanies.ts, useEmployees.ts
 lib/ops/reference-queries.ts       ← SQL helpers
+```
+
+## Shared dashboard UI
+```
+src/components/dashboard/shared/   ← canonical shared UI building blocks
+ThreePanelLayout.tsx               ← default desktop pattern for list/work area/details
+TwoPanelLayout.tsx                 ← secondary pattern for simpler split screens
+DashboardTopTabs.tsx               ← section and sub-section tabs
+FilterBar.tsx                      ← search and filter header
+GradientDetailCard.tsx             ← header/detail emphasis card
+ReportTableStyles.ts               ← report table styling helpers
 ```
 
 ## Bot settings (UI)

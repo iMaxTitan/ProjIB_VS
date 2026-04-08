@@ -387,7 +387,7 @@ Azure AD login → redirect → /api/auth/token (POST Azure JWT)
   → validate Azure token → lookup user in v_user_details
   → generate custom PostgREST JWT (HS256, 50min TTL)
   → set cookies: auth_token + x-user-id
-  → client: setSupabaseSession(jwt) — applies Bearer token
+  → client: setPostgreSQL/PostgRESTSession(jwt) — applies Bearer token
   → useAuthRefresh: refresh кожні 40хв (10хв до expiry)
 ```
 
@@ -548,7 +548,7 @@ interface BotTool {
 
 | Дата | Зміна |
 |------|-------|
-| 2025-02 | Initial: Next.js + Supabase + Azure AD (later migrated to PostgREST) |
+| 2025-02 | Initial: Next.js + PostgreSQL/PostgREST + Azure AD (later migrated to PostgREST) |
 | 2025-02 | Custom PostgREST JWT (HS256), RLS на всіх таблицях |
 | 2025-02 | KPI system (employee/head/chief), presence tracking |
 | 2025-02 | Telegram bot + Teams bot (Jarvise) |

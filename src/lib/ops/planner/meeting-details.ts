@@ -2,7 +2,7 @@
  * Fetch full meeting details (attendees, transcript status) for a single calendar event.
  * Reuses Graph helpers from meetings module.
  */
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { getGraphToken, graphGet } from '@/lib/ops/graph/client';
 import type { MeetingInfo, MeetingAttendee } from '@/lib/ops/graph/meetings';
 import logger from '@/lib/shared/logger';
@@ -43,7 +43,7 @@ function mapAttendees(raw?: CalEvent['attendees']): MeetingAttendee[] {
 export async function getMeetingInfoByEventId(
   userOid: string,
   outlookEventId: string,
-  opts?: { skipTranscriptCheck?: boolean; db?: SupabaseClient },
+  opts?: { skipTranscriptCheck?: boolean; db?: PostgrestClient },
 ): Promise<(MeetingInfo & { iCalUId?: string }) | null> {
   const token = await getGraphToken();
   if (!token) return null;

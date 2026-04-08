@@ -115,8 +115,8 @@ function getEmailFromJwt(token: string): string | null {
   }
 }
 
-/** Создаёт кастомный Supabase JWT (HS256) для переданного пользователя. */
-async function createSupabaseJwt(user: {
+/** Создаёт кастомный DB JWT (HS256) для переданного пользователя. */
+async function createDBJwt(user: {
   user_id: string;
   role: string;
   department_id: string | null;
@@ -144,7 +144,7 @@ async function createSupabaseJwt(user: {
     .sign(secret);
 }
 
-/** Lazy-singleton admin-клиент Supabase (service_role). */
+/** Lazy-singleton admin-клиент DB (service_role). */
 let _adminClient: ReturnType<typeof createClient> | null = null;
 function getAdminClient() {
   if (!_adminClient) {
@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Invalid token format' }, { status: 400 });
     }
 
-    // --- Supabase JWT generation (Phase 2 security hardening) ---
+    // --- DB JWT generation (Phase 2 security hardening) ---
     let resolvedUserId: string | null = null;
     let supabaseToken: string | null = null;
     let supabaseTokenIssue:
@@ -360,7 +360,7 @@ export async function POST(request: NextRequest) {
         }
 
         resolvedUserId = userData.user_id;
-        supabaseToken = await createSupabaseJwt({
+        supabaseToken = await createDBJwt({
           user_id: userData.user_id,
           role: userData.role || 'employee',
           department_id: userData.department_id,

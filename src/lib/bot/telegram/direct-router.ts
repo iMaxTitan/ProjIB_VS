@@ -4,7 +4,7 @@
  * No AI tokens consumed, no API key required for direct commands.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 import { botRegistry } from '@/lib/bot/core/registry';
 import { loadPermissions, getEnabledToolsForRole } from '@/lib/bot/core/permissions';
@@ -39,7 +39,7 @@ export function getPrefixTools(): BotTool[] {
 export async function tryDirectCommand(
   text: string,
   profile: UserProfile,
-  db: SupabaseClient,
+  db: PostgrestClient,
 ): Promise<DirectResult | null> {
   // Strip emoji variation selectors (U+FE0E/FE0F) — Telegram ReplyKeyboard may append them
   const key = text.toLowerCase().trim().replace(/[\uFE0E\uFE0F]/g, '');

@@ -15,7 +15,7 @@ model: sonnet
 
 # Debugger — CS Platform
 
-Next.js 15 + React 19 + TypeScript + Supabase (PostgreSQL + RLS) + Azure AD (MSAL).
+Next.js 15 + React 19 + TypeScript + PostgreSQL/PostgREST (PostgreSQL + RLS) + Azure AD (MSAL).
 
 ## Workflow
 

@@ -4,7 +4,6 @@ import { HelpCircle } from 'lucide-react';
 import { UserInfo } from '@/types/azure';
 import { logout } from '@/lib/shared/auth';
 import { usePresence } from '@/hooks/usePresence';
-import { useAuthRefresh } from '@/hooks/useAuthRefresh';
 import ActiveUsersList from '@/components/dashboard/header/ActiveUsersList';
 import { RightDrawer } from '@/components/ui/RightDrawer';
 import { HelpContent } from '@/components/dashboard/header/HelpContent';
@@ -12,20 +11,18 @@ import logger from '@/lib/shared/logger';
 
 interface DashboardHeaderProps {
   user: UserInfo;
-  onLogout?: () => void; // Опциональный параметр
+  isSessionReady?: boolean;
+  onLogout?: () => void;
 }
 
-export default function DashboardHeader({ user, onLogout }: DashboardHeaderProps) {
+export default function DashboardHeader({ user, isSessionReady = true, onLogout }: DashboardHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLButtonElement>(null);
 
   // Отслеживаем активных пользователей
-  const activeUsers = usePresence(user);
-  // JWT refresh — отвязан от presence
-  useAuthRefresh(!!user);
-
+  const activeUsers = usePresence(user, isSessionReady);
   // Функция для получения инициалов пользователя (если нет фото)
   const getInitials = (name: string) => {
     if (!name) return '?';
@@ -36,7 +33,7 @@ export default function DashboardHeader({ user, onLogout }: DashboardHeaderProps
     return name.substring(0, 2).toUpperCase();
   };
 
-  // Получение фотографии пользователя (из Azure AD или Supabase)
+  // Получение фотографии пользователя (из Azure AD или DB)
   const getUserPhoto = () => {
     return user.photo || user.photo_base64 || null;
   };

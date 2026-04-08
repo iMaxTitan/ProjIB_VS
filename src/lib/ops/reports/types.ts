@@ -146,7 +146,7 @@ export function getReportClient() {
 
 /**
  * Батчированный запрос daily_task_companies.
- * PostgREST Supabase Cloud ограничивает max_rows=1000.
+ * PostgREST DB Cloud ограничивает max_rows=1000.
  * Разбиваем taskIds на батчи по ~150, чтобы каждый ответ ≤1000 строк
  * (150 tasks × ~6 companies = ~900 строк).
  */
@@ -156,10 +156,10 @@ export type TaskCompanyLinkJoin = TaskCompanyLink & {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnySupabaseClient = { from: (...args: any[]) => any };
+type AnyPostgrestClient = { from: (...args: any[]) => any };
 
 export async function fetchTaskCompanyLinks(
-  db: AnySupabaseClient,
+  db: AnyPostgrestClient,
   taskIds: string[],
   options?: { joinCompanyName?: boolean },
 ): Promise<TaskCompanyLink[] | TaskCompanyLinkJoin[]> {

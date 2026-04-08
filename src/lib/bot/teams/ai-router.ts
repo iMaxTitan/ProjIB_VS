@@ -6,7 +6,7 @@
 import { botRegistry } from '@/lib/bot/core/registry';
 import { loadPermissions, getEnabledToolsForRole } from '@/lib/bot/core/permissions';
 import type { DocumentResult, ToolScope, UserRole } from '@/lib/bot/core/types';
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { runBotRouter } from '@/lib/bot/core/router';
 
 export interface TeamsRouterResult {
@@ -27,7 +27,7 @@ export async function processTeamsMessage(
   fullName: string,
   messageText: string,
   conversationId: string,
-  db: SupabaseClient,
+  db: PostgrestClient,
 ): Promise<TeamsRouterResult> {
   // Filter tools by role permissions (is_enabled). Scope is based on role.
   const permissions = await loadPermissions(db);

@@ -3,7 +3,7 @@
  * Handles: plan event modifications, external event CRUD, removal detection.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 import { parseEventTimes } from './calendar-shared';
 
@@ -45,7 +45,7 @@ export interface PlanEntry {
 // ─── Detect removed entries (full mode) ──────────────────────────────────────
 
 export async function detectRemovedEntries(
-  db: SupabaseClient,
+  db: PostgrestClient,
   allEvents: GraphDeltaEvent[],
   entryMap: Map<string, CalendarEntry>,
   planEntryMap: Map<string, PlanEntry>,
@@ -103,7 +103,7 @@ export async function detectRemovedEntries(
 // ─── Event reconciliation ───────────────────────────────────────────────────
 
 export async function reconcileEvent(
-  db: SupabaseClient,
+  db: PostgrestClient,
   employeeId: string,
   event: GraphDeltaEvent,
   entryMap: Map<string, CalendarEntry>,

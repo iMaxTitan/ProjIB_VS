@@ -1,7 +1,7 @@
 ﻿import { useMemo } from 'react';
 import { PlanStatus, PlanStatusInfo, PLAN_STATUSES, MONTHLY_PLAN_STATUSES } from '@/types/planning';
 import { UserInfo } from '@/types/azure';
-import { UserRole } from '@/types/supabase';
+import { UserRole } from '@/types/db-user';
 import { getAvailableStatusTransitions } from '@/lib/ops/plans';
 
 interface UseAvailableStatusesOptions {

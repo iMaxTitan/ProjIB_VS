@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 
 // --- Tool system ---
 
@@ -6,7 +6,7 @@ export type ToolScope = 'own' | 'department' | 'all';
 export type UserRole = 'employee' | 'head' | 'chief';
 
 export interface ToolContext {
-  db: SupabaseClient;
+  db: PostgrestClient;
   userId: string;
   role: UserRole;
   departmentId: string | null;

@@ -8,17 +8,17 @@ import { ensurePhotoSize } from '@/lib/ops/photo-resize';
 import { useDepartments, useEmployeeSave, useBotStatus, type Department } from '@/hooks/useEmployees';
 import { GraphUsersService } from '@/lib/ops/graph';
 import { Button } from '@/components/ui/Button';
-import { SupabaseUserInfo, UserStatus } from '@/types/supabase';
+import { DbUserInfo, UserStatus } from '@/types/db-user';
 import { UserInfo } from '@/types/azure';
 import { getAvatarGradient, getInitials, getRoleLabel, getStatusConfig } from './EmployeeCard';
 import { GradientDetailCard, DetailSection } from '@/components/dashboard/shared';
 
 interface EmployeeDetailsProps {
-  employee: SupabaseUserInfo | null;
+  employee: DbUserInfo | null;
   mode?: 'view' | 'create';
   currentUser: UserInfo;
   onClose: () => void;
-  onSave: (employee: SupabaseUserInfo) => void;
+  onSave: (employee: DbUserInfo) => void;
   canEdit?: boolean;
   preselectedDepartmentName?: string | null;
 }

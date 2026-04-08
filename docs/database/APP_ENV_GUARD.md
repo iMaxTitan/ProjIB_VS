@@ -1,4 +1,4 @@
-# APP_ENV guard for Supabase migrations
+# APP_ENV guard for PostgreSQL/PostgREST migrations
 
 Use a DB-level setting to mark environment and block unsafe migrations in production.
 

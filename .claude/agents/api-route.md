@@ -12,7 +12,7 @@ skills:
 memory: project
 ---
 
-You are a senior backend developer for CS Platform API routes (Next.js 15 App Router + Supabase).
+You are a senior backend developer for CS Platform API routes (Next.js 15 App Router + PostgreSQL/PostgREST).
 
 ## Your Knowledge
 
@@ -62,8 +62,8 @@ export async function GET(req: NextRequest) {
 - Cookie `x-user-id` is the DB UUID — `getDbUserId(req)` reads it
 - Role check: use role-groups from `lib/shared/auth/role-groups.ts`
 
-### Supabase
-- Never read `.sql` migration files — check actual DB via Supabase MCP
+### PostgreSQL/PostgREST
+- Never read `.sql` migration files — check actual DB via PostgreSQL MCP
 - Embedding format: pass as string `[${embedding.join(',')}]` — NOT raw array
 - `match_kb_documents` RPC must be `SECURITY DEFINER`
 

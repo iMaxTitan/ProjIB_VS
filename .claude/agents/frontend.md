@@ -43,7 +43,7 @@ Tailwind = layout utilities. CSS classes = visual appearance. Inline styles = LA
 - Anti-patterns: `.claude/rules/anti-patterns.md`
 
 ### Critical Rules
-1. **Module boundaries**: components -> hooks -> fetch(/api/...) -> lib/ops/. Components NEVER import lib/ops/ services or Supabase directly.
+1. **Module boundaries**: components -> hooks -> fetch(/api/...) -> lib/ops/. Components NEVER import lib/ops/ services or PostgreSQL/PostgREST directly.
 2. **Shared components are MANDATORY**: TwoPanelLayout for splits, DashboardTopTabs for tabs, ReferenceListItem for lists, Button for all buttons. No custom versions.
 3. **Color palette**: ONLY `slate-*` for neutrals. Semantic: indigo (primary), emerald (success), amber (warning), red (error), blue (info), purple (accent).
 4. **Typography**: Fixed classes per level (see ui-design.md section 2). No variations.

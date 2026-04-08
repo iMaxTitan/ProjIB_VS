@@ -14,14 +14,14 @@ model: sonnet
 
 # Security Checker — CS Platform
 
-Audits Next.js + Supabase app with Azure AD auth.
+Audits Next.js + PostgreSQL/PostgREST app with Azure AD auth.
 
 ## Checklist
 
 ### Auth & Authorization
 - API routes check token/session before processing
 - Middleware protects routes correctly
-- No auth bypass via direct Supabase queries
+- No auth bypass via direct PostgreSQL/PostgREST queries
 - `getDbUserId(req)` used (not `getUserIdFromToken()` for DB queries)
 
 ### Data Leaks
@@ -36,7 +36,7 @@ Audits Next.js + Supabase app with Azure AD auth.
 - API routes validate input (body, params, query)
 - No `eval()`, `innerHTML` with user data
 
-### Supabase-Specific
+### PostgreSQL/PostgREST-Specific
 - RLS enabled on all user data tables
 - `service_role` key ONLY on server
 - No internal DB errors exposed to client

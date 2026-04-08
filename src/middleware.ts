@@ -14,6 +14,7 @@ const publicPaths = [
   '/api/digest/weekly',
   '/api/voice/webhook',
   '/api/voice/kb-search',
+  '/api/voice/vapi-kb',
 ];
 
 function isJwtExpired(token: string): boolean {

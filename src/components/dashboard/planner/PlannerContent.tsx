@@ -11,7 +11,8 @@ import { usePullCalendar, usePushCalendar } from '@/hooks/usePlannerSync';
 import type { SuggestedSlot } from '@/lib/ops/planner/weekly-suggest';
 import type { CalendarEntry } from '@/lib/ops/planner/calendar-entries';
 import { useCreateDraft, useDrafts } from '@/hooks/usePlannerDrafts';
-import PlannerGrid, { type TemplateDragData, type PlanDragData } from './PlannerGrid';
+import { useCreateTask } from '@/hooks/usePlannerTasks';
+import PlannerGrid, { type TemplateDragData, type TaskDragData, type PlanDragData } from './PlannerGrid';
 import type { SelectPayload } from './TaskPickerDropdown';
 import PlannerSidebar from './PlannerSidebar';
 import PlannerHeader from './PlannerHeader';
@@ -68,6 +69,7 @@ export default function PlannerContent() {
   const createEntry = useCreateEntry(weekStartStr);
   const updateEntry = useUpdateEntry(weekStartStr);
   const deleteEntry = useDeleteEntry();
+  const createTask = useCreateTask();
   const copyWeek = useCopyWeek();
   const createDraft = useCreateDraft();
   const batchCreate = useBatchCreateEntries(weekStartStr);
@@ -140,7 +142,7 @@ export default function PlannerContent() {
         source: 'plan' as const,
         monthly_plan_id: (activeData.monthlyPlanId as string) || null,
         outlook_event_id: null, daily_task_id: null, task_template_id: null,
-        task_has_plan: false, task_completed: false,
+        task_has_plan: false, task_completed: false, task_hours: 0, task_type: null,
         subject: null, has_transcript: false, transcript_summary: null,
         plan_name: activeData.planName as string, process_name: '',
         task_title: null, task_description: null, outlook_modified: false, needs_push: false, template_title: null,
@@ -175,6 +177,21 @@ export default function PlannerContent() {
       cascade: true,
       _planName: data.planName ?? '',
       _processName: '',
+      _taskTitle: data.title,
+    });
+  }, [createEntry]);
+
+  const handleTaskDrop = useCallback((date: string, startTime: string, data: TaskDragData) => {
+    createEntry.mutate({
+      monthly_plan_id: data.monthlyPlanId,
+      date,
+      start_time: startTime,
+      duration_minutes: data.durationMinutes,
+      daily_task_id: data.dailyTaskId,
+      cascade: true,
+      _planName: data.planName ?? '',
+      _processName: '',
+      _taskTitle: data.title,
     });
   }, [createEntry]);
 
@@ -199,7 +216,7 @@ export default function PlannerContent() {
       source: 'plan' as const,
       monthly_plan_id: data.monthlyPlanId || null,
       outlook_event_id: null, daily_task_id: null, task_template_id: null,
-      task_has_plan: false, task_completed: false,
+      task_has_plan: false, task_completed: false, task_hours: 0, task_type: null,
       subject: null, has_transcript: false, transcript_summary: null,
       plan_name: data.planName, process_name: '',
       task_title: null, task_description: null, outlook_modified: false, needs_push: false, template_title: null,
@@ -257,7 +274,12 @@ export default function PlannerContent() {
       e.monthly_plan_id === monthlyPlanId &&
       !e.task_template_id
     );
-    if (collectableEntries.length === 0 && collectableExternal.length === 0) return;
+    // Entries already linked to incomplete tasks — add hours
+    const linkedEntries = entries.filter((e) =>
+      e.daily_task_id && !e.task_completed &&
+      e.monthly_plan_id === monthlyPlanId
+    );
+    if (collectableEntries.length === 0 && collectableExternal.length === 0 && linkedEntries.length === 0) return;
     collectTasks.mutate({
       monthlyPlanId,
       weekStart: weekStartStr,
@@ -274,6 +296,12 @@ export default function PlannerContent() {
         subject: e.subject,
         transcript_summary: e.transcript_summary,
       })),
+      linkedEntries: linkedEntries.map(e => ({
+        id: e.id,
+        daily_task_id: e.daily_task_id!,
+        duration_minutes: e.duration_minutes,
+        date: e.date,
+      })),
     });
   }, [activePlans, entries, collectTasks, weekStartStr]);
 
@@ -283,7 +311,7 @@ export default function PlannerContent() {
     if (task.type === 'template') {
       queryClient.setQueryData<WeeklyPlannerData>(qk, (old) => {
         if (!old) return old;
-        return { ...old, entries: old.entries.map((e) => e.id === entryId ? { ...e, task_template_id: task.templateId, template_title: task.title } : e) };
+        return { ...old, entries: old.entries.map((e) => e.id === entryId ? { ...e, task_title: task.title } : e) };
       });
       updateEntry.mutate({ id: entryId, task_template_id: task.templateId });
     } else if (task.type === 'procedure-only') {
@@ -293,28 +321,13 @@ export default function PlannerContent() {
         return { ...old, entries: old.entries.map((e) => e.id === entryId ? { ...e, monthly_plan_id: task.monthlyPlanId, plan_name: plan?.planName ?? '' } : e) };
       });
       updateEntry.mutate({ id: entryId, monthly_plan_id: task.monthlyPlanId });
+    } else if (task.type === 'new') {
+      const plan = activePlans.find(p => p.monthlyPlanId === task.monthlyPlanId);
+      if (plan) setTaskModalState({ mode: 'create', plan });
+    } else if (task.type === 'existing') {
+      updateEntry.mutate({ id: entryId, daily_task_id: task.dailyTaskId });
     }
   }, [updateEntry, queryClient, weekStartStr, activePlans]);
-
-  // ─── Clear template from entry
-  const handleClearTemplate = useCallback((entryId: string) => {
-    const qk = [...PLANNER_ENTRIES_KEY, weekStartStr];
-    queryClient.setQueryData<WeeklyPlannerData>(qk, (old) => {
-      if (!old) return old;
-      return { ...old, entries: old.entries.map((e) => e.id === entryId ? { ...e, task_template_id: null, template_title: null } : e) };
-    });
-    updateEntry.mutate({ id: entryId, task_template_id: null });
-  }, [updateEntry, queryClient, weekStartStr]);
-
-  // ─── Clear procedure from external entry
-  const handleClearProcedure = useCallback((entryId: string) => {
-    const qk = [...PLANNER_ENTRIES_KEY, weekStartStr];
-    queryClient.setQueryData<WeeklyPlannerData>(qk, (old) => {
-      if (!old) return old;
-      return { ...old, entries: old.entries.map((e) => e.id === entryId ? { ...e, monthly_plan_id: null, plan_name: '', task_template_id: null, template_title: null } : e) };
-    });
-    updateEntry.mutate({ id: entryId, monthly_plan_id: null, task_template_id: null });
-  }, [updateEntry, queryClient, weekStartStr]);
 
   // ─── Meeting modal
   const handleSelectMeeting = useCallback((entry: CalendarEntry) => setSelectedMeeting(entry), []);
@@ -333,6 +346,43 @@ export default function PlannerContent() {
       return { ...old, entries: old.entries.map((e) => e.id === entryId ? { ...e, has_transcript: true } : e) };
     });
   }, [queryClient, weekStartStr]);
+
+  // ─── Assign plan to external entry (drop plan → create task with hours immediately)
+  const handleAssignPlan = useCallback((entryId: string, monthlyPlanId: string, planName: string) => {
+    const ext = entries.find(e => e.id === entryId);
+    if (!ext) return;
+    const hours = Math.round(ext.duration_minutes / 60 * 10) / 10;
+    // Optimistic
+    const qk = [...PLANNER_ENTRIES_KEY, weekStartStr];
+    queryClient.setQueryData<WeeklyPlannerData>(qk, (old) => {
+      if (!old) return old;
+      return { ...old, entries: old.entries.map(e => e.id === entryId
+        ? { ...e, monthly_plan_id: monthlyPlanId, plan_name: planName, task_title: ext.subject, task_type: 'incomplete', task_hours: hours }
+        : e) };
+    });
+    // Server: create task with hours, then link to entry
+    createTask.mutateAsync({
+      monthly_plan_id: monthlyPlanId,
+      title: ext.subject || 'Зустріч',
+      description: ext.transcript_summary || ext.subject || '',
+      task_date: ext.date,
+      spent_hours: hours,
+    }).then(res => {
+      updateEntry.mutate({ id: entryId, monthly_plan_id: monthlyPlanId, daily_task_id: res.daily_task_id });
+    });
+  }, [entries, weekStartStr, queryClient, updateEntry, createTask]);
+
+  // ─── Clear plan from external entry (returns to pure external event)
+  const handleClearPlan = useCallback((entryId: string) => {
+    const qk = [...PLANNER_ENTRIES_KEY, weekStartStr];
+    queryClient.setQueryData<WeeklyPlannerData>(qk, (old) => {
+      if (!old) return old;
+      return { ...old, entries: old.entries.map(e => e.id === entryId
+        ? { ...e, monthly_plan_id: null, daily_task_id: null, plan_name: '', task_title: null, task_type: null, task_hours: 0 }
+        : e) };
+    });
+    updateEntry.mutate({ id: entryId, monthly_plan_id: null, daily_task_id: null });
+  }, [updateEntry, queryClient, weekStartStr]);
 
   // ─── Toolbar handlers
   const handleWeekChange = useCallback((ws: Date) => setWeekStart(ws), []);
@@ -485,7 +535,7 @@ export default function PlannerContent() {
             <div className="element-card flex flex-col flex-1 min-h-0" style={{ borderRadius: 12, overflow: 'clip' }} data-el="L2 element-card · cal-table" data-el-cat="base">
               <PlannerHeader
                 hasSuggestions={suggestions.length > 0}
-                suggestPending={suggestMutation.isPending} copyPending={copyWeek.isPending}
+                suggestPending={suggestMutation.isPending}
                 lunchStart={lunchStart} lunchPending={updateLunch.isPending}
                 pushPending={pushCalendar.isPending} pullPending={pullCalendar.isPending && manualPull.current}
                 hasUnsynced={entries.some(e => e.source === 'plan' && !e.outlook_event_id)}
@@ -499,7 +549,7 @@ export default function PlannerContent() {
                   pullCalendar.mutate({ weekStart: toLocalDateStr(weekStart), weekEnd: toLocalDateStr(we) });
                 }}
                 onAcceptAll={handleAcceptAll} onClearSuggestions={() => setSuggestions([])}
-                onSuggest={handleSuggest} onCopy={handleCopy}
+                onSuggest={handleSuggest}
                 onUpdateLunch={(t) => updateLunch.mutate(t)}
               />
 
@@ -513,10 +563,11 @@ export default function PlannerContent() {
                   vacationDays={vacationDays}
                   onDeleteEntry={handleDeleteEntry} onResizeEntry={handleResizeEntry}
                   onSelectEntry={handleSelectMeeting}
-                  onLinkTask={handleLinkTask} onClearTemplate={handleClearTemplate} onClearProcedure={handleClearProcedure}
+                  onLinkTask={handleLinkTask} onAssignPlan={handleAssignPlan} onClearPlan={handleClearPlan}
                   onAcceptSuggestion={handleAcceptSuggestion} onDismissSuggestion={handleDismissSuggestion}
                   onResizeSuggestion={handleResizeSuggestion}
                   onTemplateDrop={handleTemplateDrop}
+                  onTaskDrop={handleTaskDrop}
                   onProcedureDrop={handleProcedureDrop}
                   onSlotDrop={handleSlotDrop}
                 />
@@ -559,6 +610,7 @@ export default function PlannerContent() {
                     readOnly={selectedPlan.status === 'done'}
                     onAddTask={() => setTaskModalState({ mode: 'create', plan: selectedPlan })}
                     onEditTask={(task) => setTaskModalState({ mode: 'edit', plan: selectedPlan, task })}
+                    onAddFromTemplate={(tpl) => setTaskModalState({ mode: 'create', plan: selectedPlan, initialTitle: tpl.title, initialDescription: tpl.content })}
                   />
                 </div>
               );
@@ -573,7 +625,7 @@ export default function PlannerContent() {
           <div className="element-card flex flex-col overflow-y-auto" style={{ borderRadius: 12, overflow: 'clip' }} data-el="L2 element-card · cal-table" data-el-cat="base">
             <PlannerHeader
               hasSuggestions={suggestions.length > 0}
-              suggestPending={suggestMutation.isPending} copyPending={copyWeek.isPending}
+              suggestPending={suggestMutation.isPending}
               lunchStart={lunchStart} lunchPending={updateLunch.isPending}
               pushPending={pushCalendar.isPending} pullPending={pullCalendar.isPending && manualPull.current}
               hasUnsynced={entries.some(e => e.source === 'plan' && !e.outlook_event_id)}
@@ -587,7 +639,7 @@ export default function PlannerContent() {
                 pullCalendar.mutate({ weekStart: toLocalDateStr(weekStart), weekEnd: toLocalDateStr(we) });
               }}
               onAcceptAll={handleAcceptAll} onClearSuggestions={() => setSuggestions([])}
-              onSuggest={handleSuggest} onCopy={handleCopy}
+              onSuggest={handleSuggest}
               onUpdateLunch={(t) => updateLunch.mutate(t)}
             />
             {isLoading ? (
@@ -600,7 +652,7 @@ export default function PlannerContent() {
                 vacationDays={vacationDays}
                 onDeleteEntry={handleDeleteEntry} onResizeEntry={handleResizeEntry}
                 onSelectEntry={handleSelectMeeting}
-                onLinkTask={handleLinkTask} onClearTemplate={handleClearTemplate} onClearProcedure={handleClearProcedure}
+                onLinkTask={handleLinkTask}
                 onAcceptSuggestion={handleAcceptSuggestion} onDismissSuggestion={handleDismissSuggestion}
                 onResizeSuggestion={handleResizeSuggestion}
               />
@@ -673,6 +725,7 @@ export default function PlannerContent() {
                 readOnly={selectedPlan.status === 'done'}
                 onAddTask={() => { setTaskModalState({ mode: 'create', plan: selectedPlan }); setMobilePanel(null); }}
                 onEditTask={(task) => { setTaskModalState({ mode: 'edit', plan: selectedPlan, task }); setMobilePanel(null); }}
+                onAddFromTemplate={(tpl) => { setTaskModalState({ mode: 'create', plan: selectedPlan, initialTitle: tpl.title, initialDescription: tpl.content }); setMobilePanel(null); }}
               />
             );
           })()}

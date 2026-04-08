@@ -3,7 +3,7 @@
  * Split from calendar-entries.ts for file size compliance.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 import { getWeekEntries, type CreateEntryParams, type UpdateEntryParams } from './calendar-entries';
 
@@ -21,7 +21,7 @@ function slotsOverlap(startA: string, durA: number, startB: string, durB: number
 }
 
 async function checkOverlap(
-  db: SupabaseClient, userId: string, date: string,
+  db: PostgrestClient, userId: string, date: string,
   startTime: string, durationMinutes: number, excludeId?: string,
 ): Promise<void> {
   let query = db
@@ -43,7 +43,7 @@ async function checkOverlap(
 // ─── Create ───────────────────────────────────────────────────────────────────
 
 export async function createEntry(
-  db: SupabaseClient, userId: string, params: CreateEntryParams,
+  db: PostgrestClient, userId: string, params: CreateEntryParams,
 ): Promise<{ id: string }> {
   const startMin = timeToMinutes(params.start_time);
   if (startMin < 540 || startMin + params.duration_minutes > 1080) {
@@ -74,6 +74,7 @@ export async function createEntry(
     duration_minutes: params.duration_minutes,
   };
   if (params.task_template_id) insertRow.task_template_id = params.task_template_id;
+  if (params.daily_task_id) insertRow.daily_task_id = params.daily_task_id;
 
   const { data, error } = await db
     .from('weekly_calendar_entries')
@@ -87,7 +88,7 @@ export async function createEntry(
 }
 
 export async function createEntriesBatch(
-  db: SupabaseClient, userId: string, entries: CreateEntryParams[],
+  db: PostgrestClient, userId: string, entries: CreateEntryParams[],
 ): Promise<{ created: number }> {
   if (entries.length === 0) return { created: 0 };
 
@@ -123,7 +124,7 @@ export async function createEntriesBatch(
 // ─── Update ───────────────────────────────────────────────────────────────────
 
 export async function updateEntry(
-  db: SupabaseClient, userId: string, entryId: string, params: UpdateEntryParams,
+  db: PostgrestClient, userId: string, entryId: string, params: UpdateEntryParams,
 ): Promise<{ oldOutlookEventId: string | null }> {
   const { data: existing, error: fetchErr } = await db
     .from('weekly_calendar_entries')
@@ -134,11 +135,19 @@ export async function updateEntry(
 
   if (fetchErr || !existing) throw new Error('Запис не знайдено');
 
-  // Block edits on collected entries (linked to daily_task)
-  const isCollected = !!(existing as Record<string, unknown>).daily_task_id;
+  // Block time edits on completed entries only
+  const existingTaskId = (existing as Record<string, unknown>).daily_task_id;
   const timeUpdate = params.date || params.start_time || params.duration_minutes;
-  if (isCollected && (timeUpdate || params.daily_task_id !== undefined)) {
-    throw new Error('Запис зібрано в задачу, редагування заблоковано');
+  if (existingTaskId && timeUpdate) {
+    // Check if the linked task is completed
+    const { data: taskRow } = await db
+      .from('daily_tasks')
+      .select('task_type')
+      .eq('daily_task_id', existingTaskId)
+      .single();
+    if (taskRow?.task_type === 'completed') {
+      throw new Error('Запис зібрано в задачу, редагування заблоковано');
+    }
   }
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -189,7 +198,7 @@ export async function updateEntry(
 // ─── Delete ───────────────────────────────────────────────────────────────────
 
 export async function deleteEntry(
-  db: SupabaseClient, userId: string, entryId: string,
+  db: PostgrestClient, userId: string, entryId: string,
 ): Promise<{ outlookEventId: string | null }> {
   const { data, error: fetchErr } = await db
     .from('weekly_calendar_entries')
@@ -199,7 +208,16 @@ export async function deleteEntry(
     .single();
 
   if (fetchErr || !data) throw new Error('Запис не знайдено');
-  if ((data as Record<string, unknown>).daily_task_id) throw new Error('Запис зібрано в задачу, видалення заблоковано');
+  if ((data as Record<string, unknown>).daily_task_id) {
+    const { data: taskRow } = await db
+      .from('daily_tasks')
+      .select('task_type')
+      .eq('daily_task_id', (data as Record<string, unknown>).daily_task_id)
+      .single();
+    if (taskRow?.task_type === 'completed') {
+      throw new Error('Запис зібрано в задачу, видалення заблоковано');
+    }
+  }
   if (data.source !== 'plan') throw new Error('Зовнішні події не можна видаляти');
 
   const { error } = await db
@@ -216,7 +234,7 @@ export async function deleteEntry(
 // ─── Copy from last week ──────────────────────────────────────────────────────
 
 export async function copyFromLastWeek(
-  db: SupabaseClient, userId: string, targetWeekStart: string,
+  db: PostgrestClient, userId: string, targetWeekStart: string,
 ): Promise<{ copied: number; skipped: number }> {
   const target = new Date(targetWeekStart);
   const prev = new Date(target);

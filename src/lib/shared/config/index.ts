@@ -65,6 +65,10 @@ export const config = {
     signingSecret: process.env.ELEVENLABS_SIGNING_SECRET ?? '',
   },
 
+  vapi: {
+    serverSecret: process.env.VAPI_SERVER_SECRET ?? '',
+  },
+
   app: {
     nodeEnv:          process.env.NODE_ENV ?? 'development',
     cronSecret:       process.env.CRON_SECRET ?? '',

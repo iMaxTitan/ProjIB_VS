@@ -2,7 +2,7 @@
  * Calendar working-days — business logic for timesheet provisioning.
  * Extracted from app/api/calendar/working-days/route.ts
  */
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import type { TimesheetCode } from '@/types/calendar';
 import { calcWorkHours } from '@/lib/ops/working-days';
 import logger from '@/lib/shared/logger';
@@ -25,7 +25,7 @@ function getCalendarDaysInMonth(start: Date, end: Date, year: number, month: num
  * Replaces '8'/'В' → 'О' for vacation days.
  */
 export async function applyApprovedAbsences(
-  db: SupabaseClient, year: number, month: number, updatedBy: string,
+  db: PostgrestClient, year: number, month: number, updatedBy: string,
 ): Promise<void> {
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -84,7 +84,7 @@ export async function applyApprovedAbsences(
  * Only updates days that match the OLD template — manually changed days are preserved.
  */
 export async function propagateTemplateChange(
-  db: SupabaseClient, year: number, month: number,
+  db: PostgrestClient, year: number, month: number,
   oldDayTypes: TimesheetCode[], newDayTypes: TimesheetCode[], updatedBy: string,
 ): Promise<number> {
   const { data: timesheets, error: tsErr } = await db
@@ -117,7 +117,7 @@ export async function propagateTemplateChange(
  * Create timesheets for all active employees based on a month template.
  */
 export async function provisionTimesheets(
-  db: SupabaseClient, year: number, month: number,
+  db: PostgrestClient, year: number, month: number,
   dayTypes: TimesheetCode[], createdBy: string,
 ): Promise<number> {
   const { data: employees, error: empErr } = await db

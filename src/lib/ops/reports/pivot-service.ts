@@ -2,7 +2,7 @@
  * Pivot report — core aggregation logic.
  * Extracted from app/api/reports/pivot/route.ts
  */
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import type {
   PivotGroupBy, PivotTimeGrain, PivotMetric, PivotPeriodType,
   PivotFilters, PivotResponse, PivotDataRow, PivotDimension, TimeBucket, ViewFactRow,
@@ -49,7 +49,7 @@ export interface BuildPivotParams {
   filters: PivotFilters;
 }
 
-export async function buildPivot(db: SupabaseClient, params: BuildPivotParams): Promise<PivotResponse> {
+export async function buildPivot(db: PostgrestClient, params: BuildPivotParams): Promise<PivotResponse> {
   const { year, periodType, periodValue, groupBy, timeGrain, metric, filters } = params;
   const months = getMonthsForPeriod(periodType, periodValue);
   const timeBuckets = buildTimeBuckets(months, year, timeGrain);

@@ -26,11 +26,16 @@ const nextConfig = {
       { key: 'X-XSS-Protection', value: '1; mode=block' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
       { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=()' },
-      { key: 'Content-Security-Policy-Report-Only', value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" },
+      { key: 'Content-Security-Policy-Report-Only', value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com; font-src 'self' data:; frame-src 'self' https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" },
     ];
     return [
       {
-        source: '/(.*)',
+        // Allow blank.html to be loaded in iframe (MSAL silent token acquisition)
+        source: '/blank.html',
+        headers: securityHeaders.filter(h => h.key !== 'X-Frame-Options'),
+      },
+      {
+        source: '/((?!blank\\.html).*)',
         headers: securityHeaders,
       },
       {

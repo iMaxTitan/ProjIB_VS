@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useRef } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { Trash2, Check, ScrollText, Sparkles, AlertTriangle, ClipboardList } from 'lucide-react';
+import { Trash2, Check, ScrollText, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/shared/utils';
 import type { CalendarEntry } from '@/lib/ops/planner/calendar-entries';
 import type { SuggestedSlot } from '@/lib/ops/planner/weekly-suggest';
@@ -35,20 +35,33 @@ function timeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
-/** Returns the status key for CSS class st-{status} */
-export function entryStatus(entry: CalendarEntry): string {
-  if (entry.daily_task_id) return 'collected';
-  if (entry.outlook_modified) return 'returned';
-  if (entry.task_template_id) return 'templated';
-  if (entry.outlook_event_id && entry.needs_push) return 'modified';
-  if (entry.outlook_event_id) return 'synced';
-  if (entry.source === 'external') return 'external';
-  return 'distributed';
+// ─── Entry status (4 states) ─────────────────────────────────────────────────
+
+export type EntryStatusKey = 'external' | 'slot' | 'task' | 'pending' | 'completed';
+
+export function entryStatus(entry: CalendarEntry): EntryStatusKey {
+  if (entry.source === 'external' && !entry.monthly_plan_id) return 'external';
+  if (!entry.daily_task_id) return 'slot';
+  if (entry.task_type === 'completed') return 'completed';
+  if (entry.task_type === 'pending_approval') return 'pending';
+  return 'task';
 }
 
-// ─── Calendar block (plan + external) — uses CSS classes: data-cell cal-block st-*
+// ─── Display title ───────────────────────────────────────────────────────────
 
-export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onSelectEntry, onOpenPicker, onClearTemplate, onClearProcedure, layoutColumn = 0, layoutTotal = 1 }: {
+function entryTitle(entry: CalendarEntry): string {
+  return entry.task_title || entry.subject || entry.plan_name || '';
+}
+
+function entrySubtitle(entry: CalendarEntry): string {
+  if (entry.task_title && entry.plan_name) return entry.plan_name;
+  if (entry.subject && entry.plan_name) return entry.plan_name;
+  return '';
+}
+
+// ─── Unified CalendarBlock ───────────────────────────────────────────────────
+
+export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onSelectEntry, onOpenPicker, onAssignPlan, onClearPlan, layoutColumn = 0, layoutTotal = 1 }: {
   entry: CalendarEntry;
   dimmed?: boolean;
   readOnly?: boolean;
@@ -56,28 +69,33 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
   onResize: (id: string, newDurationMin: number) => void;
   onSelectEntry?: (entry: CalendarEntry) => void;
   onOpenPicker?: (entry: CalendarEntry, rect: DOMRect) => void;
-  onClearTemplate?: (entryId: string) => void;
-  onClearProcedure?: (entryId: string) => void;
+  onAssignPlan?: (entryId: string, monthlyPlanId: string, planName: string) => void;
+  onClearPlan?: (entryId: string) => void;
   layoutColumn?: number;
   layoutTotal?: number;
 }) {
-  const isPlan = entry.source === 'plan';
-  const isExternal = entry.source === 'external';
+  const status = entryStatus(entry);
+  const isOptimistic = entry.id.startsWith('_optimistic_');
+  const canInteract = !isOptimistic && !readOnly;
+  const canDrag = canInteract && status !== 'external';
+  const canDropPlan = status === 'external' && !entry.monthly_plan_id && onAssignPlan;
+  const [dropOver, setDropOver] = useState(false);
+  const canResize = canDrag;
+  // Plan entries → delete. External with plan → clear plan. External without plan → no delete.
+  const canDelete = canInteract && (entry.source === 'plan' || (entry.source === 'external' && !!entry.monthly_plan_id));
+  const canOpenPicker = canInteract && !entry.daily_task_id && onOpenPicker;
+
   const row = timeToRow(entry.start_time);
   const span = durationToRows(entry.duration_minutes);
-  const status = entryStatus(entry);
   const [resizeDelta, setResizeDelta] = useState(0);
   const resizing = useRef(false);
   const justResized = useRef(false);
   const startY = useRef(0);
-  const isOptimistic = entry.id.startsWith('_optimistic_');
-  const canDrag = isPlan && !isOptimistic && !readOnly;
 
   const startMin = timeToMinutes(entry.start_time);
   const maxDuration = MAX_MINUTES - (startMin - START_HOUR * 60);
 
   const handleResizeStart = useCallback((e: React.PointerEvent) => {
-    if (!isPlan) return;
     e.preventDefault();
     e.stopPropagation();
     resizing.current = true;
@@ -102,7 +120,7 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
-  }, [isPlan, entry.id, entry.duration_minutes, maxDuration, onResize]);
+  }, [entry.id, entry.duration_minutes, maxDuration, onResize]);
 
   if (row < 0 || row >= ROWS) return null;
 
@@ -110,6 +128,8 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
   const displayHeight = Math.max(ROW_HEIGHT - 2, baseHeight + resizeDelta);
   const colPct = (layoutColumn / layoutTotal) * 100;
   const widthPct = (1 / layoutTotal) * 100;
+  const title = entryTitle(entry);
+  const subtitle = entrySubtitle(entry);
 
   return (
     <div
@@ -118,26 +138,42 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
         e.dataTransfer.setData('application/planner-slot', JSON.stringify({ id: entry.id }));
         e.dataTransfer.effectAllowed = 'move';
       } : undefined}
+      onDragOver={canDropPlan ? (e) => {
+        if (e.dataTransfer.types.includes('application/planner-procedure')) {
+          e.preventDefault(); e.stopPropagation();
+          e.dataTransfer.dropEffect = 'copy';
+          setDropOver(true);
+        }
+      } : undefined}
+      onDragLeave={canDropPlan ? () => setDropOver(false) : undefined}
+      onDrop={canDropPlan ? (e) => {
+        setDropOver(false);
+        const raw = e.dataTransfer.getData('application/planner-procedure');
+        if (raw) {
+          e.preventDefault(); e.stopPropagation();
+          try {
+            const data = JSON.parse(raw);
+            onAssignPlan!(entry.id, data.monthlyPlanId, data.planName);
+          } catch { /* ignore */ }
+        }
+      } : undefined}
       onClick={(e) => {
         if (justResized.current) return;
         if ((e.target as HTMLElement).closest('[data-action]')) return;
-        if (isExternal && onSelectEntry) onSelectEntry(entry);
-        if (isPlan && !readOnly && !isOptimistic && onOpenPicker) {
-          onOpenPicker(entry, new DOMRect(e.clientX, e.clientY, 0, 0));
-        }
+        // Any entry without task → open picker (external shows plan list first)
+        if (canOpenPicker) { onOpenPicker!(entry, new DOMRect(e.clientX, e.clientY, 0, 0)); return; }
+        // External with task → open meeting details
+        if (entry.source === 'external' && onSelectEntry) { onSelectEntry(entry); return; }
       }}
-      title={[
-        entry.template_title || entry.subject || entry.plan_name,
-        entry.template_title ? entry.plan_name : (entry.plan_name && entry.subject ? entry.plan_name : ''),
-        `${entry.start_time.slice(0, 5)} · ${entry.duration_minutes} хв`,
-      ].filter(Boolean).join('\n')}
+      title={[title, subtitle, `${entry.start_time.slice(0, 5)} · ${entry.duration_minutes} хв`].filter(Boolean).join('\n')}
       className={cn(
         `data-cell cal-block st-${status}`,
         canDrag && 'cursor-grab active:cursor-grabbing',
-        isPlan && readOnly && 'cursor-default',
-        isExternal && onSelectEntry && 'cursor-pointer',
+        !canDrag && status === 'external' && onSelectEntry && 'cursor-pointer',
+        !canDrag && 'cursor-default',
         isOptimistic && 'opacity-60',
         dimmed && 'dimmed',
+        dropOver && 'ring-2 ring-indigo-400/50',
         resizeDelta !== 0 && 'ring-2 ring-indigo-300/50',
       )}
       style={{
@@ -148,15 +184,14 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
         transition: resizeDelta !== 0 ? 'none' : undefined,
       }}
     >
-      {/* cal-subj */}
+      {/* Title */}
       <p className="cal-subj flex items-center gap-0.5">
-        {isExternal && entry.transcript_summary && <Sparkles className="h-2.5 w-2.5 flex-shrink-0 text-indigo-400 inline" />}
-        {isExternal && entry.has_transcript && !entry.transcript_summary && <ScrollText className="h-2.5 w-2.5 flex-shrink-0 opacity-60 inline" />}
-        {entry.outlook_modified && <AlertTriangle className="h-2.5 w-2.5 flex-shrink-0 text-amber-500 inline" />}
-        <span>{entry.template_title || entry.subject || entry.plan_name}</span>
+        {entry.source === 'external' && entry.transcript_summary && <Sparkles className="h-2.5 w-2.5 flex-shrink-0 text-indigo-400 inline" />}
+        {entry.source === 'external' && entry.has_transcript && !entry.transcript_summary && <ScrollText className="h-2.5 w-2.5 flex-shrink-0 opacity-60 inline" />}
+        <span>{title}</span>
       </p>
 
-      {/* cal-time */}
+      {/* Time range */}
       {displayHeight >= ROW_HEIGHT * 1.8 && (
         <p className="cal-time">
           {entry.start_time.slice(0, 5)} – {(() => {
@@ -167,64 +202,30 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
         </p>
       )}
 
-      {/* cal-proc */}
-      {entry.plan_name && <p className="cal-proc">{entry.plan_name}</p>}
+      {/* Subtitle (plan name when title is task) */}
+      {subtitle && <p className="cal-proc">{subtitle}</p>}
 
-      {/* Top-right badge: template picker (no template) or clear (has template) */}
-      {!isOptimistic && onOpenPicker && !entry.task_template_id && !entry.daily_task_id && (
-        <button data-action className="cal-badge-btn text-indigo-400"
-          onClick={(e) => {
-            onOpenPicker(entry, new DOMRect(e.clientX, e.clientY, 0, 0));
-          }}
-          aria-label="Обрати шаблон задачі" title="Обрати шаблон задачі">
-          <ClipboardList className="h-3 w-3" />
-        </button>
-      )}
-
-      {/* cal-actions: delete plan entry or clear template */}
-      {!isOptimistic && !readOnly && isPlan && !entry.task_template_id && (
+      {/* Delete (plan entry) or clear plan (external entry) */}
+      {canDelete && (
         <div className="cal-actions">
           <button data-action className="cal-block-act act-del"
-            onClick={() => onDelete(entry.id)}
-            aria-label="Видалити" title="Видалити">
-            <Trash2 className="h-3 w-3" />
-          </button>
-        </div>
-      )}
-      {!isOptimistic && !readOnly && isPlan && entry.task_template_id && onClearTemplate && (
-        <div className="cal-actions">
-          <button data-action className="cal-block-act act-del"
-            onClick={() => onClearTemplate(entry.id)}
-            aria-label="Зняти шаблон" title="Зняти шаблон">
+            onClick={() => entry.source === 'external' && onClearPlan ? onClearPlan(entry.id) : onDelete(entry.id)}
+            aria-label={entry.source === 'external' ? 'Зняти план' : 'Видалити'}
+            title={entry.source === 'external' ? 'Зняти план' : 'Видалити'}>
             <Trash2 className="h-3 w-3" />
           </button>
         </div>
       )}
 
-      {/* cal-actions for external with procedure: clear template first, then procedure */}
-      {!isOptimistic && !readOnly && isExternal && entry.monthly_plan_id && !entry.daily_task_id && (
-        <div className="cal-actions">
-          <button data-action className="cal-block-act act-del"
-            onClick={() => {
-              if (entry.task_template_id && onClearTemplate) onClearTemplate(entry.id);
-              else if (onClearProcedure) onClearProcedure(entry.id);
-            }}
-            aria-label={entry.task_template_id ? 'Зняти шаблон' : 'Зняти процедуру'}
-            title={entry.task_template_id ? 'Зняти шаблон' : 'Зняти процедуру'}>
-            <Trash2 className="h-3 w-3" />
-          </button>
-        </div>
-      )}
-
-      {/* cal-resize-handle */}
-      {isPlan && !isOptimistic && !readOnly && (
+      {/* Resize handle */}
+      {canResize && (
         <div onPointerDown={handleResizeStart} className="cal-resize-handle" />
       )}
     </div>
   );
 }
 
-// ─── Ghost block (suggestion)
+// ─── Ghost block (suggestion) ────────────────────────────────────────────────
 
 export function GhostBlock({ suggestion, onAccept, onDismiss, onResize, layoutColumn = 0, layoutTotal = 1 }: {
   suggestion: SuggestedSlot;

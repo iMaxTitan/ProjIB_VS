@@ -71,14 +71,17 @@ const COMPOSE_DOMAIN: Record<string, string> = {
     '1) <b>Коротка відповідь</b> — 1-2 sentences max. Include key NUMBERS (amounts, terms, deadlines) from facts. Convert НМДГ to real amounts in UAH when possible. For yes/no: start with Так/Ні + condition. Max 300 chars.\n' +
     '2) <b>Що це означає</b> — key provisions as bullets. Each bullet = 1 rule + specific article reference in legal format (ч. 1 ст. 185 КК). Convert abstract values (НМДГ) to real UAH amounts.\n' +
     '3) <b>Важливо!</b> — 1-2 most critical restrictions, deadlines or penalties. Skip if nothing critical.\n' +
-    'Skip empty sections. Quote key legal formulations verbatim.\n' +
-    'End with: "⚠️ Перевірте актуальність на zakon.rada.gov.ua — законодавство може змінюватись."',
+    'Skip empty sections. Quote key legal formulations verbatim.',
 };
+
+const LAW_DISCLAIMER_SUFFIX =
+  '\nEnd with: "⚠️ Перевірте актуальність на zakon.rada.gov.ua — законодавство може змінюватись."';
 
 async function composeAnswer(
   query: string,
   factsText: string,
   domain: string,
+  hasLawSource: boolean,
   history?: ConversationTurn[],
   overrides?: {
     providerOverride?: AIProvider;
@@ -91,7 +94,8 @@ async function composeAnswer(
   const isCaveat = domain.endsWith('_caveat');
   const domainPrompt = COMPOSE_DOMAIN[baseDomain] ?? '';
   const caveatPrompt = isCaveat ? CAVEAT_SUFFIX : '';
-  const systemPrompt = COMPOSE_BASE + domainPrompt + caveatPrompt;
+  const lawSuffix = baseDomain === 'legal' && hasLawSource ? LAW_DISCLAIMER_SUFFIX : '';
+  const systemPrompt = COMPOSE_BASE + domainPrompt + caveatPrompt + lawSuffix;
 
   return generateAITextWithUsage({
     messages: [
@@ -176,15 +180,22 @@ export async function synthesizeAnswer(
     if (extraction.level === 'adjacent') {
       composeDomain = domain + '_caveat';
     }
+    // Compute hasLawSource only from docs that actually contributed cited facts,
+    // not from all retrieved chunks (which may include irrelevant law fragments).
+    const usedDocIds = new Set(
+      extraction.facts.map(f => chunks[f.fragment - 1]?.document_id).filter(Boolean) as string[],
+    );
+    const hasLawSource = [...docInfoMap.entries()].some(([id, info]) => usedDocIds.has(id) && info.isLaw);
+    logger.prod('[kb/synth] hasLawSource:', hasLawSource, 'usedDocs:', usedDocIds.size);
     let compRes: AIResult;
     let composeModel = 'claude-sonnet-4.6';
     try {
-      compRes = await composeAnswer(query, factsText, composeDomain, history);
+      compRes = await composeAnswer(query, factsText, composeDomain, hasLawSource, history);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.prod('[kb/synth] anthropic failed, falling back to openai:', message);
       try {
-        compRes = await composeAnswer(query, factsText, composeDomain, history, {
+        compRes = await composeAnswer(query, factsText, composeDomain, hasLawSource, history, {
           providerOverride: 'openai',
           openAIModel: 'gpt-4.1',
           apiKeyOverride: config.openai.apiKey,

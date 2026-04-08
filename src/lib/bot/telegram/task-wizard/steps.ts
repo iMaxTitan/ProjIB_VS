@@ -6,7 +6,7 @@
  *   handleWizardTextInput(chatId, text, userId, db) → boolean (consumed?)
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { getWizardSession, setWizardSession, clearWizardSession } from './session';
 import { getActivePlansForWizard, findPlanInProcesses, type WizardProcess } from './queries';
 import {
@@ -27,7 +27,7 @@ import {
 export async function handleTaskStart(
   chatId: number,
   userId: string,
-  db: SupabaseClient,
+  db: PostgrestClient,
 ): Promise<void> {
   let processes: WizardProcess[];
   try {
@@ -80,7 +80,7 @@ export async function handleSelectProcess(
   chatId: number,
   processId: string,
   userId: string,
-  db: SupabaseClient,
+  db: PostgrestClient,
 ): Promise<void> {
   const session = getWizardSession(chatId);
   let processes: WizardProcess[];
@@ -109,7 +109,7 @@ export async function handleSelectPlan(
   chatId: number,
   planId: string,
   userId: string,
-  db: SupabaseClient,
+  db: PostgrestClient,
 ): Promise<void> {
   const session = getWizardSession(chatId);
   let processes: WizardProcess[];
@@ -185,7 +185,7 @@ export async function handleWizardTextInput(
   chatId: number,
   text: string,
   _userId: string,
-  _db: SupabaseClient,
+  _db: PostgrestClient,
 ): Promise<boolean> {
   const session = getWizardSession(chatId);
   if (!session) return false;
@@ -231,7 +231,7 @@ export async function handleWizardTextInput(
 export async function handleConfirm(
   chatId: number,
   userId: string,
-  db: SupabaseClient,
+  db: PostgrestClient,
 ): Promise<void> {
   const session = getWizardSession(chatId);
   if (!session?.planId || !session.description || session.hours === undefined) {
@@ -317,7 +317,7 @@ export async function handleTaskWizardCallback(
   chatId: number,
   data: string,
   userId: string,
-  db: SupabaseClient,
+  db: PostgrestClient,
 ): Promise<void> {
   if (data === 'task:start') {
     await handleTaskStart(chatId, userId, db);

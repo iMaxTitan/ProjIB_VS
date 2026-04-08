@@ -2,7 +2,7 @@ import { queryOptions } from '@tanstack/react-query';
 import { supabase } from '@/lib/shared/db-client';
 import { getCompanies } from '@/lib/ops';
 import type { Process, AnnualPlan } from '@/types/planning';
-import type { SupabaseUserInfo } from '@/types/supabase';
+import type { DbUserInfo } from '@/types/db-user';
 import type { ProjectWithDepartments } from '@/types/projects';
 
 // --- Companies (8 rows, staleTime: Infinity) ---
@@ -34,7 +34,7 @@ export const processesQueryOptions = queryOptions({
 // --- Employees (21 rows) ---
 export const employeesQueryOptions = queryOptions({
   queryKey: ['employees'] as const,
-  queryFn: async (): Promise<SupabaseUserInfo[]> => {
+  queryFn: async (): Promise<DbUserInfo[]> => {
     const { data, error } = await supabase
       .from('v_user_details')
       .select('*');
@@ -43,7 +43,7 @@ export const employeesQueryOptions = queryOptions({
     return ((data ?? []) as any[]).map(emp => ({
       ...emp,
       status: emp.status || 'active',
-    })) as SupabaseUserInfo[];
+    })) as DbUserInfo[];
   },
   staleTime: Infinity,
 });

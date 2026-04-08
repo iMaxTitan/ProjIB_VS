@@ -1,7 +1,7 @@
 import { supabase as db } from '@/lib/shared/db-client';
 import { logger } from '@/lib/shared/logger';
 import type { PlanStatus } from '@/types/planning';
-import type { UserRole } from '@/types/supabase';
+import type { UserRole } from '@/types/db-user';
 import { canChangeStatus } from './status';
 
 /**

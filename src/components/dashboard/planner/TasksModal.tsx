@@ -16,7 +16,7 @@ import type { ActivePlanForSlot, CalendarEntry } from '@/lib/ops/planner/calenda
 
 export type TasksModalState =
   | null
-  | { mode: 'create'; plan: ActivePlanForSlot }
+  | { mode: 'create'; plan: ActivePlanForSlot; initialTitle?: string; initialDescription?: string }
   | { mode: 'edit'; plan: ActivePlanForSlot; task: PlanTaskItem }
   | { mode: 'collect'; plan: ActivePlanForSlot; entries: CalendarEntry[]; totalHours: number; latestDate: string };
 
@@ -103,7 +103,7 @@ export default function TasksModal({ state, weekStart, onClose }: Props) {
   const { data: planData } = usePlanTasks(planId);
   const planInfo = planData?.planInfo;
 
-  const companyIds = planInfo?.companyIds ?? [];
+  const companyIds = useMemo(() => planInfo?.companyIds ?? [], [planInfo?.companyIds]);
   const companies = planInfo?.companies ?? [];
   const planDocuments = planInfo?.planDocuments ?? [];
 
@@ -160,8 +160,8 @@ export default function TasksModal({ state, weekStart, onClose }: Props) {
       setSelectedCompanyIds(companyIds);
       setAttachmentUrl('');
     } else {
-      setTitle('');
-      setDescription('');
+      setTitle(state.mode === 'create' && state.initialTitle ? state.initialTitle : '');
+      setDescription(state.mode === 'create' && state.initialDescription ? state.initialDescription : '');
       setHours(0);
       setDate(todayStr());
       setDocumentNumber('');
@@ -215,6 +215,11 @@ export default function TasksModal({ state, weekStart, onClose }: Props) {
           description: desc,
           task_date: date,
           spent_hours: hours,
+          company_ids: selectedCompanyIds.length > 0 ? selectedCompanyIds : undefined,
+          document_number: documentNumber || undefined,
+          project_id: projectId || undefined,
+          kb_document_id: kbDocumentId || undefined,
+          attachment_url: attachmentUrl || undefined,
         });
       }
       onClose();

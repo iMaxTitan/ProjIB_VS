@@ -101,7 +101,7 @@ interface BotTool {
 }
 
 interface ToolContext {
-  db: SupabaseClient;
+  db: PostgreSQL/PostgRESTClient;
   userId: string;
   role: UserRole;         // 'employee' | 'head' | 'chief'
   departmentId: string | null;

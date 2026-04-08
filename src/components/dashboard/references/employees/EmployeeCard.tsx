@@ -2,12 +2,12 @@
 
 import Image from 'next/image';
 import { cn } from '@/lib/shared/utils';
-import { SupabaseUserInfo, UserStatus } from '@/types/supabase';
+import { DbUserInfo, UserStatus } from '@/types/db-user';
 import ReferenceListItem from '@/components/dashboard/shared/ReferenceListItem';
 import { Badge } from '@/components/ui/badge';
 
 interface EmployeeCardProps {
-  employee: SupabaseUserInfo;
+  employee: DbUserInfo;
   isSelected?: boolean;
   onClick?: () => void;
 }

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,6 +17,10 @@ export interface CalendarEntry {
   task_has_plan: boolean;
   /** Whether the linked daily_task is completed. */
   task_completed: boolean;
+  /** Hours already collected into the linked task. */
+  task_hours: number;
+  /** Task type: incomplete, pending_approval, completed, etc. */
+  task_type: string | null;
   subject: string | null;
   has_transcript: boolean;
   transcript_summary: string | null;
@@ -56,6 +60,8 @@ export interface CreateEntryParams {
   cascade?: boolean;
   /** Optional: link template at creation time */
   task_template_id?: string;
+  /** Optional: link existing task at creation time */
+  daily_task_id?: string;
 }
 
 export interface UpdateEntryParams {
@@ -84,7 +90,7 @@ function weekDates(weekStart: string): string[] {
 // ─── Vacation helper ─────────────────────────────────────────────────────────
 
 export async function getVacationDaysForWeek(
-  db: SupabaseClient, userId: string, weekStart: string,
+  db: PostgrestClient, userId: string, weekStart: string,
 ): Promise<Set<string>> {
   const dates = weekDates(weekStart);
   const weekEnd = dates[dates.length - 1];
@@ -109,7 +115,7 @@ export async function getVacationDaysForWeek(
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
 export async function getWeekEntries(
-  db: SupabaseClient, userId: string, weekStart: string,
+  db: PostgrestClient, userId: string, weekStart: string,
 ): Promise<CalendarEntry[]> {
   const dates = weekDates(weekStart);
 
@@ -119,7 +125,7 @@ export async function getWeekEntries(
       id, employee_id, date, start_time, duration_minutes,
       source, monthly_plan_id, outlook_event_id, daily_task_id, task_template_id,
       subject, has_transcript, transcript_summary, outlook_modified, needs_push,
-      daily_tasks(monthly_plan_id, completed_at, description, title),
+      daily_tasks(monthly_plan_id, completed_at, description, title, spent_hours, task_type),
       procedure_task_templates(title)
     `)
     .eq('employee_id', userId)
@@ -150,8 +156,8 @@ export async function getWeekEntries(
     const processName = planInfo?.process_name ?? '';
 
     const taskJoin = (row as Record<string, unknown>).daily_tasks as
-      | { monthly_plan_id: string | null; completed_at: string | null; description: string | null; title: string | null }
-      | { monthly_plan_id: string | null; completed_at: string | null; description: string | null; title: string | null }[] | null;
+      | { monthly_plan_id: string | null; completed_at: string | null; description: string | null; title: string | null; spent_hours: number | null; task_type: string | null }
+      | { monthly_plan_id: string | null; completed_at: string | null; description: string | null; title: string | null; spent_hours: number | null; task_type: string | null }[] | null;
     const taskObj = Array.isArray(taskJoin) ? taskJoin[0] : taskJoin;
 
     return {
@@ -160,7 +166,7 @@ export async function getWeekEntries(
       source: row.source as 'plan' | 'external',
       monthly_plan_id: row.monthly_plan_id, outlook_event_id: row.outlook_event_id,
       daily_task_id: row.daily_task_id, task_template_id: (row as Record<string, unknown>).task_template_id as string | null,
-      task_has_plan: !!taskObj?.monthly_plan_id, task_completed: !!taskObj?.completed_at,
+      task_has_plan: !!taskObj?.monthly_plan_id, task_completed: !!taskObj?.completed_at, task_hours: Number(taskObj?.spent_hours) || 0, task_type: taskObj?.task_type ?? null,
       subject: row.subject,
       has_transcript: !!(row as Record<string, unknown>).has_transcript,
       transcript_summary: row.transcript_summary,
@@ -179,7 +185,7 @@ export async function getWeekEntries(
 }
 
 export async function getActivePlansForUser(
-  db: SupabaseClient, userId: string, weekStart: string,
+  db: PostgrestClient, userId: string, weekStart: string,
 ): Promise<ActivePlanForSlot[]> {
   const ws = new Date(weekStart + 'T00:00:00Z');
   const wf = new Date(ws.getTime() + 4 * 86_400_000);

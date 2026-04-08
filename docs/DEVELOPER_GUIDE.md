@@ -17,14 +17,14 @@
 ## Технологический стек
 
 - Next.js 15 (App Router), React, TypeScript, Tailwind CSS
-- Supabase (PostgreSQL + представления (view) + RPC)
+- PostgreSQL/PostgREST (PostgreSQL + представления (view) + RPC)
 - Интеграция Microsoft 365 / Azure AD
 - Playwright для E2E
 
 ## Критические правила
 
 1. Идентификаторы пользователей
-- В бизнес-логике использовать только Supabase `user_id`.
+- В бизнес-логике использовать только PostgreSQL/PostgREST `user_id`.
 - Не использовать Azure AD id как доменный id.
 
 2. Доступ к данным
@@ -46,7 +46,7 @@
 
 ### Архитектура доступа к данным
 
-В проекте два контекста работы с Supabase:
+В проекте два контекста работы с PostgreSQL/PostgREST:
 
 | Контекст | Клиент | RLS | Где используется |
 |----------|--------|-----|------------------|

@@ -32,7 +32,7 @@ ALLOWED:
   bot/core/registry -> domain/bot-adapter -> bot/shared/ + domain/*
 
 FORBIDDEN:
-  components -> lib/ops/ service calls or Supabase queries
+  components -> lib/ops/ service calls or PostgreSQL/PostgREST queries
   components -> lib/ops/ query-options directly (use dedicated hooks)
   components -> lib/kb|bot/ directly
   kb/ -> bot/* or ops/*

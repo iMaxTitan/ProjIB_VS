@@ -1,7 +1,7 @@
 /**
  * Activity service — feed query functions (primary + fallback chain).
  */
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { supabase } from '@/lib/shared/db-client';
 import { getServerDb } from '@/lib/shared/db-server';
 import logger from '@/lib/shared/logger';
@@ -17,7 +17,7 @@ import {
 import { mapFeedRowToActivityEvent, mapLegacyRowToActivityEvent } from './mappers';
 
 /** Returns supabase (browser, has JWT) or getServerDb() (Node, service-role). */
-function defaultDb(): SupabaseClient {
+function defaultDb(): PostgrestClient {
     if (typeof window !== 'undefined') return supabase;
     return getServerDb();
 }

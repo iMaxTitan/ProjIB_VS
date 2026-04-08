@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
-import { UserRole } from '@/types/supabase';
+import { UserRole } from '@/types/db-user';
 import {
   Zap,
   CalendarDays,

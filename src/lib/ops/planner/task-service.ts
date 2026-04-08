@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 
 interface TaskUserProfile {
@@ -28,7 +28,7 @@ export interface DailyTaskRow {
   user_profiles: TaskUserProfile | TaskUserProfile[] | null;
 }
 
-export async function getTasksByMonthlyPlanId(db: SupabaseClient, monthlyPlanId: string): Promise<DailyTaskRow[]> {
+export async function getTasksByMonthlyPlanId(db: PostgrestClient, monthlyPlanId: string): Promise<DailyTaskRow[]> {
   try {
     const { data, error } = await db
       .from('daily_tasks')
@@ -45,7 +45,7 @@ export async function getTasksByMonthlyPlanId(db: SupabaseClient, monthlyPlanId:
   }
 }
 
-export async function getWeeklyTasksSpentHours(db: SupabaseClient, userId: string, date: string): Promise<number> {
+export async function getWeeklyTasksSpentHours(db: PostgrestClient, userId: string, date: string): Promise<number> {
   const targetDate = new Date(date);
   const dayOfWeek = targetDate.getDay();
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -73,7 +73,7 @@ export async function getWeeklyTasksSpentHours(db: SupabaseClient, userId: strin
   return Number(data) || 0;
 }
 
-export async function getTaskCompanies(db: SupabaseClient, taskId: string): Promise<string[]> {
+export async function getTaskCompanies(db: PostgrestClient, taskId: string): Promise<string[]> {
   const { data, error } = await db
     .from('daily_task_companies')
     .select('company_id')
@@ -86,7 +86,7 @@ export async function getTaskCompanies(db: SupabaseClient, taskId: string): Prom
   return (data || []).map(r => r.company_id);
 }
 
-export async function updateTaskCompanies(db: SupabaseClient, taskId: string, companyIds: string[]): Promise<void> {
+export async function updateTaskCompanies(db: PostgrestClient, taskId: string, companyIds: string[]): Promise<void> {
   const { error: delError } = await db
     .from('daily_task_companies')
     .delete()

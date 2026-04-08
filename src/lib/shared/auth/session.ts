@@ -1,11 +1,11 @@
 "use client";
 
 import Cookies from 'js-cookie';
-import { supabase, setSupabaseSession, clearSupabaseSession } from '@/lib/shared/db-client';
+import { supabase, setDBSession, clearDBSession } from '@/lib/shared/db-client';
 import { UserInfo, roleLabels } from '@/types/azure';
-import { UserRole } from '@/types/supabase';
+import { UserRole } from '@/types/db-user';
 import { logger } from '@/lib/shared/logger';
-import { getUserInfo, initializeMsal } from './msal';
+import { getUserInfo, getMsalInstance, getMsalInitPromise } from './msal';
 
 const USER_CACHE_KEY = 'auth_user_cache';
 const USER_CACHE_EXPIRY_KEY = 'auth_user_cache_expiry';
@@ -64,12 +64,12 @@ export async function syncServerAuthToken(token: string, email?: string): Promis
         return { ok: false, issue: data?.supabaseTokenIssue || 'unknown' };
       }
 
-      const ok = await setSupabaseSession(data.supabaseToken);
+      const ok = await setDBSession(data.supabaseToken);
       if (!ok) {
-        logger.error('[Auth] Failed to apply Supabase custom JWT session');
+        logger.error('[Auth] Failed to apply custom JWT session');
         return { ok: false, issue: 'set_session_failed' };
       }
-      logger.log('[Auth] Supabase session set via custom JWT');
+      logger.log('[Auth] DB session set via custom JWT');
     } catch {
       logger.error('[Auth] Failed to parse /api/auth/token JSON response');
       return { ok: false, issue: 'invalid_json' };
@@ -82,7 +82,10 @@ export async function syncServerAuthToken(token: string, email?: string): Promis
   }
 }
 
-export const getCurrentUser = async (): Promise<UserInfo | null> => {
+/**
+ * Get current user profile. If azureUserHint is provided, skips redundant getUserInfo() call.
+ */
+export const getCurrentUser = async (azureUserHint?: { email: string; id: string; name: string; displayName: string; accessToken: string } | null): Promise<UserInfo | null> => {
   try {
     if (typeof window !== 'undefined') {
       const cachedUserStr = localStorage.getItem(USER_CACHE_KEY);
@@ -97,7 +100,7 @@ export const getCurrentUser = async (): Promise<UserInfo | null> => {
       }
     }
 
-    const azureUser = await getUserInfo();
+    const azureUser = azureUserHint ?? await getUserInfo();
     if (!azureUser) return null;
 
     const emailCandidates = getEmailCandidates(azureUser.email);
@@ -124,15 +127,15 @@ export const getCurrentUser = async (): Promise<UserInfo | null> => {
       }
     }
 
-    if (lastError && !userData) { logger.error('[Auth] Supabase error:', lastError); return null; }
+    if (lastError && !userData) { logger.error('[Auth] DB error:', lastError); return null; }
 
     const typedUserData = userData as (Record<string, unknown> & { user_id?: string; role?: string | null }) | null;
     if (!typedUserData || !typedUserData.user_id) {
-      logger.warn('[Auth] User authenticated in Azure but not found in Supabase:', azureUser.email);
+      logger.warn('[Auth] User authenticated in Azure but not found in DB:', azureUser.email);
       return null;
     }
 
-    logger.log('[Auth] User role from Supabase:', typedUserData.role, 'Type:', typeof typedUserData.role);
+    logger.log('[Auth] User role from DB:', typedUserData.role, 'Type:', typeof typedUserData.role);
     const userInfo = {
       ...azureUser,
       ...(typedUserData as Record<string, unknown>),
@@ -163,26 +166,29 @@ export const logout = async (): Promise<void> => {
       localStorage.removeItem('graph_api_token_expiry');
     }
 
-    await clearSupabaseSession();
+    await clearDBSession();
     setAuthStatusCookie(false);
 
-    const msal = await initializeMsal();
+    await getMsalInitPromise();
+    const msal = getMsalInstance();
     const account = msal.getActiveAccount();
 
     if (account) {
-      await msal.logout({
+      // v5: logoutRedirect() navigates away — code after it won't execute
+      await msal.logoutRedirect({
         account: account,
-        onRedirectNavigate: () => false
+        postLogoutRedirectUri: `${window.location.origin}/login`,
       });
+      return;
     }
 
     msal.setActiveAccount(null);
-    logger.log('[Auth] Logout completed');
+    logger.log('[Auth] Logout completed (no active account)');
   } catch (error: unknown) {
     logger.error('[Auth] Error during logout:', error);
     try {
-      const msal = await initializeMsal();
-      msal.setActiveAccount(null);
+      await getMsalInitPromise();
+      getMsalInstance().setActiveAccount(null);
     } catch { /* ignore */ }
   }
 };

@@ -1,7 +1,7 @@
 /**
  * Absences — write operations (create, update, delete, approve, reject).
  */
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import type { AbsenceRow, AbsenceType } from './absences.types';
 import { SELECT_COLS } from './absences.types';
 import { getYearlyQuota } from './absences.queries';
@@ -13,7 +13,7 @@ import {
 import logger from '@/lib/shared/logger';
 
 export async function createAbsence(
-  db: SupabaseClient, userId: string,
+  db: PostgrestClient, userId: string,
   params: { absence_type: AbsenceType; start_date: string; comment?: string },
 ): Promise<AbsenceRow> {
   const { absence_type, start_date: startStr, comment } = params;
@@ -66,7 +66,7 @@ export async function createAbsence(
 }
 
 export async function deleteAbsence(
-  db: SupabaseClient, userId: string, absenceId: string,
+  db: PostgrestClient, userId: string, absenceId: string,
 ): Promise<void> {
   const { data: absence, error: fetchErr } = await db.from('planned_absences')
     .select(SELECT_COLS).eq('id', absenceId).eq('user_id', userId)
@@ -87,7 +87,7 @@ export async function deleteAbsence(
 }
 
 export async function updateAbsence(
-  db: SupabaseClient, userId: string, absenceId: string,
+  db: PostgrestClient, userId: string, absenceId: string,
   params: { start_date: string },
 ): Promise<AbsenceRow> {
   const { data: existing, error: fetchErr } = await db.from('planned_absences')
@@ -124,7 +124,7 @@ export async function updateAbsence(
 }
 
 export async function approveAbsence(
-  db: SupabaseClient, approverId: string, absenceId: string,
+  db: PostgrestClient, approverId: string, absenceId: string,
 ): Promise<void> {
   const absence = await getAbsenceForApproval(db, approverId, absenceId);
 
@@ -147,7 +147,7 @@ export async function approveAbsence(
 }
 
 export async function rejectAbsence(
-  db: SupabaseClient, approverId: string, absenceId: string, reason: string,
+  db: PostgrestClient, approverId: string, absenceId: string, reason: string,
 ): Promise<void> {
   await getAbsenceForApproval(db, approverId, absenceId);
   const { error } = await db.from('planned_absences')
@@ -160,7 +160,7 @@ export async function rejectAbsence(
 // ─── Internal ──────────────────────────────────────────────────
 
 async function getAbsenceForApproval(
-  db: SupabaseClient, approverId: string, absenceId: string,
+  db: PostgrestClient, approverId: string, absenceId: string,
 ): Promise<AbsenceRow> {
   const { data: absence } = await db.from('planned_absences')
     .select(`${SELECT_COLS}, user_profiles!planned_absences_user_id_fkey(department_id, role)`)

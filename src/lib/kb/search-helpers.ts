@@ -3,7 +3,7 @@
  * Extracted from search.ts to respect 300-line limit.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { embedBatchQueries } from './embedder';
 import logger from '@/lib/shared/logger';
 import type { KBChunk } from './query-translator';
@@ -12,7 +12,7 @@ import type { KBChunk } from './query-translator';
 
 const IDF_CHUNK_THRESHOLD = 500;
 
-export async function applyIdfPenalty(chunks: KBChunk[], db: SupabaseClient): Promise<KBChunk[]> {
+export async function applyIdfPenalty(chunks: KBChunk[], db: PostgrestClient): Promise<KBChunk[]> {
   if (!chunks.length) return chunks;
   const docIds = [...new Set(chunks.map(c => c.document_id))];
   const { data } = await db.from('kb_documents').select('id, chunk_count').in('id', docIds);
@@ -68,7 +68,7 @@ export function diversifyByDocument(chunks: KBChunk[], maxPerDoc: number): KBChu
 const MAX_CROSS_REF_CHUNKS = 4;
 
 export async function expandWithRelatedDocs(
-  chunks: KBChunk[], query: string, db: SupabaseClient,
+  chunks: KBChunk[], query: string, db: PostgrestClient,
 ): Promise<KBChunk[]> {
   if (chunks.length === 0) return chunks;
 
@@ -144,7 +144,7 @@ export async function expandWithRelatedDocs(
 
 export async function expandWithNeighbors(
   reranked: KBChunk[],
-  db: SupabaseClient,
+  db: PostgrestClient,
 ): Promise<KBChunk[]> {
   const rerankedIds = new Set(reranked.map(c => c.chunk_id));
   const neighborKeys: Array<{ docId: string; idx: number }> = [];

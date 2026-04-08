@@ -11,7 +11,7 @@
  * No modal — runs immediately when user clicks ClipboardCheck.
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 
 interface EntryInput {
@@ -29,11 +29,19 @@ interface ExternalEntryInput {
   transcript_summary: string | null;
 }
 
+interface LinkedEntryInput {
+  id: string;
+  daily_task_id: string;
+  duration_minutes: number;
+  date: string;
+}
+
 interface CollectParams {
   monthlyPlanId: string;
   weekStart: string;
   entries: EntryInput[];
   externalEntries?: ExternalEntryInput[];
+  linkedEntries?: LinkedEntryInput[];
 }
 
 interface CollectResult {
@@ -42,13 +50,13 @@ interface CollectResult {
 }
 
 export async function collectProcedureTasks(
-  db: SupabaseClient,
+  db: PostgrestClient,
   userId: string,
   params: CollectParams,
 ): Promise<CollectResult> {
-  const { monthlyPlanId, entries, externalEntries = [] } = params;
+  const { monthlyPlanId, entries, externalEntries = [], linkedEntries = [] } = params;
 
-  if (entries.length === 0 && externalEntries.length === 0) {
+  if (entries.length === 0 && externalEntries.length === 0 && linkedEntries.length === 0) {
     throw new Error('Немає записів для збору');
   }
 
@@ -164,6 +172,45 @@ export async function collectProcedureTasks(
     tasksCreated++;
     entriesLinked++;
     logger.info(`[CollectTasks] External task ${extTaskId} (${ext.subject}): ${hours}h`);
+  }
+
+  // 6. Linked entries — add hours to existing tasks
+  if (linkedEntries.length > 0) {
+    const byTask = new Map<string, LinkedEntryInput[]>();
+    for (const le of linkedEntries) {
+      const list = byTask.get(le.daily_task_id) || [];
+      list.push(le);
+      byTask.set(le.daily_task_id, list);
+    }
+
+    for (const [taskId, taskEntries] of byTask) {
+      const addHours = Math.round(taskEntries.reduce((s, e) => s + e.duration_minutes / 60, 0) * 10) / 10;
+      const latestDate = taskEntries.reduce((max, e) => e.date > max ? e.date : max, taskEntries[0].date);
+
+      // Get current hours
+      const { data: existing } = await db
+        .from('daily_tasks')
+        .select('spent_hours')
+        .eq('daily_task_id', taskId)
+        .single();
+
+      const currentHours = Number(existing?.spent_hours) || 0;
+      const { error: updErr } = await db
+        .from('daily_tasks')
+        .update({
+          spent_hours: currentHours + addHours,
+          task_date: latestDate,
+          task_type: 'pending_approval',
+        })
+        .eq('daily_task_id', taskId);
+
+      if (updErr) {
+        logger.error(`[CollectTasks] Failed to update linked task ${taskId}:`, updErr);
+      } else {
+        entriesLinked += taskEntries.length;
+        logger.info(`[CollectTasks] Updated task ${taskId}: +${addHours}h (total ${currentHours + addHours}h) from ${taskEntries.length} entries`);
+      }
+    }
   }
 
   return { tasksCreated, entriesLinked };

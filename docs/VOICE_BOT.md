@@ -385,7 +385,7 @@ ELEVENLABS_WEBHOOK_SECRET=whsec_...
 | Бекенд (API routes) | CS Platform (pm2: cs-platform) на Synology DS920+ |
 | Фронтенд (/voice-chat) | Та ж Next.js app |
 | Voice AI | ElevenLabs Cloud |
-| База знань | Supabase (pgvector) |
+| База знань | PostgreSQL/PostgREST (pgvector) |
 
 ### Кроки розгортання
 

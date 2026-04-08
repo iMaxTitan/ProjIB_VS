@@ -4,14 +4,14 @@
  * - Transcript status for past online meetings
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import logger from '@/lib/shared/logger';
 import { GRAPH_BASE, graphGet } from './calendar-shared';
 
 // ─── Backfill missing subjects ──────────────────────────────────────────────
 
 export async function backfillMissingSubjects(
-  db: SupabaseClient,
+  db: PostgrestClient,
   token: string,
   employeeId: string,
   userOid: string,
@@ -56,7 +56,7 @@ export async function backfillMissingSubjects(
  * For each online event: joinUrl → meetingId → transcripts check.
  */
 export async function backfillTranscriptStatus(
-  db: SupabaseClient,
+  db: PostgrestClient,
   token: string,
   employeeId: string,
   userOid: string,

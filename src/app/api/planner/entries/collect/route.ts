@@ -38,15 +38,16 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { weekStart, monthlyPlanId, entries, externalEntries } = body;
+    const { weekStart, monthlyPlanId, entries, externalEntries, linkedEntries } = body;
 
     if (!monthlyPlanId || typeof monthlyPlanId !== 'string') {
       return NextResponse.json({ error: 'monthlyPlanId required' }, { status: 400 });
     }
     const hasEntries = Array.isArray(entries) && entries.length > 0;
     const hasExternal = Array.isArray(externalEntries) && externalEntries.length > 0;
-    if (!hasEntries && !hasExternal) {
-      return NextResponse.json({ error: 'entries or externalEntries required' }, { status: 400 });
+    const hasLinked = Array.isArray(linkedEntries) && linkedEntries.length > 0;
+    if (!hasEntries && !hasExternal && !hasLinked) {
+      return NextResponse.json({ error: 'entries, externalEntries, or linkedEntries required' }, { status: 400 });
     }
 
     const db = getDb();
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
       monthlyPlanId, weekStart,
       entries: entries || [],
       externalEntries: externalEntries || [],
+      linkedEntries: linkedEntries || [],
     });
 
     return NextResponse.json(result);

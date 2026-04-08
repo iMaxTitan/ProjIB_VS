@@ -9,33 +9,34 @@ function getOrigin(): string {
   return APP_BASE_URL;
 }
 
-// MSAL-конфиг теперь использует переменные из .env.local
+// Blank page для silent token acquisition (iframe не грузит Next.js роутер)
+export function getSilentRedirectUri(): string {
+  return `${getOrigin()}/blank.html`;
+}
+
+// MSAL-конфиг — v5 compatible
 export const getMsalConfig = (): Configuration => ({
   auth: {
     clientId: process.env.NEXT_PUBLIC_AZURE_AD_CLIENT_ID!,
     authority: `https://login.microsoftonline.com/${process.env.NEXT_PUBLIC_AZURE_AD_TENANT_ID}`,
-    redirectUri: process.env.NEXT_PUBLIC_AZURE_AD_REDIRECT_URI || getOrigin(),
+    redirectUri: process.env.NEXT_PUBLIC_AZURE_AD_REDIRECT_URI || `${getOrigin()}/login`,
     postLogoutRedirectUri: process.env.NEXT_PUBLIC_AZURE_AD_LOGOUT_REDIRECT_URI || `${getOrigin()}/login`,
-    navigateToLoginRequestUrl: true
+    // navigateToLoginRequestUrl moved to handleRedirectPromise() options in v5
   },
   cache: {
     cacheLocation: BrowserCacheLocation.LocalStorage,
-    storeAuthStateInCookie: false
+    // storeAuthStateInCookie removed in v5
   },
   system: {
-    allowRedirectInIframe: false,
+    // v5: iframeHashTimeout/loadFrameTimeout → iframeBridgeTimeout/popupBridgeTimeout
+    iframeBridgeTimeout: 5000,
+    popupBridgeTimeout: 5000,
     loggerOptions: {
       loggerCallback: (level, message, containsPii) => {
         if (containsPii) return;
         switch (level) {
           case LogLevel.Error:
             console.error(message);
-            break;
-          case LogLevel.Info:
-            console.info(message);
-            break;
-          case LogLevel.Verbose:
-            console.debug(message);
             break;
           case LogLevel.Warning:
             console.warn(message);
@@ -61,10 +62,16 @@ export const interactiveLoginRequest = {
   prompt: 'select_account' as const
 };
 
-// Параметры для silent-запроса
+// Параметры для silent-запроса (redirectUri вычисляется динамически через getSilentRedirectUri)
+export const getSilentLoginRequest = () => ({
+  scopes: [...baseScopes, ...sharePointScopes],
+  redirectUri: getSilentRedirectUri(),
+});
+
+/** @deprecated Use getSilentLoginRequest() — this is evaluated once at import time */
 export const silentLoginRequest = {
   scopes: [...baseScopes, ...sharePointScopes],
-  prompt: 'none' as const
+  get redirectUri() { return getSilentRedirectUri(); },
 };
 
 // Экспорт scopes для использования в сервисах

@@ -1,14 +1,14 @@
 /**
  * Activity service — statistics and AI context functions.
  */
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { supabase } from '@/lib/shared/db-client';
 import { getServerDb } from '@/lib/shared/db-server';
 import logger from '@/lib/shared/logger';
 import { ActivityStats, ActivityStatsRow, ActivityContextRow } from './types';
 
 /** Returns supabase (browser, has JWT) or getServerDb() (Node, service-role). */
-function defaultDb(): SupabaseClient {
+function defaultDb(): PostgrestClient {
     if (typeof window !== 'undefined') return supabase;
     return getServerDb();
 }
@@ -32,7 +32,7 @@ export async function getActivityStats(
     userDepartmentId: string | null,
     departmentId?: string,
     daysBack = 7,
-    db?: SupabaseClient,
+    db?: PostgrestClient,
 ): Promise<ActivityStats> {
     const userDeptId = departmentId || (userRole === 'head' ? userDepartmentId : null);
     const today = new Date();
@@ -72,7 +72,7 @@ export async function getActivityStats(
 /**
  * Получение списка отделов для фильтра (только для chief).
  */
-export async function getDepartmentsForFilter(db?: SupabaseClient): Promise<{ id: string; name: string }[]> {
+export async function getDepartmentsForFilter(db?: PostgrestClient): Promise<{ id: string; name: string }[]> {
     const client = db || defaultDb();
     const { data } = await client.from('departments').select('department_id, department_name').order('department_name');
     return data?.map(d => ({ id: d.department_id, name: d.department_name })) || [];
@@ -87,7 +87,7 @@ export async function getAIContext(
     userDepartmentId: string | null,
     daysBack: number,
     departmentId?: string,
-    db?: SupabaseClient,
+    db?: PostgrestClient,
 ): Promise<AIContext> {
     const periodType = daysBack <= 7 ? 'week' : daysBack <= 30 ? 'month' : daysBack <= 90 ? 'quarter' : 'year';
     const userDeptId = departmentId || (userRole === 'head' ? userDepartmentId : null);

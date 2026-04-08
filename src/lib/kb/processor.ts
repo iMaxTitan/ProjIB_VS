@@ -107,10 +107,10 @@ export interface ProcessResult {
 }
 
 import type { Chunk } from './chunker';
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 
 /** Load document metadata for enriched embeddings. Returns null for non-metadata docs. */
-async function loadDocMeta(db: SupabaseClient, documentId: string): Promise<DocMetaForEmbedding | null> {
+async function loadDocMeta(db: PostgrestClient, documentId: string): Promise<DocMetaForEmbedding | null> {
   const { data } = await db.from('kb_documents').select('metadata, title').eq('id', documentId).single();
   if (!data) return null;
   const doc = data as { metadata?: Record<string, unknown>; title?: string };
@@ -150,7 +150,7 @@ async function loadDocMeta(db: SupabaseClient, documentId: string): Promise<DocM
 
 /** Shared embed+insert logic for both processDocument and processFromMarkdown. */
 async function embedAndInsertChunks(
-  db: SupabaseClient, documentId: string, chunks: Chunk[],
+  db: PostgrestClient, documentId: string, chunks: Chunk[],
   prefixes: PrefixResult[],
   categoryName: string, title: string,
   docMeta?: DocMetaForEmbedding | null,

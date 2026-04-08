@@ -1,14 +1,13 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Copy, Wand2, CheckCheck, X, UtensilsCrossed, Upload, Download } from 'lucide-react';
+import { Wand2, CheckCheck, X, UtensilsCrossed, Upload, Download } from 'lucide-react';
 import { cn } from '@/lib/shared/utils';
 import { Spinner } from '@/components/ui/Spinner';
 
 interface Props {
   hasSuggestions: boolean;
   suggestPending: boolean;
-  copyPending: boolean;
   lunchStart: string;
   lunchPending: boolean;
   pushPending: boolean;
@@ -22,15 +21,14 @@ interface Props {
   onAcceptAll: () => void;
   onClearSuggestions: () => void;
   onSuggest: () => void;
-  onCopy: () => void;
   onUpdateLunch: (time: string) => void;
 }
 
 export default function PlannerHeader({
-  hasSuggestions, suggestPending, copyPending,
+  hasSuggestions, suggestPending,
   lunchStart, lunchPending,
   pushPending, pullPending, hasUnsynced, hasNeedsPush, unsyncedCount, hasOutlookModified,
-  onPushSync, onPullSync, onAcceptAll, onClearSuggestions, onSuggest, onCopy,
+  onPushSync, onPullSync, onAcceptAll, onClearSuggestions, onSuggest,
   onUpdateLunch,
 }: Props) {
   const [lunchMenuOpen, setLunchMenuOpen] = useState(false);
@@ -60,11 +58,8 @@ export default function PlannerHeader({
           </>
         ) : (
           <>
-            <button onClick={onSuggest} disabled={suggestPending} title="AI Suggest" className="cal-action-btn" aria-label="AI Suggest" data-el="action · suggest" data-el-cat="action">
+            <button onClick={onSuggest} disabled={suggestPending} title="Автоматично заповнити" className="cal-action-btn" aria-label="Автоматично заповнити" data-el="action · suggest" data-el-cat="action">
               {suggestPending ? <Spinner size="xs" /> : <Wand2 className="h-3.5 w-3.5" />}
-            </button>
-            <button onClick={onCopy} disabled={copyPending} title="Копіювати тиждень" className="cal-action-btn" aria-label="Копіювати тиждень" data-el="action · copy" data-el-cat="action">
-              {copyPending ? <Spinner size="xs" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
           </>
         )}

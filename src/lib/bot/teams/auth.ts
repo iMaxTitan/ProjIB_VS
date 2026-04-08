@@ -3,7 +3,7 @@
  * aad_oid → user_profiles (teams fields merged in)
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { fetchWithTimeout } from '@/lib/shared/utils/fetch-with-timeout';
 import logger from '@/lib/shared/logger';
 import { config } from '@/lib/shared/config';
@@ -93,7 +93,7 @@ function isPersonalConversation(conversationId: string): boolean {
  * Prioritises personal chat IDs (a:/29:) over channel IDs (19:) to enable proactive DMs.
  */
 export async function resolveOrCreateUser(
-  db: SupabaseClient,
+  db: PostgrestClient,
   aadOid: string,
   conversationId: string,
   serviceUrl: string,

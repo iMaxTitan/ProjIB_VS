@@ -32,7 +32,7 @@ function stripProjectReferences(text: string): string {
     .trim();
 }
 
-// ─── Supabase service-role (lazy singleton) ───
+// ─── DB service-role (lazy singleton) ───
 let _db: ReturnType<typeof createClient> | null = null;
 function getDb() {
   if (_db) return _db;
