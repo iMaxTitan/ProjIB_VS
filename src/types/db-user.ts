@@ -3,8 +3,8 @@ export type UserRole = 'chief' | 'head' | 'analyst' | 'employee' | 'kb_user';
 // Статусы пользователя (business_trip/sick_leave/vacation → табель employee_timesheet)
 export type UserStatus = 'active' | 'blocked';
 
-// Данные пользователя системы из Supabase (v_user_details)
-export type SupabaseUserInfo = {
+// Данные пользователя системы (из view v_user_details)
+export type DbUserInfo = {
   user_id: string | null;        // ID пользователя
   email: string | null;          // Email
   full_name: string | null;      // Полное имя
@@ -77,7 +77,7 @@ export type Database = {
     };
     Views: {
       v_user_details: {
-        Row: SupabaseUserInfo;
+        Row: DbUserInfo;
       };
     };
   };

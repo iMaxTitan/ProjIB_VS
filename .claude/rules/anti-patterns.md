@@ -19,8 +19,8 @@ paths:
 - Embedding format: pass as string `[${embedding.join(',')}]` — NOT raw array
 - `match_kb_documents` RPC MUST be `SECURITY DEFINER`
 
-## Supabase
-- Never read `.sql` migration files from disk — check actual DB state via Supabase MCP
+## PostgreSQL/PostgREST
+- Never read `.sql` migration files from disk — check actual DB state via PostgreSQL MCP
 - Embedding: Voyage multilingual-2, 1024 dimensions, `input_type: 'document'|'query'`
 
 ## Deploy

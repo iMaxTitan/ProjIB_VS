@@ -9,7 +9,7 @@ import logger from '@/lib/shared/logger';
 
 const DEBUG_LOGS = process.env.NODE_ENV !== 'production';
 
-const MSG_SUPABASE_USER_NOT_FOUND =
+const MSG_DB_USER_NOT_FOUND =
   'Доступ заборонено. Вашу обліковий запис не знайдено в системі CS Platform. Зверніться до адміністратора.';
 const MSG_INTERACTION_REQUIRED =
   '\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044f \u0432\u0445\u043e\u0434 \u0447\u0435\u0440\u0435\u0437 Microsoft.';
@@ -64,7 +64,7 @@ export default function LoginPage() {
     let showLoginButton = true;
 
     if (authErrorType === 'supabase_user_not_found') {
-      errorMessage = MSG_SUPABASE_USER_NOT_FOUND;
+      errorMessage = MSG_DB_USER_NOT_FOUND;
       showLoginButton = false;
     } else if (authErrorType === 'interaction_required') {
       errorMessage = MSG_INTERACTION_REQUIRED;

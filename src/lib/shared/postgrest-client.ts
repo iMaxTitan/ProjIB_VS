@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * Minimal PostgREST client — fluent API compatible with @supabase/supabase-js.
+ * Minimal PostgREST client — fluent API for direct PostgREST access.
  *
- * Based on supabase/postgrest-js patterns:
+ * Based on PostgREST query syntax:
  * - select() strips ALL whitespace (PostgREST ignores spaces in select)
  * - URL built via string concat — no URLSearchParams (avoids encoding issues)
  * - .select() after mutation does NOT override HTTP method
@@ -44,7 +44,7 @@ type ReturnMode = 'many' | 'single' | 'maybeSingle';
 type HeaderRecord = Record<string, string>;
 
 /* ------------------------------------------------------------------ */
-/*  Clean select columns — strip whitespace like supabase/postgrest-js */
+/*  Clean select columns — strip whitespace */
 /* ------------------------------------------------------------------ */
 
 /** Remove all whitespace outside quoted identifiers. */
@@ -211,7 +211,7 @@ export class PostgrestQueryBuilder<T = FlexData> {
     return this;
   }
 
-  /** Type-only cast — compat with supabase-js .returns<T>() */
+  /** Type-only cast — narrow result row type */
   returns<U = any>(): PostgrestQueryBuilder<U> {
     return this as unknown as PostgrestQueryBuilder<U>;
   }
@@ -404,8 +404,7 @@ export function createPostgrestClient(
 }
 
 /* ------------------------------------------------------------------ */
-/*  Backward-compat aliases                                            */
+/*  Backward-compat alias                                              */
 /* ------------------------------------------------------------------ */
 
-export type SupabaseClient = PostgrestClient;
 export const createClient = createPostgrestClient;

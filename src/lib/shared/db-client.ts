@@ -4,18 +4,21 @@ import { createPostgrestClient } from '@/lib/shared/postgrest-client';
 // The proxy validates auth via httpOnly cookie and uses service-role key.
 // Passing '/api/db/rest/v1' makes PostgrestClient set _url = '/api/db'
 // so requests become /api/db/{table}?filters — caught by the [...path] route.
-export const supabase = createPostgrestClient('/api/db/rest/v1', '');
+export const db = createPostgrestClient('/api/db/rest/v1', '');
 
-const CUSTOM_JWT_STORAGE_KEY = 'supabase_custom_jwt';
-let currentSupabaseJwt: string | null = null;
+// Backward-compat alias — some legacy callers still import { supabase }
+export const supabase = db;
 
-type MutableSupabaseClient = {
+const CUSTOM_JWT_STORAGE_KEY = 'db_custom_jwt';
+let currentDbJwt: string | null = null;
+
+type MutablePostgrestClient = {
   rest: { headers: Record<string, string> };
   headers: Record<string, string>;
 };
 
-function getMutableClient(): MutableSupabaseClient {
-  return supabase as unknown as MutableSupabaseClient;
+function getMutableClient(): MutablePostgrestClient {
+  return db as unknown as MutablePostgrestClient;
 }
 
 function applyAccessToken(accessToken: string | null): void {
@@ -31,25 +34,25 @@ function applyAccessToken(accessToken: string | null): void {
       ...mutable.headers,
       Authorization: authHeader,
     };
-    supabase.realtime.setAuth(accessToken).catch(() => {
-      // Realtime auth will retry on next heartbeat.
+    db.realtime.setAuth(accessToken).catch(() => {
+      // Realtime stub: noop
     });
-    supabase.functions.setAuth(accessToken);
+    db.functions.setAuth(accessToken);
     return;
   }
 
   delete mutable.rest.headers.Authorization;
   delete mutable.headers.Authorization;
-  supabase.functions.setAuth('');
-  supabase.realtime.setAuth().catch(() => {
+  db.functions.setAuth('');
+  db.realtime.setAuth().catch(() => {
     // ignore
   });
 }
 
-export async function setSupabaseSession(accessToken: string): Promise<boolean> {
+export async function setDBSession(accessToken: string): Promise<boolean> {
   try {
     if (!accessToken || accessToken.split('.').length !== 3) return false;
-    currentSupabaseJwt = accessToken;
+    currentDbJwt = accessToken;
     applyAccessToken(accessToken);
     if (typeof window !== 'undefined') {
       localStorage.setItem(CUSTOM_JWT_STORAGE_KEY, accessToken);
@@ -60,9 +63,9 @@ export async function setSupabaseSession(accessToken: string): Promise<boolean> 
   }
 }
 
-export async function clearSupabaseSession(): Promise<void> {
+export async function clearDBSession(): Promise<void> {
   try {
-    currentSupabaseJwt = null;
+    currentDbJwt = null;
     applyAccessToken(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem(CUSTOM_JWT_STORAGE_KEY);
@@ -72,12 +75,12 @@ export async function clearSupabaseSession(): Promise<void> {
   }
 }
 
-export function getSupabaseAccessToken(): string | null {
-  if (currentSupabaseJwt) return currentSupabaseJwt;
+export function getDBAccessToken(): string | null {
+  if (currentDbJwt) return currentDbJwt;
   if (typeof window === 'undefined') return null;
   const token = localStorage.getItem(CUSTOM_JWT_STORAGE_KEY);
   if (!token) return null;
-  currentSupabaseJwt = token;
+  currentDbJwt = token;
   applyAccessToken(token);
   return token;
 }

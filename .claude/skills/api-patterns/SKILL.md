@@ -8,7 +8,7 @@ description: "Паттерны API routes для проекта CS Platform. А�
 ## Архитектура
 
 - **Next.js 15 App Router** — `src/app/api/{module}/route.ts`
-- **Supabase** — ТОЛЬКО service-role на сервере
+- **PostgreSQL/PostgREST** — ТОЛЬКО service-role на сервере
 - **Auth** — Azure AD JWT в cookie + DB user_id в cookie
 
 ## Обязательный шаблон API route
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
 
 ## Критические правила
 
-### 1. Supabase клиент — ТОЛЬКО service-role
+### 1. PostgreSQL/PostgREST клиент — ТОЛЬКО service-role
 
 ```typescript
 // ✅ Правильно — shared singleton из lib/shared/
@@ -194,12 +194,12 @@ console.warn('...');   // НЕТ — используй logger.warn()
 ## Антипаттерны
 
 ```typescript
-// ❌ Импорт клиентского supabase
-import { supabase } from '@/lib/supabase';
+// ❌ Импорт клиентского db (для браузера) в server route
+import { db } from '@/lib/shared/db-client';
 
-// ❌ Создание нового клиента — createClient() ЗАПРЕЩЁН в route.ts
-import { createClient } from '@supabase/supabase-js';
-const db = createClient(url, key);  // Утечка соединений! Используй getServerDb()
+// ❌ Создание нового клиента — createPostgrestClient() ЗАПРЕЩЁН в route.ts
+import { createPostgrestClient } from '@/lib/shared/postgrest-client';
+const dbClient = createPostgrestClient(url, key);  // Утечка соединений! Используй getServerDb()
 
 // ❌ Чтение userId из headers/query без cookie
 const userId = req.headers.get('x-user-id');           // Можно подделать!

@@ -45,7 +45,6 @@ CLAUDE.local.md
 .claude/worktrees/
 .claude/hookify.*.local.md
 certificates
-supabase/.temp/
 nul
 
 # Playwright

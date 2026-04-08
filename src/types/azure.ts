@@ -1,4 +1,4 @@
-import { UserRole } from './supabase';
+import { UserRole } from './db-user';
 
 // Отображаемые названия ролей
 export const roleLabels: Record<UserRole, string> = {
@@ -34,10 +34,10 @@ export type AzureUserInfo = {
 /**
  * Объединенные данные пользователя:
  * - AzureUserInfo (данные из Azure AD)
- * - department и role из Supabase
+ * - department и role из DB
  */
 export interface UserInfo extends AzureUserInfo {
-  // Данные из Supabase
+  // Данные из DB
   role: string | null;                  // Код роли пользователя
   role_disp?: string;                   // Отображаемое название роли
   department_name: string | null;       // Название отдела
@@ -45,6 +45,6 @@ export interface UserInfo extends AzureUserInfo {
   department_code?: string | null;      // Код отдела
   
   // Дополнительные поля для совместимости
-  photo_base64?: string | null;         // Альтернативное поле для фото из Supabase
-  user_id: string;                     // ID пользователя в Supabase
+  photo_base64?: string | null;         // Альтернативное поле для фото из DB
+  user_id: string;                     // ID пользователя в DB
 }

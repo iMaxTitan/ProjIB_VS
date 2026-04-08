@@ -1,5 +1,5 @@
 import { UserInfo } from './azure';
-import { UserRole, UserStatus } from './supabase';
+import { UserRole, UserStatus } from './db-user';
 
 // Типы планов (иерархия)
 export type PlanType = 'annual' | 'quarterly' | 'monthly';

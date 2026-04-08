@@ -13,15 +13,15 @@ import { GOLDEN_TESTS, type GoldenTest } from '../src/lib/kb/__tests__/golden-te
 import { searchAndAnswer } from '../src/lib/kb/search';
 import { createClient } from '../src/lib/shared/postgrest-client';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_API_URL!;
-const SUPABASE_KEY = process.env.POSTGREST_SERVICE_KEY!;
+const POSTGREST_URL = process.env.NEXT_PUBLIC_API_URL!;
+const POSTGREST_KEY = process.env.POSTGREST_SERVICE_KEY!;
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
+if (!POSTGREST_URL || !POSTGREST_KEY) {
   console.error('Missing SUPABASE env vars');
   process.exit(1);
 }
 
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+const db = createClient(POSTGREST_URL, POSTGREST_KEY);
 
 const AI_REFUSAL_MARKER = 'немає інформації про';
 
