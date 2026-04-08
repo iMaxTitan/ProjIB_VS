@@ -1,250 +1,300 @@
+---
+doc_type: kb_pipeline_reference
+last_verified: 2026-04-08
+verified_against:
+  - src/lib/kb/search.ts
+  - src/lib/kb/chunker.ts
+  - src/lib/kb/reranker.ts
+  - src/lib/kb/embedder.ts
+  - src/lib/kb/processor.ts
+  - kb_chunks schema (live DB via mcp__postgres__query)
+verification_method: |
+  Read each source file end-to-end and cross-checked named constants
+  (MAX_TOKENS, MATCH_COUNT, RERANK_*, etc.). Schema verified by querying
+  information_schema.columns for kb_chunks. Numbers in this doc are pulled
+  from the actual code, not from memory.
+freshness_ttl_days: 30
+on_change_required:
+  - When src/lib/kb/search.ts changes search pipeline structure
+  - When src/lib/kb/chunker.ts MAX_TOKENS / OVERLAP changes
+  - When kb_chunks schema gains/loses columns
+  - When embedding model is swapped
+  - After any reindex (re-run kb-eval to confirm gold patterns still resolve)
+---
+
 # Knowledge Base — RAG Pipeline
 
-> Опис того як працює індексація та пошук документів у корпоративній базі знань.
+> Verified description of how indexing and retrieval actually work in `src/lib/kb/`.
+> If anything in this doc disagrees with the code, **the code wins** — open an issue and update this file.
 
 ---
 
-## Огляд
+## Overview
 
 ```
-ІНДЕКСАЦІЯ:  .docx → mammoth → markdown-text → chunk → embed → Supabase
-ПОШУК:       запит → multi-query (2-3 ракурси) → embed batch → parallel hybrid search → merge → rerank → AI-відповідь
+INDEXING:  .docx → mammoth → text → chunk → contextual prefix → embed → kb_chunks
+RETRIEVAL: query → multi-query + synonyms → vector + BM25 RRF → scope boost
+           → Voyage rerank-2.5 → keyword/entity boosts → diversity → expand → synthesize
 ```
 
-Система використовує **Contextual Retrieval** — кожен чанк при embedding збагачується
-контекстом (категорія → документ → розділ), але в БД зберігається тільки чистий текст.
+The system uses **Contextual Retrieval** (Anthropic 2024) — each chunk gets a stored
+`contextual_prefix` describing where it sits in the document. Embeddings are computed
+against `prefix + content`, so query matching benefits from doc-level context.
 
 ---
 
-## Індексація (processDocument)
+## Indexing pipeline (`processor.ts`)
 
-### Формат
-Підтримується тільки **`.docx`** (Microsoft Word з правильними стилями Heading).
-PDF і `.doc` в KB не підтримуються.
+### Supported format
 
-### Кроки
+`.docx` only (Microsoft Word with proper Heading styles). PDF and `.doc` are not supported.
+
+### Steps
 
 ```
 1. parseDOCX(buffer)
-   mammoth.convertToHtml() зі style mapping:
-     Heading 1 / Заголовок 1  → <h1>  → "# Назва розділу"
-     Heading 2 / Заголовок 2  → <h2>  → "## Підрозділ"
-     Heading 3 / Заголовок 3  → <h3>  → "### Пункт"
-     TOC 1-3 / Зміст 1-3      → !     (виключаються, case-insensitive)
-   Bold heading fallback: якщо немає <h1>/<h2>/<h3> →
-     detectBoldHeadings() конвертує <p><strong>text</strong></p> → <h1>/<h2>
-     (≤120 символів, не sentence, X.Y → h2)
-   htmlToText() → markdown-style plain text
+   mammoth.convertToHtml() with style mapping for Heading 1/2/3
+   (Ukrainian "Заголовок 1/2/3" also recognized).
+   Bold-heading fallback if no real <h1>: detectBoldHeadings()
+   converts <p><strong>text</strong></p> to headings (≤120 chars, not a sentence).
 
 2. preprocessText(rawText)
-   Прибирає: штампи затвердження (СТВЕРДЖУЮ, ПОГОДЖУЮ, УЗГОДЖЕНО, ВВЕДЕНО В ДІЮ),
-   рядки підписів, номери сторінок, надлишкові переноси
+   Strips approval stamps (СТВЕРДЖУЮ, ПОГОДЖУЮ, УЗГОДЖЕНО, ВВЕДЕНО В ДІЮ),
+   signature lines, page numbers, excessive blank lines.
 
-3. chunkDocument(fullText)
-   Стратегія: секції по isHeadingLine (# / ## / ### / 1. / 1.1 )
-   MAX_TOKENS = 450, OVERLAP = 50 tokens
-   Таблиці: зберігаються цілком або розбиваються по рядках з дублюванням шапки
-   Фільтр: MIN_CHUNK_TOKENS = 30, виключаються TOC-чанки
+3. chunkDocument(fullText)   ← see "Chunking" section below
 
-4. buildContextualContent(category, title, heading, content)
-   "Категорія: X.\nДокумент: «Y».\nРозділ: Z.\n\n{content}"
-   → використовується ТІЛЬКИ для embedding (не зберігається в БД)
+4. contextualPrefixGenerator (per chunk, async)
+   Cascade: L1 = Gemini Flash-Lite (cheap, ~99% success rate)
+            L2 = Claude Haiku (fallback when L1 fails / rate-limit / parse error)
+   Stores: contextual_prefix, prefix_status (ok|fallback|needs_review),
+           scope, search_terms[], semantic_summary, hypothetical_questions[]
+   Skipped on rate-limit; chunk gets prefix_status='fallback' and is demoted at rerank time.
 
-5. embedBatch(contextualContents)
-   Voyage voyage-4-large (1024d via Matryoshka), input_type=document, batch 100, HNSW index
+5. embedBatch(prefix + content)
+   Voyage voyage-4-large, 1024d Matryoshka, input_type='document', batch 100.
 
-6. INSERT kb_chunks (content, embedding, heading, token_count)
-   UPDATE kb_documents (status='ready', chunk_count, content[100K])
+6. INSERT kb_chunks (content, embedding, contextual_prefix, scope, search_terms,
+                     semantic_summary, prefix_status, hypothetical_questions, question_embedding)
+   UPDATE kb_documents SET status='ready', chunk_count=N
 ```
 
-### Ключові файли
-- [src/lib/kb/processor.ts](../src/lib/kb/processor.ts) — парсинг + pipeline
-- [src/lib/kb/chunker.ts](../src/lib/kb/chunker.ts) — стратегія чанкування
-- [src/lib/kb/embedder.ts](../src/lib/kb/embedder.ts) — Voyage embeddings (voyage-4-large docs / voyage-4-lite queries, 1024d)
-- [src/app/api/kb/documents/route.ts](../src/app/api/kb/documents/route.ts) — upload API
+### Chunking constants (`chunker.ts`)
 
----
-
-## Пошук (searchAndAnswer)
-
-```
-1. Отримати запит (текст питання)
-
-2. Multi-Query Rewriting (GPT-4o-mini, generateMultiQueries)
-   Генерує 2-3 пошукові запити з різних ракурсів:
-   — конкретний (зберігає назви ПЗ, сервісів)
-   — узагальнений (процедурний/нормативний термін)
-   — альтернативний ракурс (якщо є сенс)
-   Приклад: "установить Teams" →
-     ["встановити Microsoft Teams на робочу станцію",
-      "встановлення програмного забезпечення на робочу станцію",
-      "базовий набір ПЗ робочого місця"]
-   Fallback: translateAndExpand() (одиночний запит) при помилці API.
-
-3. Batch Embed (Voyage voyage-4-lite, 1024d Matryoshka, input_type=query)
-   Всі 2-3 підзапити за один API виклик (embedBatchQueries).
-
-4. Parallel Hybrid Search: match_kb_documents RPC × N підзапитів (паралельно)
-   vector:   cosine similarity (pgvector <=>)
-   BM25:     ts_rank(fts, to_tsquery('russian', query)) з OR-семантикою
-   fusion:   RRF (Reciprocal Rank Fusion, k=60)
-   match_count: 20 чанків на підзапит
-   threshold: 0.30
-
-5. Merge & Deduplicate
-   Об'єднання результатів усіх підзапитів по chunk_id (max similarity).
-   Fallback: якщо merged пустий → один пошук з threshold 0.20.
-
-6. Quality gate: topScore < 0.30 → повернути "не знайдено" (без синтезу)
-
-7. Rerank (Voyage rerank-2.5 cross-encoder, top 5)
-   Використовує ОРИГІНАЛЬНИЙ запит (не перекладений) — для збереження специфіки.
-   Graceful fallback якщо VOYAGE_API_KEY не встановлено.
-
-8. Context expansion: ±1 сусідні чанки з тієї ж секції документа.
-
-9. AI-відповідь (Claude Haiku claude-haiku-4-5-20251001)
-   System prompt: відповідай ТІЛЬКИ на основі фрагментів, category-specific суфікси
-   Вхід: XML <fragment> теги з document/section атрибутами, max 6 чанків × 1200 символів
-   Post-validation: stripHallucinatedParagraphs() — видаляє параграфи з ознаками галюцинацій
-   maxTokens: 2400
-   Footer: "🤖 claude-haiku-4-5 · ↑N ↓N · $X.XXXXX"
-```
-
-### Чому Multi-Query?
-
-Одиночна переформулювання запиту втрачає recall: "встановити Teams" узагальнюється до
-"встановлення ПЗ" і знаходить лише процедурні чанки, але не таблицю базового набору ПЗ
-де Teams вже є. Multi-Query покриває різні ракурси одночасно.
-
-### Альтернатива: Agentic RAG
-
-Якщо Multi-Query буде недостатньо — наступний крок: **Agentic RAG** (LLM самостійно
-вирішує, чи потрібен допошук або уточнення запиту). Складніший у реалізації, але дає
-максимальну гнучкість для складних/багатокрокових запитів.
-
-### Ключові файли
-- [src/lib/kb/search.ts](../src/lib/kb/search.ts) — searchAndAnswer(), runMultiSearch()
-- [src/lib/kb/query-translator.ts](../src/lib/kb/query-translator.ts) — generateMultiQueries(), translateAndExpand() (fallback)
-- [src/lib/kb/embedder.ts](../src/lib/kb/embedder.ts) — embedBatchQueries()
-- [src/lib/kb/reranker.ts](../src/lib/kb/reranker.ts) — Voyage rerank-2.5
-- [src/lib/kb/bot-adapter.ts](../src/lib/kb/bot-adapter.ts) — інтеграція з ботом (kbSearchTool)
-
----
-
-## Валідація перед індексацією
-
-Окремий endpoint `POST /api/kb/validate` — перевіряє документ НЕ індексуючи його.
-
-```
-validator.ts:
-  1. parseDOCX → raw text (той самий парсер що й при індексації)
-  2. extractMetadata → docType, docNumber, docDate, version, approver
-  3. detectArtifacts → approvalStamps, signatureLines, changelog, toc
-  4. preprocessText → cleanedText
-  5. computeStats → sectionCount, subsectionCount, tableCount, estimatedChunks
-     (використовує chunkDocument() — той самий що й при індексації)
-     ВАЖЛИВО: перед підрахунком H1/H2 зрізати '#' маркери (.replace(/^#+\s*/, ''))
-  6. runChecks → ValidationCheck[] (структурні перевірки по Document Guide v2)
-     Тонкі розділи: рахує речення (. ! ?) + елементи списків (; :)
-     Мова: якщо 'mixed' — findRussianWords() показує конкретні слова з рос. символами
-  7. getAIAnalysis → AIAnalysis (3 семантичні + fixInstructions через Claude Haiku)
-     Текст для AI: перші 12 000 символів (щоб уникнути таймауту на великих доках)
-     Таймаут: 60 секунд
-     Глосарій: якщо документ посилається на зовнішній Глосарій — abbreviations = ok
-```
-
-### Document Guide v2 — вимоги до документа
-
-Повний гайд: [`docs/Document_Guide_v2.md`](./Document_Guide_v2.md)
-
-| Перевірка | Тип | Умова |
+| Constant | Value | Meaning |
 |---|---|---|
-| Метадані | warning | Відсутні: тип, №, дата, версія, хто затвердив |
-| Заголовки H1 | error | Немає жодного |
-| Word Heading стилі | warning | Заголовки знайдено через bold-евристику, а не Word стилі |
-| Мінімальний обсяг | error | < 300 слів |
-| Порожні розділи | error | Секції з текстом < 50 символів |
-| Підрозділи H2 | warning | Відсутні при ≥ 3 розділах |
-| Тонкі розділи | warning | < 3 речень/пунктів у розділі |
-| Абревіатури | warning | > 2 нерозшифрованих (OK якщо глосарій/перелік скорочень) |
-| Мова | warning | Змішана — показує конкретні слова з рос. символами (ы ъ э ё) |
-| Шапка таблиці | warning | Таблиця без header row |
-| Якість таблиць | warning | Заповненість < 30% |
-| Самодостатність | warning | «як зазначено вище», «див. п.», «Додаток А», «Таблиця 1» |
-| Абревіатури (AI) | warning (AI) | Семантична перевірка абревіатур |
-| Числа в тексті | warning (AI) | Тільки в таблиці, не в тексті |
-| Назви таблиць | warning (AI) | «Таблиця N.» відсутня |
-| Зміст (TOC) | info | Відсутній при > 5 розділах |
-| Як виправити | accordion | AI генерує покрокові інструкції для кожного порушення |
+| `MAX_TOKENS` | **700** | Max tokens per chunk |
+| `OVERLAP_TOKENS` | **100** | Sliding-window overlap between adjacent chunks |
+| `MIN_CHUNK_TOKENS` | **30** | Chunks smaller than this are dropped |
+| `CHARS_PER_TOKEN` | **2.5** | Cyrillic-aware estimator (`tokens ≈ chars / 2.5`) |
+
+### Files
+
+- `src/lib/kb/processor.ts` — top-level pipeline (parse → chunk → prefix → embed → insert)
+- `src/lib/kb/chunker.ts` — heading-aware chunking strategy
+- `src/lib/kb/chunker-tables.ts` — table-aware chunking (preserves header rows)
+- `src/lib/kb/processor-html.ts` — bold-heading detection fallback
+- `src/lib/kb/contextual-prefix.ts` — L1/L2 cascade for contextual prefix generation
+- `src/lib/kb/hyde-generator.ts` — hypothetical question generation (HyDE)
+- `src/lib/kb/embedder.ts` — Voyage `voyage-4-large` (docs) / `voyage-4-lite` (queries)
 
 ---
 
-## Схема БД
+## Retrieval pipeline (`searchAndAnswer` in `search.ts`)
+
+The function lives at `src/lib/kb/search.ts:143`. The order below is the actual code path,
+verified line-by-line on 2026-04-08.
+
+```
+0. Scope-prefix shortcut
+   Detects "по статуту / за статутом / у статуті" prefix → forces docTitleFilter='статут'
+
+0.1. Meta-query handler (handleMetaQuery)
+   Returns immediately for "які документи є в БЗ" / "перелік документів" type queries.
+
+0.2. Legal locator (legalLocator)
+   Deterministic lookup by article/clause number. Hits are injected into candidates later
+   with top priority. Bypasses embedding entirely for "стаття 23 Закону № 3543" type queries.
+
+1. Query analysis (generateMultiQueries — GPT-4o-mini)
+   Generates 2-3 sub-queries from different angles + detects domain (ib/hr/it/legal/general).
+   If domain='ambiguous' or specificity='low' → return clarification request to user.
+
+1.5. Synonym expansion (expandQueryWithSynonyms via kb_synonym_dict)
+   Adds one extra sub-query built from deterministic synonym dictionary (top 5 terms).
+
+2. Batch embedding (embedBatchQueries — Voyage voyage-4-lite, query mode)
+
+3. Hybrid retrieval (runMultiSearch → match_kb_documents RPC × N sub-queries in parallel)
+   - vector via pgvector cosine similarity
+   - BM25 via ts_rank with RRF fusion (k=60)
+   - filter_category_slug applied if domain detected
+   - MATCH_COUNT = 50 chunks per sub-query
+   - MATCH_THRESHOLD = 0.10
+   Merge by chunk_id (max similarity wins), sort by similarity desc.
+
+3.0. Cross-category fallback
+   If categorySlug filter was applied AND topScore < 0.42 → repeat search with no filter,
+   merge any cross-category chunks that scored higher.
+
+3.0a. Doc-title filter (only when scope-prefix detected)
+   filter mergedChunks where document_title contains needle.
+
+3.1. Legal locator inject
+   Locator chunks pushed to front of candidates with top priority.
+
+4. Scope soft-boost BEFORE rerank (applyScopeBoost)
+   Off-scope chunks get similarity * 0.75 (not dropped — soft penalty).
+
+4.1. Rerank (rerankChunks → Voyage rerank-2.5 cross-encoder)
+   - input: top RERANK_FETCH_K (=50) chunks
+   - prompt: domain-specific instruction prefix + original query
+   - output filtered by RERANK_NOISE_THRESHOLD = 0.15  ← drops weak chunks INSIDE reranker
+   - keeps top RERANK_KEEP_K (=30) after boost adjustments
+
+4.2. Fallback chunk demote
+   Chunks with prefix_status in ('fallback','needs_review') get _rerank_score *= 0.7
+   (lower confidence in their contextual prefix → lower trust).
+
+4.3. Keyword rescue (keywordRescue)
+   Re-promotes chunks with exact entity matches that the reranker dropped.
+
+4.4. Entity boost (applyEntityBoost)
+   Adds +0.16 to _rerank_score per query-entity hit (capped, see policy file).
+
+5. Quality gate
+   If rerankTopScore < RERANK_REFUSE_THRESHOLD (0.15) → trigger deterministic retry below.
+
+5.1. Deterministic retry (only if quality gate failed AND categorySlug was set)
+   Repeat search with no category filter and no domain hint. If new top score passes
+   the gate → use retry results (debug.retried = true). If still failing → return refusal.
+
+6. Diversity (diversifyByDocument)
+   POST_RERANK_MAX_PER_DOC = 2 chunks per document by default
+   (with score-gap exception: extra chunks allowed if top scores cluster tightly).
+
+6.1. Context expansion
+   - expandWithNeighbors: ±1 chunk from same document around each kept chunk
+   - expandWithRelatedDocs: pulls top-4 from kb_documents.parent_doc_id / related_docs[]
+   - applyScopeBoost re-applied (expansion can re-introduce off-scope chunks)
+
+7. AI synthesis (synthesizeAnswer)
+   Two-stage:
+   - Extract: Gemini Flash-Lite extracts facts + refs (fallback Claude Haiku)
+   - Compose: Claude Haiku 4.5 writes the final answer with category-specific suffix
+   System prompt: answer ONLY from given fragments, cite sources as "📄 «Title», п.X"
+   Post-validation: stripHallucinatedParagraphs() removes paragraphs with hallucination markers
+```
+
+### Search constants (`search.ts`)
+
+| Constant | Default | Env var | Purpose |
+|---|---|---|---|
+| `MATCH_COUNT` | **50** | `KB_MATCH_COUNT` | Chunks fetched per sub-query from vector+BM25 |
+| `MATCH_THRESHOLD` | **0.10** | `KB_MATCH_THRESHOLD` | Min cosine similarity to keep |
+| `RERANK_FETCH_K` | **50** | `KB_RERANK_FETCH_K` | Top-K sent to Voyage rerank |
+| `RERANK_KEEP_K` | **30** | `KB_RERANK_KEEP_K` | Top-K kept after rerank+boosts |
+| `RERANK_REFUSE_THRESHOLD` | **0.15** | `KB_RERANK_REFUSE_THRESHOLD` | Below this → refuse / retry |
+| `RERANK_NOISE_THRESHOLD` | **0.15** | (hardcoded in `reranker.ts:22`) | Inside reranker — chunks below this are filtered out before being returned |
+| `POST_RERANK_MAX_PER_DOC` | **2** | `KB_POST_RERANK_MAX_PER_DOC` | Diversity cap per document |
+
+> ⚠️ `RERANK_NOISE_THRESHOLD` and `RERANK_REFUSE_THRESHOLD` are both 0.15 today.
+> The first hard-filters per-chunk inside the reranker call. The second triggers
+> retry/refuse based on the top score. They are independent and can drift apart.
+
+### Files
+
+- `src/lib/kb/search.ts` — `searchAndAnswer()`, `runMultiSearch()`, retry logic
+- `src/lib/kb/query-translator.ts` — `generateMultiQueries()`, `dominantCategorySlug()`
+- `src/lib/kb/synonym-lookup.ts` — `expandQueryWithSynonyms()` from `kb_synonym_dict`
+- `src/lib/kb/embedder.ts` — `embedBatchQueries()` (Voyage)
+- `src/lib/kb/reranker.ts` — Voyage rerank-2.5 with `RERANK_NOISE_THRESHOLD` filter
+- `src/lib/kb/search-helpers.ts` — `diversifyByDocument`, `expandWithNeighbors`, `expandWithRelatedDocs`
+- `src/lib/kb/search-locators.ts` — `legalLocator`, `handleMetaQuery`
+- `src/lib/kb/search-ranking-policy.ts` — `applyScopeBoost`, `applyEntityBoost`, `keywordRescue`
+- `src/lib/kb/synthesizer.ts` — extract/compose pipeline
+- `src/lib/kb/bot-adapter.ts` — bot integration (`kbSearchTool`)
+
+---
+
+## DB schema (`kb_chunks`)
+
+Verified live via `mcp__postgres__query` on 2026-04-08:
 
 ```sql
-kb_categories  (id, slug, name, process_id, is_active)
-kb_documents   (id, category_id, title, status, chunk_count, content[100K], error_message)
-kb_chunks      (id, document_id, chunk_index, content, embedding vector(1024), heading, token_count)
-
--- Індекси:
-idx_kb_chunks_hnsw   ON kb_chunks USING hnsw (embedding vector_cosine_ops) m=16 ef=64
-idx_kb_chunks_fts    ON kb_chunks USING gin(to_tsvector('uk', content))
-
--- RPC:
-match_kb_documents(query_embedding, query_text, category_slug, threshold, top_k)
-  SECURITY DEFINER  -- обов'язково, інакше RLS блокує рядки
-  → vector + BM25 + RRF fusion
+CREATE TABLE kb_chunks (
+  id                     uuid PRIMARY KEY,
+  document_id            uuid REFERENCES kb_documents(id),
+  chunk_index            integer,
+  content                text,
+  embedding              vector(1024),       -- Voyage voyage-4-large
+  heading                text,               -- "§ 25 > 26. ..." breadcrumb
+  token_count            integer,
+  contextual_prefix      text,               -- AI-generated, used in embedding
+  scope                  text,               -- general | specific:<group>
+  search_terms           text[],             -- extracted entities/keywords
+  semantic_summary       text,               -- 1-line summary used by reranker context
+  prefix_status          text,               -- ok | fallback | needs_review
+  prefix_cache_key       text,
+  hypothetical_questions text[],             -- HyDE questions per chunk
+  question_embedding     vector(1024)        -- HyDE embedding (NOT yet wired into retrieval lane)
+);
 ```
 
----
+### Other KB tables
 
-## Налаштування
+```sql
+kb_categories       (id, slug, name, process_id, is_active)
+kb_documents        (id, category_id, title, status, chunk_count, parent_doc_id, related_docs)
+kb_pipeline_config  -- runtime tunables
+kb_prefix_reviews   -- chunks with prefix_status='needs_review' for human review
+kb_query_log        -- analytics: every searchAndAnswer call writes a row
+kb_synonym_dict     -- deterministic query synonym expansion
+```
 
-| Параметр | Значення | Де змінити |
-|---|---|---|
-| Embedding model | `voyage-4-large` (docs) / `voyage-4-lite` (queries), 1024d Matryoshka | `embedder.ts` |
-| AI model | `claude-haiku-4-5-20251001` | `search.ts` |
-| Chunk size | 450 tokens (~180 укр. слів, 1125 chars) | `chunker.ts` MAX_TOKENS + CHARS_PER_TOKEN=2.5 |
-| Chunk overlap | 50 tokens | `chunker.ts` OVERLAP_TOKENS |
-| Min chunk | 30 tokens | `chunker.ts` MIN_CHUNK_TOKENS |
-| Vector threshold | 0.30 (multi-query), 0.20 (fallback) | `search.ts` |
-| Quality gate | 0.30 (нижче → без синтезу) | `search.ts` |
-| Multi-query count | 2-3 підзапити (GPT-4o-mini) | `query-translator.ts` |
-| HNSW m | 16, ef_construction=64 | міграція БД |
-| `hnsw.ef_search` | 100 (SET LOCAL в RPC) | `match_kb_documents` |
-| Embedding format | `[${arr.join(',')}]` string | `search.ts` — Supabase RPC вимагає рядок |
-| AI text limit (validator) | 12 000 символів | `validator.ts` AI_TEXT_LIMIT |
+### Indexes
 
----
+```
+idx_kb_chunks_hnsw  ON kb_chunks USING hnsw (embedding vector_cosine_ops) m=16 ef=64
+idx_kb_chunks_fts   ON kb_chunks USING gin(to_tsvector('uk', content))
+```
 
-## Важливі деталі
+`hnsw.ef_search = 100` is set inside `match_kb_documents` RPC via `SET LOCAL`.
 
-**SECURITY DEFINER на RPC** — обов'язково. Без нього `authenticated` роль в plpgsql
-виконується під звичайним RLS і не бачить жодного рядка навіть при service_role клієнті.
+### Critical RPC
 
-**Embedding format** — в RPC передавати як рядок `[0.1,0.2,...]`, не як JS array.
+```
+match_kb_documents(query_embedding text, query_text text DEFAULT '',
+                   match_count int DEFAULT 10, match_threshold float DEFAULT 0.2,
+                   filter_category_slug text DEFAULT NULL,
+                   filter_process_id uuid DEFAULT NULL)
+```
 
-**Contextual prefix не зберігається** — в `kb_chunks.content` чистий текст чанку.
-Контекстний префікс (категорія → документ → розділ) будується лише для embedding.
+Must be `SECURITY DEFINER` — otherwise the `authenticated` role hits RLS in plpgsql
+context and returns zero rows even via service-role client.
 
-**Heading у DB** — `#` / `##` / `###` префікси прибираються перед збереженням
-(`buildContextualContent` робить `heading.replace(/^#+\s*/, '')`).
-
-**Конкурентний доступ до памʼяті** — `search.ts` зберігає conversation memory в
-in-memory Map (одинарний процес). При рестарті pm2 — history скидається.
-
-**Category filter** — якщо бот передає `category: 'ib'`, всі підзапити multi-query
-фільтруються по категорії. Fallback (threshold 0.20) також з фільтром.
+> `query_embedding` parameter is **a string** like `'[0.1,0.2,...]'`, NOT a JSON array.
+> See `search.ts:120` for the exact format.
 
 ---
 
-## Tech Debt
+## Known unwired feature: HyDE retrieval lane
 
-| Пункт | Статус | Опис |
-|---|---|---|
-| Voyage embeddings | ✅ 2026-03-04 | `voyage-4-large`/`voyage-4-lite` (1024d Matryoshka), asymmetric search |
-| Chunk tokenization | ✅ 2026-03-02 | `CHARS_PER_TOKEN=2.5`, `MAX_CHARS=1125` для кирилиці |
-| `hnsw.ef_search` | ✅ 2026-03-02 | `SET LOCAL hnsw.ef_search = 100` в `match_kb_documents` RPC |
-| Conversation memory | ⏳ При потребі | In-memory Map — зламається при PM2 cluster |
-| **Реіндексація** | ⚠️ Потрібна | 12 документів в KB треба перезавантажити через UI (старі чанки видалено) |
+The `kb_chunks.question_embedding` and `hypothetical_questions` columns are **populated**
+during indexing (`hyde-generator.ts`), but **not used** as a parallel retrieval lane in
+`search.ts` as of 2026-04-08. They could be added as a third RRF input alongside vector
+and BM25 — see `docs/KB_GAP_ANALYSIS.md` for the proposal.
+
+---
+
+## Eval framework
+
+Quality is measured by `scripts/kb-eval.ts` against `src/lib/kb/eval/test-cases.json`.
+See `docs/KB_EVAL_FRAMEWORK.md` for the full protocol.
+
+Key principles:
+
+1. **Eval calls real prod `searchAndAnswer({ _debug: true })`** — never re-implements pipeline
+2. **Gold chunks defined as patterns**, not UUIDs — survives reindex
+3. **Stage attribution** — debug returns `{ raw, subjectFiltered, rerank, diverse, final }` so we can see exactly where gold is lost
+4. **Pre-flight validation** — eval refuses to run if any gold pattern resolves to 0 or >1 chunks
