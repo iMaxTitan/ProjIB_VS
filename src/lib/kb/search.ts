@@ -12,7 +12,7 @@
  * 7. AI synthesis (single LLM call)
  */
 
-import type { SupabaseClient } from '@/lib/shared/postgrest-client';
+import type { PostgrestClient } from '@/lib/shared/postgrest-client';
 import { embedBatchQueries } from './embedder';
 import { rerankChunks } from './reranker';
 import { getServerDb } from '@/lib/shared/db-server';
@@ -43,10 +43,12 @@ export interface KBSearchOptions {
   userId: string;
   role: string;
   source?: string;
-  db: SupabaseClient;
+  db: PostgrestClient;
   category?: string;
   history?: ConversationTurn[];
   anonymousName?: string;
+  /** When true, attaches stage-by-stage chunk_id arrays to result._debug for eval/diagnostics. */
+  _debug?: boolean;
 }
 
 export interface KBChunkPreview {
@@ -55,10 +57,23 @@ export interface KBChunkPreview {
   content: string;
 }
 
+/** Stage-by-stage chunk_id arrays — populated only when options._debug = true. */
+export interface KBSearchDebug {
+  raw: string[];          // after vector + BM25 retrieval (+ fallback merge, + locator inject)
+  subjectFiltered: string[]; // after applyScopeBoost (pre-rerank)
+  rerank: string[];       // after Voyage rerank + boosts + KEEP_K trim
+  diverse: string[];      // after diversifyByDocument
+  final: string[];        // after expand neighbors + cross-ref + final scope boost
+  rawTopScore: number | null;
+  rerankTopScore: number | null;
+  retried: boolean;
+}
+
 export interface KBSearchResult {
   text: string;
   parseMode: 'HTML';
   chunks?: KBChunkPreview[];
+  _debug?: KBSearchDebug;
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
@@ -95,7 +110,7 @@ const NO_RESULTS_TEXT = 'В базі знань не знайдено інфор
 async function runMultiSearch(
   subQueries: string[],
   embeddings: number[][],
-  db: SupabaseClient,
+  db: PostgrestClient,
   categorySlug: string | null,
 ): Promise<{ chunks: KBChunk[]; attempt: string | null }> {
   const searchPromises = subQueries.map((qText, i) =>
@@ -141,11 +156,28 @@ async function runMultiSearch(
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export async function searchAndAnswer(query: string, options: KBSearchOptions): Promise<KBSearchResult> {
-  const { userId, role, source, db, category: categoryHint, history, anonymousName } = options;
+  const { userId, role, source, db, category: categoryHint, history, anonymousName, _debug } = options;
+  const debug: KBSearchDebug | null = _debug
+    ? { raw: [], subjectFiltered: [], rerank: [], diverse: [], final: [], rawTopScore: null, rerankTopScore: null, retried: false }
+    : null;
+  // Build a result that always includes _debug when requested, even on early refusal returns.
+  const earlyReturn = (text: string): KBSearchResult => ({
+    text, parseMode: 'HTML',
+    ...(debug && { _debug: debug }),
+  });
+
+  // 0.0. Scope prefix: "по статуту" / "за статутом" / "у статуті" / "в статуті" → filter to Статут docs
+  let docTitleFilter: string | null = null;
+  const scopeMatch = query.match(/^\s*(по\s+статут[ау]|за\s+статут(?:ом|у)|[ву]\s+статут[іi])[\s,:—-]+/i);
+  if (scopeMatch) {
+    docTitleFilter = 'статут';
+    query = query.slice(scopeMatch[0].length).trim();
+    logger.prod('[kb/search] scope prefix "статут" detected, filtering by document title');
+  }
 
   // 0. Meta-query: list available documents
   const metaAnswer = await handleMetaQuery(query, db);
-  if (metaAnswer) return metaAnswer;
+  if (metaAnswer) return debug ? { ...metaAnswer, _debug: debug } : metaAnswer;
 
   // 0.1. Legal locator: exact article/section lookup
   const locatorChunks = await legalLocator(query, db);
@@ -156,7 +188,7 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
   logger.prod('[kb/search] multi-query:', JSON.stringify(subQueries), 'domain:', domain);
 
   if (domain === 'ambiguous' || (mqResult.specificity === 'low' && mqResult.clarification)) {
-    return { text: mqResult.clarification || 'Уточніть, будь ласка, що саме ви маєте на увазі?', parseMode: 'HTML' };
+    return earlyReturn(mqResult.clarification || 'Уточніть, будь ласка, що саме ви маєте на увазі?');
   }
 
   // 1.5. Enrich queries with deterministic synonyms from kb_synonym_dict
@@ -178,16 +210,19 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error('[kb/search] embed error:', msg);
-    return { text: `Помилка пошуку: ${msg}`, parseMode: 'HTML' };
+    return earlyReturn(`Помилка пошуку: ${msg}`);
   }
 
   // 3. Retrieval — domain as hard filter
-  const categorySlug = categoryHint
+  // When scope prefix detected, drop category filter so target document isn't excluded by domain.
+  const categorySlug = docTitleFilter
+    ? null
+    : categoryHint
     ? fuzzyMatchSlug(categoryHint, await loadCategories(db))
     : (domain !== 'general' ? (domain as string) : null);
 
   const searchResult = await runMultiSearch(subQueries, embeddings, db, categorySlug);
-  const mergedChunks = searchResult.chunks;
+  let mergedChunks = searchResult.chunks;
   let successAttempt = searchResult.attempt;
 
   // If domain filter returned nothing or top score is weak, also search all categories
@@ -208,8 +243,16 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
     }
   }
 
+  // 3.0a. Apply doc-title scope filter AFTER all retrieval+fallback merges
+  if (docTitleFilter) {
+    const needle = docTitleFilter.toLowerCase();
+    const before = mergedChunks.length;
+    mergedChunks = mergedChunks.filter(c => (c.document_title || '').toLowerCase().includes(needle));
+    logger.prod('[kb/search] doc-title filter:', before, '→', mergedChunks.length, `(needle: ${needle})`);
+  }
+
   // 3.1. Inject legal locator results into candidates (top priority)
-  if (locatorChunks.length > 0) {
+  if (locatorChunks.length > 0 && !docTitleFilter) {
     for (const lc of locatorChunks) {
       if (!mergedChunks.some(c => c.chunk_id === lc.chunk_id)) {
         mergedChunks.unshift(lc);
@@ -230,13 +273,18 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
       top_score: null, chunks_found: 0, search_attempt: null,
       ai_refused: false, synthesis_cost: 0, anonymous_name: anonymousName || null,
     });
-    return { text: NO_RESULTS_TEXT, parseMode: 'HTML' };
+    return earlyReturn(NO_RESULTS_TEXT);
   }
 
   const topScore = mergedChunks[0]?.similarity ?? 0;
+  if (debug) {
+    debug.raw = mergedChunks.map(c => c.chunk_id);
+    debug.rawTopScore = topScore;
+  }
 
   // 4. Scope soft-boost BEFORE rerank — penalize off-scope, don't drop
   const subjectFiltered = applyScopeBoost(query, mergedChunks);
+  if (debug) debug.subjectFiltered = subjectFiltered.map(c => c.chunk_id);
 
   // 4.1. Rerank (fetch more, keep fewer after boost)
   const detectedDomain = domain !== 'general' ? (domain as string) : dominantCategorySlug(subjectFiltered) || undefined;
@@ -263,6 +311,10 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
   reranked.splice(RERANK_KEEP_K);
 
   const rerankTopScore = (reranked[0] as KBChunk & { _rerank_score?: number })?._rerank_score ?? null;
+  if (debug) {
+    debug.rerank = reranked.map(c => c.chunk_id);
+    debug.rerankTopScore = rerankTopScore;
+  }
 
   // 5. Single quality gate — after rerank
   const RETRY_THRESHOLD = 0.20;
@@ -281,6 +333,11 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
           reranked.push(...retryReranked);
           reranked.sort((a, b) => ((b as KBChunk & { _rerank_score?: number })._rerank_score ?? 0) - ((a as KBChunk & { _rerank_score?: number })._rerank_score ?? 0));
           reranked.splice(RERANK_KEEP_K);
+          if (debug) {
+            debug.retried = true;
+            debug.rerank = reranked.map(c => c.chunk_id);
+            debug.rerankTopScore = (reranked[0] as KBChunk & { _rerank_score?: number })?._rerank_score ?? null;
+          }
           // Skip refuse, fall through to diversity
         } else {
           // Retry also failed — refuse
@@ -293,7 +350,7 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
             ai_refused: true, synthesis_cost: 0, rerank_top_score: rerankTopScore,
             anonymous_name: anonymousName || null,
           });
-          return { text: NO_RESULTS_TEXT, parseMode: 'HTML' };
+          return earlyReturn(NO_RESULTS_TEXT);
         }
       }
     } else {
@@ -306,12 +363,13 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
         ai_refused: true, synthesis_cost: 0, rerank_top_score: rerankTopScore,
         anonymous_name: anonymousName || null,
       });
-      return { text: NO_RESULTS_TEXT, parseMode: 'HTML' };
+      return earlyReturn(NO_RESULTS_TEXT);
     }
   }
 
   // 6. Diversity + logging
   const diversified = diversifyByDocument(reranked, POST_RERANK_MAX_PER_DOC);
+  if (debug) debug.diverse = diversified.map((c: KBChunk) => c.chunk_id);
   logger.prod('[kb/search] pipeline:', mergedChunks.length, '→ subject', subjectFiltered.length,
     '→ rerank', reranked.length, '→ diverse', diversified.length);
 
@@ -320,6 +378,7 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
 
   // 6.1. Re-apply scope boost after expansion (expansion can re-introduce narrow-scope docs)
   const finalChunks = applyScopeBoost(query, crossExpanded);
+  if (debug) debug.final = finalChunks.map((c: KBChunk) => c.chunk_id);
 
   // 7. AI synthesis
   const synthesis = await synthesizeAnswer(primaryQuery, finalChunks, history);
@@ -351,12 +410,13 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
     text: synthesis.text + costFooter,
     parseMode: 'HTML',
     ...(chunkPreviews.length > 0 && { chunks: chunkPreviews }),
+    ...(debug && { _debug: debug }),
   };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function loadCategories(db: SupabaseClient): Promise<Array<{ slug: string; name: string }>> {
+async function loadCategories(db: PostgrestClient): Promise<Array<{ slug: string; name: string }>> {
   const { data } = await db.from('kb_categories').select('slug, name').eq('is_active', true);
   return (data ?? []) as Array<{ slug: string; name: string }>;
 }

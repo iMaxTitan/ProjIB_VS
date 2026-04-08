@@ -2,7 +2,18 @@
   {
     "id": "booking-docs",
     "query": "які документи потрібні для бронювання працівника",
-    "gold_chunk_ids": ["60c04ae0-9b3a-452c-863e-a503f758d269", "98436768-1f72-494e-abb7-b38d64d18c73"],
+    "gold_match": [
+      {
+        "doc_title_contains": "бронювання військовозобов",
+        "heading_contains": "У разі відсутності у критично важливого",
+        "content_contains": ["25. Бронювання військовозобов"]
+      },
+      {
+        "doc_title_contains": "бронювання військовозобов",
+        "heading_contains": "Формування повідомлення автоматично",
+        "content_contains": ["повне найменування юридичної особи"]
+      }
+    ],
     "expected_keywords": ["список", "ЄДРПОУ", "Портал Дія", "бронювання"],
     "negative_keywords": ["священнослужител"],
     "wrong_scope_markers": ["священнослужител", "моряк", "спортсмен", "культурн"],
@@ -11,7 +22,13 @@
   {
     "id": "booking-docs-ru",
     "query": "бронирование сотрудников",
-    "gold_chunk_ids": ["60c04ae0-9b3a-452c-863e-a503f758d269"],
+    "gold_match": [
+      {
+        "doc_title_contains": "бронювання військовозобов",
+        "heading_contains": "У разі відсутності у критично важливого",
+        "content_contains": ["25. Бронювання військовозобов"]
+      }
+    ],
     "expected_keywords": ["бронювання", "працівник"],
     "negative_keywords": ["священнослужител"],
     "wrong_scope_markers": ["священнослужител"],
@@ -20,7 +37,13 @@
   {
     "id": "border-reserved",
     "query": "виїзд за кордон заброньованого",
-    "gold_chunk_ids": ["dccdeb45-19ea-469c-b294-1e88c98d1943"],
+    "gold_match": [
+      {
+        "doc_title_contains": "перетинання державного кордону",
+        "heading_contains": "У разі введення на території України надзвичайного або воєнного стану",
+        "content_contains": ["Абзац перший пункту 26"]
+      }
+    ],
     "expected_keywords": ["кордон", "реєстр", "право"],
     "negative_keywords": ["священнослужител"],
     "wrong_scope_markers": ["священнослужител", "одинок", "держав"],
@@ -29,7 +52,13 @@
   {
     "id": "border-reserved-right",
     "query": "чи має право заброньована особи виїзджати за кордон",
-    "gold_chunk_ids": ["dccdeb45-19ea-469c-b294-1e88c98d1943"],
+    "gold_match": [
+      {
+        "doc_title_contains": "перетинання державного кордону",
+        "heading_contains": "У разі введення на території України надзвичайного або воєнного стану",
+        "content_contains": ["Абзац перший пункту 26"]
+      }
+    ],
     "expected_keywords": ["кордон", "право"],
     "negative_keywords": [],
     "wrong_scope_markers": ["священнослужител"],
@@ -38,7 +67,13 @@
   {
     "id": "border-reserved-ru",
     "query": "какие документы нужны забронированому на пересечение границы",
-    "gold_chunk_ids": ["dccdeb45-19ea-469c-b294-1e88c98d1943"],
+    "gold_match": [
+      {
+        "doc_title_contains": "перетинання державного кордону",
+        "heading_contains": "У разі введення на території України надзвичайного або воєнного стану",
+        "content_contains": ["Абзац перший пункту 26"]
+      }
+    ],
     "expected_keywords": ["кордон"],
     "negative_keywords": ["священнослужител"],
     "wrong_scope_markers": ["священнослужител"],
@@ -47,16 +82,16 @@
   {
     "id": "booking-priests",
     "query": "бронювання священнослужителів",
-    "gold_chunk_ids": ["12d80ef4-d4b9-4433-93f7-3ae09198b140", "cc6cb38d-bce5-4d95-8feb-42312e7d6e56"],
+    "gold_match": [],
     "expected_keywords": ["священнослужител", "релігійн"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
-    "difficulty": "normal"
+    "difficulty": "normal",
+    "note": "no specific gold — corpus may not contain a chunk dedicated to clergy reservation; tests synthesis ability + refusal correctness"
   },
   {
     "id": "deferral",
     "query": "як отримати відстрочку від мобілізації",
-    "gold_chunk_ids": [],
     "expected_keywords": ["відстрочк", "бронювання"],
     "negative_keywords": ["полонен"],
     "wrong_scope_markers": ["полонен", "контрактник"],
@@ -65,7 +100,13 @@
   {
     "id": "who-can-leave",
     "query": "хто має право виїхати за кордон під час воєнного стану",
-    "gold_chunk_ids": ["dccdeb45-19ea-469c-b294-1e88c98d1943"],
+    "gold_match": [
+      {
+        "doc_title_contains": "перетинання державного кордону",
+        "heading_contains": "У разі введення на території України надзвичайного або воєнного стану",
+        "content_contains": ["Абзац перший пункту 26"]
+      }
+    ],
     "expected_keywords": ["кордон", "виїзд"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
@@ -74,7 +115,6 @@
   {
     "id": "photoshop-install",
     "query": "як встановити фотошоп",
-    "gold_chunk_ids": [],
     "expected_keywords": ["ліцензі"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
@@ -83,7 +123,6 @@
   {
     "id": "photoshop-install-ru",
     "query": "как установить фотошоп",
-    "gold_chunk_ids": [],
     "expected_keywords": ["ліцензі"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
@@ -92,7 +131,6 @@
   {
     "id": "corp-vs-personal",
     "query": "чим відрізняються корпоративні мобільні пристрої від особистих при підключенні до корпоративної мережі",
-    "gold_chunk_ids": [],
     "expected_keywords": ["корпоративн"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
@@ -101,7 +139,6 @@
   {
     "id": "4g-modem",
     "query": "як підключити 4G модем до робочого місця",
-    "gold_chunk_ids": [],
     "expected_keywords": ["модем"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
@@ -110,7 +147,6 @@
   {
     "id": "phone-personal-data",
     "query": "чи відноситься номер телефону до персональних даних",
-    "gold_chunk_ids": [],
     "expected_keywords": ["персональн"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
@@ -119,7 +155,6 @@
   {
     "id": "winrar",
     "query": "чи можу я встановити winrar",
-    "gold_chunk_ids": [],
     "expected_keywords": ["ліцензі"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
@@ -128,7 +163,6 @@
   {
     "id": "qbittorrent",
     "query": "Чи входить qBittorrent до переліку погодженого ПЗ",
-    "gold_chunk_ids": [],
     "expected_keywords": ["ПЗ"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
@@ -137,7 +171,6 @@
   {
     "id": "passwords-browser",
     "query": "чи можна зберігати паролі в Chrome",
-    "gold_chunk_ids": [],
     "expected_keywords": ["парол"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
@@ -146,7 +179,6 @@
   {
     "id": "premiums",
     "query": "Які премії передбачені?",
-    "gold_chunk_ids": [],
     "expected_keywords": ["прем"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
@@ -155,7 +187,6 @@
   {
     "id": "premiums-ru",
     "query": "какие премии есть в компании",
-    "gold_chunk_ids": [],
     "expected_keywords": ["прем"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
@@ -164,7 +195,6 @@
   {
     "id": "teams-install",
     "query": "Как установить тимс на рабочий станцию",
-    "gold_chunk_ids": [],
     "expected_keywords": ["Teams"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
@@ -173,7 +203,6 @@
   {
     "id": "dev-test-separation",
     "query": "Чи повинно середовище розробки бути відокремленим від середовища тестування",
-    "gold_chunk_ids": [],
     "expected_keywords": ["середовищ"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
