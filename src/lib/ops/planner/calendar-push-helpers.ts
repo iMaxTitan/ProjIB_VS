@@ -25,26 +25,27 @@ export interface CalPushEntry {
   duration_minutes: number;
   subject: string | null;
   monthly_plan_id: string | null;
+  daily_task_id: string | null;
 }
 
 export interface ModifiedPushEntry extends CalPushEntry {
   outlook_event_id: string;
 }
 
-export type EntryWithName = CalPushEntry & { plan_name: string };
-export type ModifiedEntryWithName = ModifiedPushEntry & { plan_name: string };
+export type EntryWithName = CalPushEntry & { task_title: string };
+export type ModifiedEntryWithName = ModifiedPushEntry & { task_title: string };
 
 // ─── Build Outlook event ─────────────────────────────────────────────────────
 
 export function buildOutlookEvent(
   entry: CalPushEntry,
-  procedureName: string,
+  taskTitle: string,
 ): Record<string, unknown> {
   const startHM = entry.start_time.slice(0, 5);
   const endHM = computeEndTime(entry.start_time, entry.duration_minutes);
 
   return {
-    subject: procedureName,
+    subject: taskTitle,
     start: { dateTime: `${entry.date}T${startHM}:00`, timeZone: TIMEZONE },
     end: { dateTime: `${entry.date}T${endHM}:00`, timeZone: TIMEZONE },
     showAs: 'busy',
@@ -92,15 +93,15 @@ export async function ensureMasterCategory(token: string, userOid: string): Prom
   }
 }
 
-// ─── Resolve plan names via view ──────────────────────────────────────────────
+// ─── Resolve task titles ─────────────────────────────────────────────────────
 
-async function fetchPlanNames(db: PostgrestClient, planIds: string[]): Promise<Map<string, string>> {
-  if (planIds.length === 0) return new Map();
+async function fetchTaskTitles(db: PostgrestClient, taskIds: string[]): Promise<Map<string, string>> {
+  if (taskIds.length === 0) return new Map();
   const { data } = await db
-    .from('v_monthly_plan_details')
-    .select('monthly_plan_id, plan_name')
-    .in('monthly_plan_id', planIds);
-  return new Map((data || []).map(p => [p.monthly_plan_id, p.plan_name ?? '']));
+    .from('daily_tasks')
+    .select('daily_task_id, title')
+    .in('daily_task_id', taskIds);
+  return new Map((data || []).map(t => [t.daily_task_id, t.title ?? '']));
 }
 
 // ─── Fetch entries needing initial push (no outlook_event_id) ───────────────
@@ -112,9 +113,10 @@ export async function fetchUnpushedEntries(
 ): Promise<EntryWithName[]> {
   const { data, error } = await db
     .from('weekly_calendar_entries')
-    .select('id, date, start_time, duration_minutes, subject, monthly_plan_id')
+    .select('id, date, start_time, duration_minutes, subject, monthly_plan_id, daily_task_id')
     .eq('employee_id', employeeId)
     .eq('source', 'plan')
+    .not('daily_task_id', 'is', null)
     .is('outlook_event_id', null)
     .in('date', dates);
 
@@ -123,8 +125,8 @@ export async function fetchUnpushedEntries(
     return [];
   }
 
-  const planIds = [...new Set((data || []).map(r => r.monthly_plan_id).filter(Boolean))] as string[];
-  const nameMap = await fetchPlanNames(db, planIds);
+  const taskIds = [...new Set((data || []).map(r => r.daily_task_id).filter(Boolean))] as string[];
+  const titleMap = await fetchTaskTitles(db, taskIds);
 
   return (data || []).map((row) => ({
     id: row.id,
@@ -133,7 +135,8 @@ export async function fetchUnpushedEntries(
     duration_minutes: row.duration_minutes,
     subject: row.subject,
     monthly_plan_id: row.monthly_plan_id,
-    plan_name: nameMap.get(row.monthly_plan_id ?? '') ?? row.subject ?? 'Подія',
+    daily_task_id: row.daily_task_id,
+    task_title: titleMap.get(row.daily_task_id ?? '') ?? row.subject ?? 'Подія',
   }));
 }
 
@@ -146,9 +149,10 @@ export async function fetchModifiedEntries(
 ): Promise<ModifiedEntryWithName[]> {
   const { data, error } = await db
     .from('weekly_calendar_entries')
-    .select('id, date, start_time, duration_minutes, subject, monthly_plan_id, outlook_event_id')
+    .select('id, date, start_time, duration_minutes, subject, monthly_plan_id, daily_task_id, outlook_event_id')
     .eq('employee_id', employeeId)
     .eq('source', 'plan')
+    .not('daily_task_id', 'is', null)
     .eq('needs_push', true)
     .not('outlook_event_id', 'is', null)
     .in('date', dates);
@@ -158,8 +162,8 @@ export async function fetchModifiedEntries(
     return [];
   }
 
-  const planIds = [...new Set((data || []).map(r => r.monthly_plan_id).filter(Boolean))] as string[];
-  const nameMap = await fetchPlanNames(db, planIds);
+  const taskIds = [...new Set((data || []).map(r => r.daily_task_id).filter(Boolean))] as string[];
+  const titleMap = await fetchTaskTitles(db, taskIds);
 
   return (data || []).map((row) => ({
     id: row.id,
@@ -168,7 +172,8 @@ export async function fetchModifiedEntries(
     duration_minutes: row.duration_minutes,
     subject: row.subject,
     monthly_plan_id: row.monthly_plan_id,
+    daily_task_id: row.daily_task_id,
     outlook_event_id: row.outlook_event_id as string,
-    plan_name: nameMap.get(row.monthly_plan_id ?? '') ?? row.subject ?? 'Подія',
+    task_title: titleMap.get(row.daily_task_id ?? '') ?? row.subject ?? 'Подія',
   }));
 }

@@ -114,5 +114,5 @@ app/api/bot/notification-channel/route.ts
 ```
 lib/shared/logger.ts               ← structured logging
 app/api/debug/                     ← debug endpoints
-NAS: pm2 logs cs-platform --lines 50 --nostream
+App VPS: ssh -i ~/.ssh/id_nas root@91.99.156.163 'pm2 logs cs-platform --lines 50 --nostream'
 ```

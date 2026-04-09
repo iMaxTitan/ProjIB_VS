@@ -47,6 +47,8 @@ interface TaskPickerDropdownProps {
   monthlyPlanId?: string;
   /** For external entries — show plan list first */
   procedures?: PlanOption[];
+  /** When true, selecting a plan immediately fires procedure-only (no task step) */
+  planOnly?: boolean;
   entryDate: string;
   durationMinutes: number;
   anchorRect: DOMRect | null;
@@ -77,6 +79,7 @@ const SECTION_CONFIG = {
 const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
   monthlyPlanId: initialMonthlyPlanId,
   procedures,
+  planOnly,
   entryDate,
   durationMinutes,
   anchorRect,
@@ -247,7 +250,10 @@ const TaskPickerDropdown: React.FC<TaskPickerDropdownProps> = ({
             <button
               key={p.monthlyPlanId}
               type="button"
-              onClick={() => setSelectedPlan(p)}
+              onClick={() => {
+                if (planOnly) { onSelect({ type: 'procedure-only', monthlyPlanId: p.monthlyPlanId }); return; }
+                setSelectedPlan(p);
+              }}
               className={cn(
                 'w-full text-left px-3 py-2 text-xs transition-all duration-150',
                 'cursor-pointer rounded-lg mx-1 my-0.5 hover:bg-sky-50/60',

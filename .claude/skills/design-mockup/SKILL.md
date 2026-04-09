@@ -85,7 +85,7 @@ When changing a value (e.g., zone opacity) — change the token in `:root`, not 
    Format: `['selector', 'Ln: description', 'category']`
    Categories: `zone`, `base`, `extend`, `action`, `detail`, `nav`
 6. **Update documentation** — `.claude/rules/ui-design.md` section 14
-7. **Deploy mockup to NAS** — `scp -O -i ~/.ssh/id_nas "public/demo-design3.html" maxv@192.168.88.3:/volume1/docker/reportib/public/demo-design3.html`
+7. **Deploy mockup to dev** — `scp -i ~/.ssh/id_nas "public/demo-design3.html" root@46.225.234.164:/opt/cs-dev/public/demo-design3.html`
 8. **Verify** — preview_start → check visually → check element labels (toggle button)
 
 ## CSS Bridge — demo-design3.html ↔ globals.css
@@ -103,7 +103,7 @@ Components NEVER use inline `style={{}}` for design-system properties — only C
 2. Change token values in `:root` if depth/color change affects multiple elements
 3. If only one element changes — modify its CSS class directly
 4. Test with preview — visual must not break
-5. Deploy to NAS
+5. Deploy to dev VPS
 
 ## Zone Layout Rules
 

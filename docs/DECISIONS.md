@@ -254,7 +254,7 @@
 
 **Rationale:** Нет новых npm зависимостей, не трогает Next.js server process, прозрачно виден в `pm2 list`. Скрипт завершается после выполнения (stateless). HTTP вызов изолирует сбой cron от основного сервера.
 
-**Consequences:** На NAS работают 2 pm2 процесса: `reportib` и `digest-cron`. При деплое `digest-cron` не затрагивается. Middleware: `/api/digest/weekly` в `publicPaths`, авторизация — заголовок `x-cron-secret`.
+**Consequences:** На App VPS работают pm2 процессы: `cs-platform` и `digest-cron`. При деплое `digest-cron` не затрагивается. Middleware: `/api/digest/weekly` в `publicPaths`, авторизация — заголовок `x-cron-secret`.
 
 ---
 

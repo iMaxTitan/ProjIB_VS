@@ -150,7 +150,8 @@ export default function PlannerSidebar({ activePlans, entries, suggestions, sele
         if (e.task_type === 'completed' || e.task_type === 'pending_approval') prev.assigned += hrs;
         else if (e.daily_task_id && e.task_type === 'incomplete') prev.collectable += hrs;
         else if (!e.daily_task_id) prev.collectable += hrs;
-      } else if (e.source === 'external' && e.daily_task_id && e.task_type === 'incomplete') {
+      } else if (e.source === 'external') {
+        // External linked to plan — always collectable (no task yet)
         prev.collectable += hrs;
       }
       map.set(e.monthly_plan_id, prev);

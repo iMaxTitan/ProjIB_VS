@@ -35,15 +35,17 @@ function timeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
-// ─── Entry status (4 states) ─────────────────────────────────────────────────
+// ─── Entry status ────────────────────────────────────────────────────────────
 
-export type EntryStatusKey = 'external' | 'slot' | 'task' | 'pending' | 'completed';
+export type EntryStatusKey = 'external' | 'linked' | 'linked-collected' | 'slot' | 'task' | 'collected';
 
 export function entryStatus(entry: CalendarEntry): EntryStatusKey {
   if (entry.source === 'external' && !entry.monthly_plan_id) return 'external';
+  if (entry.source === 'external' && entry.monthly_plan_id) {
+    return entry.task_completed ? 'linked-collected' : 'linked';
+  }
   if (!entry.daily_task_id) return 'slot';
-  if (entry.task_type === 'completed') return 'completed';
-  if (entry.task_type === 'pending_approval') return 'pending';
+  if (entry.task_completed) return 'collected';
   return 'task';
 }
 
@@ -77,13 +79,15 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
   const status = entryStatus(entry);
   const isOptimistic = entry.id.startsWith('_optimistic_');
   const canInteract = !isOptimistic && !readOnly;
-  const canDrag = canInteract && status !== 'external';
+  const canDrag = canInteract && status !== 'external' && status !== 'linked' && status !== 'linked-collected';
   const canDropPlan = status === 'external' && !entry.monthly_plan_id && onAssignPlan;
   const [dropOver, setDropOver] = useState(false);
   const canResize = canDrag;
   // Plan entries → delete. External with plan → clear plan. External without plan → no delete.
   const canDelete = canInteract && (entry.source === 'plan' || (entry.source === 'external' && !!entry.monthly_plan_id));
-  const canOpenPicker = canInteract && !entry.daily_task_id && onOpenPicker;
+  // Plan entries without task → full task picker. External without plan → plan picker only.
+  const canOpenPicker = canInteract && entry.source === 'plan' && !entry.daily_task_id && onOpenPicker;
+  const canPickPlan = canInteract && entry.source === 'external' && !entry.monthly_plan_id && onOpenPicker;
 
   const row = timeToRow(entry.start_time);
   const span = durationToRows(entry.duration_minutes);
@@ -160,16 +164,18 @@ export function CalendarBlock({ entry, dimmed, readOnly, onDelete, onResize, onS
       onClick={(e) => {
         if (justResized.current) return;
         if ((e.target as HTMLElement).closest('[data-action]')) return;
-        // Any entry without task → open picker (external shows plan list first)
+        // Plan slot without task → task picker
         if (canOpenPicker) { onOpenPicker!(entry, new DOMRect(e.clientX, e.clientY, 0, 0)); return; }
-        // External with task → open meeting details
-        if (entry.source === 'external' && onSelectEntry) { onSelectEntry(entry); return; }
+        // External without plan → plan picker
+        if (canPickPlan) { onOpenPicker!(entry, new DOMRect(e.clientX, e.clientY, 0, 0)); return; }
+        // Only meetings with transcript open details panel
+        if (entry.source === 'external' && entry.has_transcript && onSelectEntry) { onSelectEntry(entry); return; }
       }}
       title={[title, subtitle, `${entry.start_time.slice(0, 5)} · ${entry.duration_minutes} хв`].filter(Boolean).join('\n')}
       className={cn(
         `data-cell cal-block st-${status}`,
         canDrag && 'cursor-grab active:cursor-grabbing',
-        !canDrag && status === 'external' && onSelectEntry && 'cursor-pointer',
+        !canDrag && (status === 'external' || status === 'linked' || status === 'linked-collected') && 'cursor-pointer',
         !canDrag && 'cursor-default',
         isOptimistic && 'opacity-60',
         dimmed && 'dimmed',

@@ -268,9 +268,9 @@ export default function PlannerContent() {
       e.task_template_id && !e.daily_task_id &&
       e.monthly_plan_id === monthlyPlanId
     );
-    // External entries with plan + transcript (no task yet)
+    // External entries linked to plan (no task yet)
     const collectableExternal = entries.filter((e) =>
-      e.source === 'external' && e.has_transcript && !e.daily_task_id &&
+      e.source === 'external' && !e.daily_task_id &&
       e.monthly_plan_id === monthlyPlanId &&
       !e.task_template_id
     );
@@ -538,9 +538,9 @@ export default function PlannerContent() {
                 suggestPending={suggestMutation.isPending}
                 lunchStart={lunchStart} lunchPending={updateLunch.isPending}
                 pushPending={pushCalendar.isPending} pullPending={pullCalendar.isPending && manualPull.current}
-                hasUnsynced={entries.some(e => e.source === 'plan' && !e.outlook_event_id)}
-                hasNeedsPush={entries.some(e => e.source === 'plan' && e.needs_push)}
-                unsyncedCount={entries.filter(e => e.source === 'plan' && (!e.outlook_event_id || e.needs_push)).length}
+                hasUnsynced={entries.some(e => e.source === 'plan' && e.daily_task_id && !e.outlook_event_id)}
+                hasNeedsPush={entries.some(e => e.source === 'plan' && e.daily_task_id && e.needs_push)}
+                unsyncedCount={entries.filter(e => e.source === 'plan' && e.daily_task_id && (!e.outlook_event_id || e.needs_push)).length}
                 hasOutlookModified={entries.some(e => e.outlook_modified)}
                 onPushSync={() => pushCalendar.mutate(weekStartStr)}
                 onPullSync={() => {
@@ -628,9 +628,9 @@ export default function PlannerContent() {
               suggestPending={suggestMutation.isPending}
               lunchStart={lunchStart} lunchPending={updateLunch.isPending}
               pushPending={pushCalendar.isPending} pullPending={pullCalendar.isPending && manualPull.current}
-              hasUnsynced={entries.some(e => e.source === 'plan' && !e.outlook_event_id)}
-              hasNeedsPush={entries.some(e => e.source === 'plan' && e.needs_push)}
-              unsyncedCount={entries.filter(e => e.source === 'plan' && (!e.outlook_event_id || e.needs_push)).length}
+              hasUnsynced={entries.some(e => e.source === 'plan' && e.daily_task_id && !e.outlook_event_id)}
+              hasNeedsPush={entries.some(e => e.source === 'plan' && e.daily_task_id && e.needs_push)}
+              unsyncedCount={entries.filter(e => e.source === 'plan' && e.daily_task_id && (!e.outlook_event_id || e.needs_push)).length}
               hasOutlookModified={entries.some(e => e.outlook_modified)}
               onPushSync={() => pushCalendar.mutate(weekStartStr)}
               onPullSync={() => {

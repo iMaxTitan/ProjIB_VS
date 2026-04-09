@@ -325,59 +325,43 @@ Bench показывает сколько нормо-часов дают сот�
 - Линт: `npm run lint`
 - E2E: `npm run test:e2e`
 
-## Деплой на Synology NAS
+## Деплой
 
-**NAS:** Synology DS920+ (`192.168.88.3`), Node.js v20, pm2 6.0
-
-### Деплой одной командой (с PC)
+### Прод — App VPS
 
 ```bash
 bash deploy.sh
 ```
 
-Скрипт выполняет: `npm run build` на PC → `tar | ssh` на NAS → `pm2 restart`
+Скрипт выполняет: `npm run build` на PC → `tar | ssh` на App VPS → `pm2 restart cs-platform`
 
-### Управление сервером на NAS
+**App VPS:** Hetzner CAX11, `91.99.156.163`, `/opt/cs-platform/`, pm2 `cs-platform`, порт 443.
 
 ```bash
-# SSH доступ (ключ ed25519, без пароля)
-ssh -i ~/.ssh/id_nas maxv@192.168.88.3
+# SSH доступ
+ssh -i ~/.ssh/id_nas root@91.99.156.163
 
-# Логи (последние 50 строк)
-ssh -i ~/.ssh/id_nas maxv@192.168.88.3 'PATH=/usr/local/bin:$PATH pm2 logs cs-platform --lines 50 --nostream'
-
-# Логи (в реальном времени, Ctrl+C для выхода)
-ssh -i ~/.ssh/id_nas maxv@192.168.88.3 'PATH=/usr/local/bin:$PATH pm2 logs cs-platform'
-
-# Статус
-ssh -i ~/.ssh/id_nas maxv@192.168.88.3 'PATH=/usr/local/bin:$PATH pm2 status'
+# Логи
+ssh -i ~/.ssh/id_nas root@91.99.156.163 'pm2 logs cs-platform --lines 50 --nostream'
 
 # Рестарт
-ssh -i ~/.ssh/id_nas maxv@192.168.88.3 'PATH=/usr/local/bin:$PATH pm2 restart cs-platform'
-
-# Стоп
-ssh -i ~/.ssh/id_nas maxv@192.168.88.3 'PATH=/usr/local/bin:$PATH pm2 stop cs-platform'
-
-# Мониторинг CPU/RAM
-ssh -i ~/.ssh/id_nas maxv@192.168.88.3 'PATH=/usr/local/bin:$PATH pm2 monit'
+ssh -i ~/.ssh/id_nas root@91.99.156.163 'pm2 restart cs-platform'
 ```
 
-### Структура на NAS
+### Дев — DB VPS
 
-| Путь | Описание |
-|------|----------|
-| `/volume1/docker/reportib/` | Рабочая директория |
-| `.env.local` | Секреты (скопированы вручную, НЕ в git) |
-| `certificates/` | TLS сертификаты (скопированы вручную, НЕ в git) |
-| `node_modules/` | Production зависимости (`npm ci --omit=dev`) |
-| `.next/` | Сборка (синхронизируется при деплое) |
+Дев = `next dev` с hot reload. Билдить НЕ НУЖНО — только синк исходников.
 
-### Примечания
+**DB VPS:** Hetzner, `46.225.234.164`, `/opt/cs-dev/`, pm2 `cs-dev`, порт 8080.
+**URL:** `https://maxtitan.me:8080/` (через dev-proxy на App VPS).
 
-- `/usr/local/bin` НЕ в PATH для SSH — всегда добавлять `PATH=/usr/local/bin:$PATH`
-- `scp` без флага `-O` не работает (нет SFTP) — использовать `scp -O` или `tar | ssh`
-- Автозапуск при перезагрузке NAS: pm2 + systemd (`pm2-maxv.service`)
-- При изменении `package.json` — на NAS выполнить: `cd /volume1/docker/reportib && npm ci --omit=dev`
+```bash
+# Синк файла
+scp -i ~/.ssh/id_nas src/path/file.ts root@46.225.234.164:/opt/cs-dev/src/path/file.ts
+
+# Рестарт (только при изменении server.js/next.config.js/OOM)
+ssh -i ~/.ssh/id_nas root@46.225.234.164 'pm2 restart cs-dev'
+```
 
 ## E2E примечания
 

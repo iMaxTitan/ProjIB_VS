@@ -338,9 +338,9 @@ MonthlyPlanDetails.tsx (handleSave/handleCopyPlan) — fire-and-forget
 До кінця місяця: 9 роб. днів
 ```
 
-**Настройка pm2 на NAS (один раз):**
+**Настройка pm2 на App VPS (один раз):**
 ```bash
-pm2 start /volume1/docker/reportib/scripts/digest-cron.mjs \
+pm2 start /opt/cs-platform/scripts/digest-cron.mjs \
   --name digest-cron --cron "0 9 * * 1" --no-autorestart
 pm2 save
 ```

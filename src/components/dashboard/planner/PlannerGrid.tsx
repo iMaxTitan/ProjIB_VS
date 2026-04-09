@@ -14,11 +14,12 @@ const LUNCH_DURATION_HR = 1;
 const DAY_NAMES = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ'];
 
 const LEGEND_ITEMS: { key: EntryStatusKey; label: string }[] = [
-  { key: 'slot',      label: 'Слот плану' },
-  { key: 'task',      label: 'Планова задача' },
-  { key: 'pending',   label: 'На узгодженні' },
-  { key: 'completed', label: 'Виконано' },
-  { key: 'external',  label: 'Зовнішня подія' },
+  { key: 'slot',              label: 'Слот плану' },
+  { key: 'task',              label: 'Можна зібрати' },
+  { key: 'collected',         label: 'Зібрано' },
+  { key: 'external',          label: 'Зовнішня подія' },
+  { key: 'linked',            label: 'Зовнішня · до збору' },
+  { key: 'linked-collected',  label: 'Зовнішня · зібрано' },
 ];
 
 export interface TemplateDragData {
@@ -290,7 +291,8 @@ export default function PlannerGrid({
                 {dateStr === today && <NowLine />}
                 {(entriesByDate.get(dateStr) || []).map((entry) => {
                   const lay = layoutByDate.get(dateStr)?.get(entry.id);
-                  const isDimmed = !!selectedPlanId && entry.source === 'plan' && entry.monthly_plan_id !== selectedPlanId;
+                  // Dim plan entries and linked externals that belong to a different plan; unlinked externals stay as-is
+                  const isDimmed = !!selectedPlanId && !!entry.monthly_plan_id && entry.monthly_plan_id !== selectedPlanId;
                   return (
                     <CalendarBlock key={entry.id} entry={entry} dimmed={isDimmed}
                       readOnly={entry.task_type === 'completed' || entry.task_type === 'pending_approval'}
@@ -354,9 +356,11 @@ export default function PlannerGrid({
       })()}
 
       {pickerEntry && (() => {
-        const planId = pickerEntry.monthly_plan_id ?? selectedPlanId ?? undefined;
+        // External entries always show plan list; plan entries inherit sidebar selection
+        const planId = pickerEntry.source === 'external'
+          ? (pickerEntry.monthly_plan_id ?? undefined)
+          : (pickerEntry.monthly_plan_id ?? selectedPlanId ?? undefined);
 
-        // No plan linked and no sidebar selection → show plan list
         const planList = !planId ? activePlans.map(p => ({
           monthlyPlanId: p.monthlyPlanId,
           planName: p.planName, processName: p.processName,
@@ -368,6 +372,7 @@ export default function PlannerGrid({
           <TaskPickerDropdown
             monthlyPlanId={planId}
             procedures={planList}
+            planOnly={pickerEntry.source === 'external'}
             entryDate={pickerEntry.date} durationMinutes={pickerEntry.duration_minutes}
             anchorRect={pickerRect} onSelect={handlePickerSelect} onClose={handlePickerClose}
           />

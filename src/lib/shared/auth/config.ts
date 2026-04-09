@@ -29,8 +29,10 @@ export const getMsalConfig = (): Configuration => ({
   },
   system: {
     // v5: iframeHashTimeout/loadFrameTimeout → iframeBridgeTimeout/popupBridgeTimeout
-    iframeBridgeTimeout: 5000,
-    popupBridgeTimeout: 5000,
+    // На dev Webpack может медленно отдавать /blank.html при первом запросе —
+    // 5с недостаточно, получаем BrowserAuthError: timed_out. Ставим 15с.
+    iframeBridgeTimeout: 15000,
+    popupBridgeTimeout: 15000,
     loggerOptions: {
       loggerCallback: (level, message, containsPii) => {
         if (containsPii) return;

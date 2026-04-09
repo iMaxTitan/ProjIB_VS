@@ -208,17 +208,27 @@ export async function deleteEntry(
     .single();
 
   if (fetchErr || !data) throw new Error('Запис не знайдено');
-  if ((data as Record<string, unknown>).daily_task_id) {
+  if (data.source !== 'plan') throw new Error('Зовнішні події не можна видаляти');
+
+  const taskId = (data as Record<string, unknown>).daily_task_id;
+  if (taskId) {
     const { data: taskRow } = await db
       .from('daily_tasks')
       .select('task_type')
-      .eq('daily_task_id', (data as Record<string, unknown>).daily_task_id)
+      .eq('daily_task_id', taskId)
       .single();
     if (taskRow?.task_type === 'completed') {
       throw new Error('Запис зібрано в задачу, видалення заблоковано');
     }
+    // Unlink task from slot — keep the plan entry
+    const { error } = await db
+      .from('weekly_calendar_entries')
+      .update({ daily_task_id: null, task_template_id: null, needs_push: false, updated_at: new Date().toISOString() })
+      .eq('id', entryId)
+      .eq('employee_id', userId);
+    if (error) throw error;
+    return { outlookEventId: data.outlook_event_id };
   }
-  if (data.source !== 'plan') throw new Error('Зовнішні події не можна видаляти');
 
   const { error } = await db
     .from('weekly_calendar_entries')
