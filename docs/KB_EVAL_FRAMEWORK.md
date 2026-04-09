@@ -166,7 +166,47 @@ WHERE document_id = '<uuid>'
 
 ## История
 
-### Prod-representative baseline — 2026-04-09
+### Cross-category fix — 2026-04-09 (after deploy)
+
+Always-on parallel cross-category search (`search.ts`). Removed lazy fallback (similarity < 0.42) and deterministic retry — cross-category chunks are merged upfront.
+
+```
+KB Eval — 46 test cases (via prod searchAndAnswer)
+Resolved gold for 17/46 cases.
+
+STAGE GOLD RETENTION  (17 cases with resolved gold)
+  Raw candidates:     0.882
+  After scope-boost:  0.882
+  After rerank:       0.706
+  After diversity:    0.647   ← top10 input to synthesis
+  After expansion:    0.647
+
+RETRIEVAL
+  Recall@10:          0.529
+  MRR@10:             0.288
+  WrongScope@3:       0/46    ✅
+SYNTHESIS
+  KeywordHit:         0.866
+  NegativeHit:        0/46    ✅
+  Refused:            3/46    (all expected: priests, secureboot, critical-infrastructure)
+  Deterministic retry:0/46
+```
+
+**Delta vs pre-fix baseline (same test set, same day):**
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| Recall@10 | 0.471 | **0.529** | +12% |
+| MRR@10 | 0.181 | **0.288** | +59% |
+| KeywordHit | 0.824 | **0.866** | +5% |
+| Refused | 8/46 (17%) | **3/46 (6.5%)** | −62% |
+| Gold in raw | 0.588 | **0.882** | +50% |
+
+**Fixed cases:** `kzpp-work-hours`, `kzpp-labor-contract-definition`, `kzpp-employment-age` (КЗпП queries classified as HR now find legal-tagged КЗпП), `mandatory-medical-exam`, `cyber-authorized-body`, `passwords-browser`.
+
+**Root cause:** Category filter was a hard gate — domain search for `hr` never found КЗпП (tagged `legal`). Old fallback only triggered when similarity < 0.42, but irrelevant HR docs scored above that threshold, masking the problem.
+
+### Prod-representative baseline — 2026-04-09 (before fix)
 
 Test set rebuilt from **real prod query-log** (633 queries, 2026-03-02 → 2026-04-07). 46 cases, 17 with pattern-based gold. Stratified: legal (16), ib (12), hr (12), it (2), refusal-expected (4). Includes 5 known refused queries from prod to validate pipeline gaps.
 
