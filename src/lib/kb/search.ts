@@ -221,26 +221,27 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
     ? fuzzyMatchSlug(categoryHint, await loadCategories(db))
     : (domain !== 'general' ? (domain as string) : null);
 
-  const searchResult = await runMultiSearch(subQueries, embeddings, db, categorySlug);
+  // Always run both domain-scoped and all-category searches in parallel.
+  // Domain filter alone misses cross-domain docs (e.g. КЗпП tagged 'legal' for an HR query).
+  const [searchResult, allCategoryResult] = await Promise.all([
+    runMultiSearch(subQueries, embeddings, db, categorySlug),
+    categorySlug ? runMultiSearch(subQueries, embeddings, db, null) : Promise.resolve(null),
+  ]);
   let mergedChunks = searchResult.chunks;
   let successAttempt = searchResult.attempt;
 
-  // If domain filter returned nothing or top score is weak, also search all categories
-  const LOW_SCORE_THRESHOLD = 0.42;
-  const topFiltered = mergedChunks[0]?.similarity ?? 0;
-  if (categorySlug && (!mergedChunks.length || topFiltered < LOW_SCORE_THRESHOLD)) {
-    const allResult = await runMultiSearch(subQueries, embeddings, db, null);
-    if (allResult.chunks.length && (allResult.chunks[0]?.similarity ?? 0) > topFiltered) {
-      // Merge: add cross-category chunks that score higher
-      for (const c of allResult.chunks) {
-        if (!mergedChunks.some(m => m.chunk_id === c.chunk_id)) {
-          mergedChunks.push(c);
-        }
+  // Merge cross-category results: add chunks not already found by domain search
+  if (allCategoryResult && allCategoryResult.chunks.length) {
+    let added = 0;
+    for (const c of allCategoryResult.chunks) {
+      if (!mergedChunks.some(m => m.chunk_id === c.chunk_id)) {
+        mergedChunks.push(c);
+        added++;
       }
-      mergedChunks.sort((a, b) => b.similarity - a.similarity);
-      if (!successAttempt) successAttempt = allResult.attempt;
-      logger.prod('[kb/search] cross-category fallback: merged', allResult.chunks.length, 'extra chunks (top filtered was', topFiltered.toFixed(3) + ')');
     }
+    mergedChunks.sort((a, b) => b.similarity - a.similarity);
+    if (!successAttempt) successAttempt = allCategoryResult.attempt;
+    if (added > 0) logger.prod('[kb/search] cross-category merge:', added, 'extra chunks from all-category search');
   }
 
   // 3.0a. Apply doc-title scope filter AFTER all retrieval+fallback merges
@@ -316,55 +317,19 @@ export async function searchAndAnswer(query: string, options: KBSearchOptions): 
     debug.rerankTopScore = rerankTopScore;
   }
 
-  // 5. Single quality gate — after rerank
-  const RETRY_THRESHOLD = 0.20;
+  // 5. Quality gate — refuse if rerank top score is below threshold.
+  //    Deterministic retry removed: cross-category chunks are already merged at step 3.
   if (rerankTopScore !== null && rerankTopScore < RERANK_REFUSE_THRESHOLD) {
-    // 5.1. Deterministic retry: if score is very low, try broader search
-    if (categorySlug && rerankTopScore < RETRY_THRESHOLD) {
-      logger.prod('[kb/search] deterministic retry: dropping category filter, score', rerankTopScore.toFixed(3));
-      const retryResult = await runMultiSearch(subQueries, embeddings, db, null);
-      if (retryResult.chunks.length > 0) {
-        const retryReranked = await rerankChunks(query, retryResult.chunks, RERANK_FETCH_K, undefined);
-        const retryTop = (retryReranked[0] as KBChunk & { _rerank_score?: number })?._rerank_score ?? 0;
-        if (retryTop >= RERANK_REFUSE_THRESHOLD) {
-          logger.prod('[kb/search] retry succeeded: score', retryTop.toFixed(3));
-          // Use retry results — continue to diversity+synthesis
-          reranked.length = 0;
-          reranked.push(...retryReranked);
-          reranked.sort((a, b) => ((b as KBChunk & { _rerank_score?: number })._rerank_score ?? 0) - ((a as KBChunk & { _rerank_score?: number })._rerank_score ?? 0));
-          reranked.splice(RERANK_KEEP_K);
-          if (debug) {
-            debug.retried = true;
-            debug.rerank = reranked.map(c => c.chunk_id);
-            debug.rerankTopScore = (reranked[0] as KBChunk & { _rerank_score?: number })?._rerank_score ?? null;
-          }
-          // Skip refuse, fall through to diversity
-        } else {
-          // Retry also failed — refuse
-          logger.prod('[kb/search] retry also failed:', retryTop.toFixed(3), '→ refuse');
-          if (source) logKBQuery({
-            user_id: userId || null, user_role: role, source,
-            query_original: query, query_translated: queryTranslatedLog,
-            category_hint: categorySlug, category_detected: detectedDomain || null,
-            top_score: topScore, chunks_found: mergedChunks.length, search_attempt: 'retry_failed',
-            ai_refused: true, synthesis_cost: 0, rerank_top_score: rerankTopScore,
-            anonymous_name: anonymousName || null,
-          });
-          return earlyReturn(NO_RESULTS_TEXT);
-        }
-      }
-    } else {
-      logger.prod('[kb/search] quality gate: rerank', rerankTopScore.toFixed(3), '→ refuse');
-      if (source) logKBQuery({
-        user_id: userId || null, user_role: role, source,
-        query_original: query, query_translated: queryTranslatedLog,
-        category_hint: categorySlug, category_detected: detectedDomain || null,
-        top_score: topScore, chunks_found: mergedChunks.length, search_attempt: successAttempt,
-        ai_refused: true, synthesis_cost: 0, rerank_top_score: rerankTopScore,
-        anonymous_name: anonymousName || null,
-      });
-      return earlyReturn(NO_RESULTS_TEXT);
-    }
+    logger.prod('[kb/search] quality gate: rerank', rerankTopScore.toFixed(3), '→ refuse');
+    if (source) logKBQuery({
+      user_id: userId || null, user_role: role, source,
+      query_original: query, query_translated: queryTranslatedLog,
+      category_hint: categorySlug, category_detected: detectedDomain || null,
+      top_score: topScore, chunks_found: mergedChunks.length, search_attempt: successAttempt,
+      ai_refused: true, synthesis_cost: 0, rerank_top_score: rerankTopScore,
+      anonymous_name: anonymousName || null,
+    });
+    return earlyReturn(NO_RESULTS_TEXT);
   }
 
   // 6. Diversity + logging

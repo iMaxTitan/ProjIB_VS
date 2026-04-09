@@ -31,6 +31,7 @@ export interface CalendarEntry {
   id: string;
   outlook_event_id: string;
   daily_task_id: string | null;
+  monthly_plan_id: string | null;
   updated_at: string;
 }
 
@@ -65,11 +66,16 @@ export async function detectRemovedEntries(
       }
     }
   }
-  // Remove external entries that disappeared from Outlook
+  // Remove external entries that disappeared from Outlook (keep if linked to task or plan)
   for (const [outlookId, entry] of entryMap) {
     if (graphEventIds.has(outlookId)) continue;
-    if (entry.daily_task_id) {
-      logger.info(`[calendar-sync] Skipping removal of entry ${entry.id} — has daily_task_id`);
+    if (entry.daily_task_id || entry.monthly_plan_id) {
+      // Linked to plan — convert to plan entry
+      const { error } = await db.from('weekly_calendar_entries')
+        .update({ source: 'plan', outlook_event_id: null, needs_push: false, outlook_modified: false, updated_at: new Date().toISOString() })
+        .eq('id', entry.id);
+      if (error) { logger.error(`[calendar-sync] detectRemoved convert error: ${error.message}`); }
+      else { result.deleted++; logger.info(`[calendar-sync] Entry ${entry.id} converted to plan (Outlook event gone)`); }
       continue;
     }
     const { error } = await db.from('weekly_calendar_entries').delete().eq('id', entry.id);
@@ -172,8 +178,14 @@ export async function reconcileEvent(
   // Handle removals
   if (event['@removed']) {
     if (!existing) return;
-    if (existing.daily_task_id) {
-      logger.info(`[calendar-sync] Skipping delete for entry ${existing.id} — has daily_task_id`);
+    // Linked to plan — convert to plan entry (event deleted in Outlook, plan stays)
+    if (existing.daily_task_id || existing.monthly_plan_id) {
+      const { error } = await db.from('weekly_calendar_entries')
+        .update({ source: 'plan', outlook_event_id: null, needs_push: false, outlook_modified: false, updated_at: new Date().toISOString() })
+        .eq('id', existing.id);
+      if (error) throw new Error(`convert to plan failed: ${error.message}`);
+      logger.info(`[calendar-sync] Entry ${existing.id} converted to plan (Outlook event deleted)`);
+      result.deleted++;
       return;
     }
     const { error } = await db.from('weekly_calendar_entries').delete().eq('id', existing.id);

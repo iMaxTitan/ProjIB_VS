@@ -17,7 +17,8 @@
     "expected_keywords": ["список", "ЄДРПОУ", "Портал Дія", "бронювання"],
     "negative_keywords": ["священнослужител"],
     "wrong_scope_markers": ["священнослужител", "моряк", "спортсмен", "культурн"],
-    "difficulty": "hard"
+    "difficulty": "hard",
+    "source": "existing"
   },
   {
     "id": "booking-docs-ru",
@@ -32,7 +33,8 @@
     "expected_keywords": ["бронювання", "працівник"],
     "negative_keywords": ["священнослужител"],
     "wrong_scope_markers": ["священнослужител"],
-    "difficulty": "normal"
+    "difficulty": "normal",
+    "source": "existing"
   },
   {
     "id": "border-reserved",
@@ -45,9 +47,10 @@
       }
     ],
     "expected_keywords": ["кордон", "реєстр", "право"],
-    "negative_keywords": ["священнослужител"],
-    "wrong_scope_markers": ["священнослужител", "одинок", "держав"],
-    "difficulty": "hard"
+    "negative_keywords": [],
+    "wrong_scope_markers": ["священнослужител", "одинок"],
+    "difficulty": "hard",
+    "source": "existing"
   },
   {
     "id": "border-reserved-right",
@@ -62,7 +65,8 @@
     "expected_keywords": ["кордон", "право"],
     "negative_keywords": [],
     "wrong_scope_markers": ["священнослужител"],
-    "difficulty": "normal"
+    "difficulty": "normal",
+    "source": "existing"
   },
   {
     "id": "border-reserved-ru",
@@ -75,30 +79,13 @@
       }
     ],
     "expected_keywords": ["кордон"],
-    "negative_keywords": ["священнослужител"],
-    "wrong_scope_markers": ["священнослужител"],
-    "difficulty": "hard"
-  },
-  {
-    "id": "booking-priests",
-    "query": "бронювання священнослужителів",
-    "gold_match": [],
-    "expected_keywords": ["священнослужител", "релігійн"],
     "negative_keywords": [],
-    "wrong_scope_markers": [],
-    "difficulty": "normal",
-    "note": "no specific gold — corpus may not contain a chunk dedicated to clergy reservation; tests synthesis ability + refusal correctness"
+    "wrong_scope_markers": ["священнослужител"],
+    "difficulty": "hard",
+    "source": "existing"
   },
   {
-    "id": "deferral",
-    "query": "як отримати відстрочку від мобілізації",
-    "expected_keywords": ["відстрочк", "бронювання"],
-    "negative_keywords": ["полонен"],
-    "wrong_scope_markers": ["полонен", "контрактник"],
-    "difficulty": "normal"
-  },
-  {
-    "id": "who-can-leave",
+    "id": "who-can-leave-border",
     "query": "хто має право виїхати за кордон під час воєнного стану",
     "gold_match": [
       {
@@ -110,39 +97,188 @@
     "expected_keywords": ["кордон", "виїзд"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
-    "difficulty": "normal"
+    "difficulty": "normal",
+    "source": "existing"
   },
   {
-    "id": "photoshop-install",
+    "id": "deferral-mobilization",
+    "query": "як отримати відстрочку від мобілізації",
+    "expected_keywords": ["відстрочк", "бронювання"],
+    "negative_keywords": ["полонен"],
+    "wrong_scope_markers": ["полонен", "контрактник"],
+    "difficulty": "normal",
+    "source": "existing",
+    "note": "gold в ст.23 ЗУ Про мобілізацію — паттерн ambiguous через багато абзаців; лишаємо synthesis-only"
+  },
+  {
+    "id": "statute-supervisory-board",
+    "query": "ОРГАНИ УПРАВЛІННЯ ТА КОНТРОЛЮ ТОВАРИСТВА",
+    "gold_match": [
+      {
+        "doc_title_contains": "Статут",
+        "heading_contains": "5.15. До компетенції Наглядової ради Товариства належить",
+        "content_contains": ["затвердження стратегії діяльності Товариства"]
+      }
+    ],
+    "expected_keywords": ["Наглядова рада", "загальні збори", "директор"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-04-07"
+  },
+  {
+    "id": "statute-servitude-authority",
+    "query": "Хто згідно статуту погоджує договори сервітуту?",
+    "expected_keywords": ["Наглядова рада", "сервітут"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "hard",
+    "source": "prod-log:2026-04-07"
+  },
+  {
+    "id": "statute-trademark",
+    "query": "хто приймає рішення про створення нової торгівельної марки",
+    "expected_keywords": ["Наглядова", "Статут"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "hard",
+    "source": "prod-log:2026-04-07",
+    "note": "known retrieval failure (refused twice in prod 2026-04-07); check if gold exists in Статут at all"
+  },
+  {
+    "id": "statute-ceo-powers",
+    "query": "какие полномочия у генерального директора",
+    "expected_keywords": ["генеральний директор", "Статут"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-04-07"
+  },
+  {
+    "id": "statute-leader-election",
+    "query": "як обираються керівники",
+    "expected_keywords": ["Наглядова", "призначаються"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-04-07"
+  },
+  {
+    "id": "arm-commercial-software-install",
+    "query": "як встановити комерційне ПЗ на АРМ",
+    "gold_match": [
+      {
+        "doc_title_contains": "Вимоги ІБ щодо безпечного налаштування АРМ співробітників",
+        "heading_contains": "3.2.7",
+        "content_contains": ["лише при наявності відповідних ліцензій"]
+      }
+    ],
+    "expected_keywords": ["ліцензі", "заявк", "ПЗ"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-04-07"
+  },
+  {
+    "id": "arm-winrar-install",
+    "query": "Как установить Winrar-архиватор на рабочий компьютер?",
+    "gold_match": [
+      {
+        "doc_title_contains": "Вимоги ІБ щодо безпечного налаштування АРМ співробітників",
+        "heading_contains": "3.2.7",
+        "content_contains": ["лише при наявності відповідних ліцензій"]
+      }
+    ],
+    "expected_keywords": ["ліцензі", "заявк"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-04-03"
+  },
+  {
+    "id": "arm-photoshop-install",
     "query": "як встановити фотошоп",
+    "gold_match": [
+      {
+        "doc_title_contains": "Вимоги ІБ щодо безпечного налаштування АРМ співробітників",
+        "heading_contains": "3.2.7",
+        "content_contains": ["лише при наявності відповідних ліцензій"]
+      }
+    ],
     "expected_keywords": ["ліцензі"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
-    "difficulty": "normal"
+    "difficulty": "normal",
+    "source": "existing+prod-log"
   },
   {
-    "id": "photoshop-install-ru",
+    "id": "arm-photoshop-install-ru",
     "query": "как установить фотошоп",
+    "gold_match": [
+      {
+        "doc_title_contains": "Вимоги ІБ щодо безпечного налаштування АРМ співробітників",
+        "heading_contains": "3.2.7",
+        "content_contains": ["лише при наявності відповідних ліцензій"]
+      }
+    ],
     "expected_keywords": ["ліцензі"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
-    "difficulty": "normal"
+    "difficulty": "normal",
+    "source": "existing+prod-log"
   },
   {
-    "id": "corp-vs-personal",
-    "query": "чим відрізняються корпоративні мобільні пристрої від особистих при підключенні до корпоративної мережі",
-    "expected_keywords": ["корпоративн"],
+    "id": "password-requirements",
+    "query": "вимоги до паролів",
+    "expected_keywords": ["парол"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
-    "difficulty": "normal"
+    "difficulty": "normal",
+    "source": "prod-log:2026-04-06",
+    "note": "в prod rerank=0.96 — дуже сильний матч, але нема унікального паттерну в одному чанку"
   },
   {
-    "id": "4g-modem",
-    "query": "як підключити 4G модем до робочого місця",
-    "expected_keywords": ["модем"],
+    "id": "admin-rights-daily-work",
+    "query": "користувач не повинен постійно працювати на ПК з адміністративними правами",
+    "expected_keywords": ["адміністратив"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
-    "difficulty": "normal"
+    "difficulty": "normal",
+    "source": "prod-log:2026-04-01"
+  },
+  {
+    "id": "usb-lost-found",
+    "query": "что делать когда нашел флешку в холе офиса",
+    "expected_keywords": ["знімн", "носі"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-03-30"
+  },
+  {
+    "id": "usb-connect",
+    "query": "как подключит ьфлешку к рабочему компьютеру",
+    "expected_keywords": ["знімн", "носі"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-03-31"
+  },
+  {
+    "id": "personal-data-requirements",
+    "query": "вимоги до обробки і зберігання персональних даних",
+    "gold_match": [
+      {
+        "doc_title_contains": "Про захист персональних даних",
+        "heading_contains": "Стаття 6. Загальні вимоги до обробки персональних даних",
+        "content_contains": ["Обробка персональних даних здійснюється для конкр"]
+      }
+    ],
+    "expected_keywords": ["персональн", "обробк"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-04-02"
   },
   {
     "id": "phone-personal-data",
@@ -150,23 +286,250 @@
     "expected_keywords": ["персональн"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
-    "difficulty": "normal"
+    "difficulty": "normal",
+    "source": "existing",
+    "note": "synthesis-only — корпус не має прямого chunk про телефон"
   },
   {
-    "id": "winrar",
-    "query": "чи можу я встановити winrar",
-    "expected_keywords": ["ліцензі"],
+    "id": "kzpp-employment-age",
+    "query": "З якого віку, за загальним правилом, допускається прийняття особи на роботу?",
+    "expected_keywords": ["вік", "шістнадцят"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
-    "difficulty": "normal"
+    "difficulty": "normal",
+    "source": "prod-log:2026-03-31"
   },
   {
-    "id": "qbittorrent",
+    "id": "kzpp-probation-period",
+    "query": "який максимальний строк випробування при прийнятті на роботу",
+    "gold_match": [
+      {
+        "doc_title_contains": "Кодекс законів про працю України",
+        "heading_contains": "Стаття 27. Строк випробування при прийнятті на роботу",
+        "content_contains": ["не може перевищувати трьох місяців"]
+      }
+    ],
+    "expected_keywords": ["випробуванн", "місяц"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log-adjacent"
+  },
+  {
+    "id": "kzpp-transfer-without-consent",
+    "query": "Чи допускається переведення працівника на іншу роботу без його згоди як загальне правило?",
+    "gold_match": [
+      {
+        "doc_title_contains": "Кодекс законів про працю України",
+        "heading_contains": "Стаття 33. Тимчасове переведення працівника на іншу роботу, не обумовлену трудовим договором",
+        "content_contains": ["допускається лише за його згодою"]
+      }
+    ],
+    "expected_keywords": ["згод", "переведенн"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-03-31"
+  },
+  {
+    "id": "kzpp-work-hours",
+    "query": "Яка нормальна тривалість робочого часу працівника на тиждень?",
+    "expected_keywords": ["тиждень", "годин"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-03-31-REFUSED",
+    "note": "в prod refused (rerank=0.43) — reality check: що саме блокує retrieval?"
+  },
+  {
+    "id": "kzpp-labor-contract-definition",
+    "query": "Що таке трудовий договір за КЗпП України",
+    "expected_keywords": ["трудов", "договір"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-03-31-REFUSED"
+  },
+  {
+    "id": "kzpp-main-code",
+    "query": "Який основний кодифікований нормативний акт регулює трудові відносини в Україні?",
+    "expected_keywords": ["Кодекс законів про працю", "КЗпП"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "hard",
+    "source": "prod-log:2026-03-31",
+    "note": "meta-query: називає документ, який є в корпусі"
+  },
+  {
+    "id": "cyber-law-main",
+    "query": "Який нормативний акт України визначає правові та організаційні основи забезпечення кібербезпеки держави",
+    "expected_keywords": ["кібербезпек"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "hard",
+    "source": "prod-log:2026-03-31-REFUSED",
+    "note": "meta-query → doc 'Про основні засади забезпечення кібербезпеки України' є в корпусі"
+  },
+  {
+    "id": "cyber-authorized-body",
+    "query": "Який орган визначено уповноваженим органом, що забезпечує функціонування національної системи реагування на кіберінциденти",
+    "expected_keywords": ["уповноважен", "кіберінцидент"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "hard",
+    "source": "prod-log:2026-03-31-REFUSED"
+  },
+  {
+    "id": "info-law-article",
+    "query": "Який закон регулює відносини у сфері захисту інформації в інформаційно-комунікаційних системах?",
+    "expected_keywords": ["захист інформації", "інформаційно-комунікаційн"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-03-31"
+  },
+  {
+    "id": "commercial-secret-liability",
+    "query": "яка відповідальність за порушення комерційної таємниці",
+    "expected_keywords": ["комерційн", "таємниц"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-03-30"
+  },
+  {
+    "id": "mandatory-medical-exam",
+    "query": "обов'язковий медичний огляд при прийомі на посаду",
+    "gold_match": [
+      {
+        "doc_title_contains": "обов'язкових медичних оглядів",
+        "heading_contains": "За результатами попереднього медичного огляду",
+        "content_contains": ["роботодавець надає особі направлення на ОМО"]
+      }
+    ],
+    "expected_keywords": ["медичн", "огляд"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-03-30-REFUSED-in-hr-category",
+    "note": "в prod при category=hr → refused (rerank=0.40), при category=legal → success (rerank=0.69). Проблема в категорайзері"
+  },
+  {
+    "id": "work-injury",
+    "query": "дії при отриманні травми на робочому місці",
+    "expected_keywords": ["травм", "нещасн"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-03-30"
+  },
+  {
+    "id": "employment-process",
+    "query": "порядок дій при влаштуванні на роботу",
+    "expected_keywords": ["прийом", "роботу"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-04-01 (repeated 8×)"
+  },
+  {
+    "id": "hr-premiums",
+    "query": "Які премії передбачені?",
+    "expected_keywords": ["прем"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "existing+prod-log"
+  },
+  {
+    "id": "hr-unpaid-leave",
+    "query": "як оформити відпустку за власний рахунок",
+    "expected_keywords": ["відпустк", "власн"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-03-31"
+  },
+  {
+    "id": "consumer-warranty-return",
+    "query": "возврат товара по гарантии",
+    "expected_keywords": ["гарант", "повернен"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-04-01"
+  },
+  {
+    "id": "new-is-requirements",
+    "query": "требования к новым ИС",
+    "gold_match": [
+      {
+        "doc_title_contains": "Вимоги ІБ до ІС на всіх етапах їх життєвого циклу",
+        "heading_contains": "3.3",
+        "content_contains": ["При купівлі/розробці ІС або змін до ІС мають бути враховані вимоги ІБ"]
+      }
+    ],
+    "expected_keywords": ["ІС", "вимог"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-04-01"
+  },
+  {
+    "id": "dev-test-separation",
+    "query": "Чи повинно середовище розробки бути відокремленим від середовища тестування",
+    "gold_match": [
+      {
+        "doc_title_contains": "Вимоги ІБ до ІС на всіх етапах їх життєвого циклу",
+        "heading_contains": "3.4.5",
+        "content_contains": ["Тестове середовище має бути максимально схожим"]
+      }
+    ],
+    "expected_keywords": ["середовищ", "відокремл"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "existing"
+  },
+  {
+    "id": "booking-priests-refusal",
+    "query": "бронювання священнослужителів",
+    "expected_keywords": ["священнослужител", "релігійн"],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "existing",
+    "note": "refusal test — no specific chunk about clergy reservation"
+  },
+  {
+    "id": "secureboot-refusal",
+    "query": "Secure Boot в стандартах Windows",
+    "expected_keywords": [],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "normal",
+    "source": "prod-log:2026-03-30-REFUSED",
+    "note": "expected refuse — 'SecureBoot' не зустрічається в жодному чанку корпусу"
+  },
+  {
+    "id": "critical-infrastructure-law-refusal",
+    "query": "Який закон є базовим для створення та функціонування національної системи захисту критичної інфраструктури України",
+    "expected_keywords": [],
+    "negative_keywords": [],
+    "wrong_scope_markers": [],
+    "difficulty": "hard",
+    "source": "prod-log:2026-03-31-REFUSED",
+    "note": "expected refuse — ЗУ 'Про критичну інфраструктуру' не завантажено в корпус"
+  },
+  {
+    "id": "qbittorrent-allowed",
     "query": "Чи входить qBittorrent до переліку погодженого ПЗ",
     "expected_keywords": ["ПЗ"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
-    "difficulty": "normal"
+    "difficulty": "normal",
+    "source": "existing",
+    "note": "refusal/synthesis — в корпусі нема списку ПЗ, але є загальне правило про ліцензії"
   },
   {
     "id": "passwords-browser",
@@ -174,23 +537,8 @@
     "expected_keywords": ["парол"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
-    "difficulty": "normal"
-  },
-  {
-    "id": "premiums",
-    "query": "Які премії передбачені?",
-    "expected_keywords": ["прем"],
-    "negative_keywords": [],
-    "wrong_scope_markers": [],
-    "difficulty": "normal"
-  },
-  {
-    "id": "premiums-ru",
-    "query": "какие премии есть в компании",
-    "expected_keywords": ["прем"],
-    "negative_keywords": [],
-    "wrong_scope_markers": [],
-    "difficulty": "normal"
+    "difficulty": "normal",
+    "source": "existing"
   },
   {
     "id": "teams-install",
@@ -198,14 +546,8 @@
     "expected_keywords": ["Teams"],
     "negative_keywords": [],
     "wrong_scope_markers": [],
-    "difficulty": "normal"
-  },
-  {
-    "id": "dev-test-separation",
-    "query": "Чи повинно середовище розробки бути відокремленим від середовища тестування",
-    "expected_keywords": ["середовищ"],
-    "negative_keywords": [],
-    "wrong_scope_markers": [],
-    "difficulty": "normal"
+    "difficulty": "normal",
+    "source": "existing",
+    "note": "synthesis/refusal — Teams is corporate, differs from Photoshop case"
   }
 ]

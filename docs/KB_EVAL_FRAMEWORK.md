@@ -1,6 +1,6 @@
 ---
 doc_type: kb_eval_reference
-last_verified: 2026-04-08
+last_verified: 2026-04-09
 verified_against:
   - scripts/kb-eval.ts
   - scripts/eval-env.ts
@@ -165,6 +165,46 @@ WHERE document_id = '<uuid>'
 3. В `kb-eval.ts` посчитать `goldIn<Stage>` через `countGold(dbg.<field>)` и вывести в Summary stage retention.
 
 ## История
+
+### Prod-representative baseline — 2026-04-09
+
+Test set rebuilt from **real prod query-log** (633 queries, 2026-03-02 → 2026-04-07). 46 cases, 17 with pattern-based gold. Stratified: legal (16), ib (12), hr (12), it (2), refusal-expected (4). Includes 5 known refused queries from prod to validate pipeline gaps.
+
+```
+KB Eval — 46 test cases (via prod searchAndAnswer)
+Resolved gold for 17/46 cases.
+
+STAGE GOLD RETENTION  (17 cases with resolved gold)
+  Raw candidates:     0.588
+  After scope-boost:  0.588
+  After rerank:       0.529
+  After diversity:    0.529   ← top10 input to synthesis
+  After expansion:    0.529
+
+RETRIEVAL
+  Recall@10:          0.471
+  MRR@10:             0.181
+  WrongScope@3:       0/46    ✅
+SYNTHESIS
+  KeywordHit:         0.824
+  NegativeHit:        0/46    ✅
+  Refused:            8/46    (3 expected: priests, secureboot, passwords-browser; 5 unexpected)
+  Deterministic retry:0/46
+```
+
+**Diagnostic implications:**
+
+1. **KZpP (Кодекс законів про працю) is the main retrieval gap.** 3 of 5 unexpected refusals are KZpP queries — the doc is enormous, chunks are long/formal, rerank scores are low (0.43-0.48). Same pattern seen in prod-log 2026-03-31.
+2. **Reranker drops 10% of gold.** Raw retention 0.588 → post-rerank 0.529. Less than the 14% hypothesis from prior baseline, but still measurable.
+3. **Booking-docs gold fails.** `booking-docs` + `booking-docs-ru` show R=0 despite being the most-tested topic. Gold chunks rank outside top-10 — possibly chunking issue (gold is in a very specific sub-section of a long doc).
+4. **Synthesis compensates well.** KeywordHit 0.824 despite Recall 0.471 — synthesis reconstructs from neighbors. But for KZpP it can't compensate (refused outright).
+5. **Prod refuse-rate correlation:** Eval shows 17.4% refuse, prod post-tuning window (04-01→04-07) showed 6.1%. Delta explained by: eval intentionally includes known-refused queries from prod (stress test), plus 3 expected refusals.
+6. **WrongScope remains 0** across all 46 cases — scope filter works well.
+
+**Next actions (priority order):**
+- Improve KZpP retrieval: consider chunking strategy for large codex documents, or KZpP-specific embeddings boosting
+- Investigate `booking-docs` gold ranking — may need chunker adjustment for multi-section reservation docs
+- Add gold patterns to remaining 29 synthesis-only cases as specific chunks become identifiable
 
 ### Honest baseline — 2026-04-08
 
